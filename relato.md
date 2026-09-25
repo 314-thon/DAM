@@ -73,4 +73,4 @@ El juego concluye con un mensaje educativo institucional que enmarca la problem�
 
 > *“Las plataformas de apuestas están algorítmicamente diseñadas con una ventaja matemática favorable a quien las gestiona. Ganar en una jugada es una casualidad del azar, no una señal de control. El dinero digital sigue siendo dinero real.”*
 
-Finalmente, la aplicación ofrece botones directos y confidenciales de acceso a **canales públicos de orientación y asistencia sobre consumos problemáticos y salud mental**, transformando la simulación en una herramienta genuina de prevención y acompañamiento escolar.
+Finalmente, la aplicación ofrece botones directos y confidenciales de acceso a **canales públicos de orientación y asistencia sobre consumos problemáticos y salud mental**, transformando la simulación en una herramienta genuina de prevención y acompañamiento escolar. 
