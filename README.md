@@ -62,29 +62,38 @@ Ficha exhaustiva del usuario modelo **Mateo R. (15 años)**, sus hábitos de con
 
 ---
 
-### 2. Design System General y Layout Mobile
-Resumen integrado del sistema de diseño: principios de interfaz *Gamer Dark / Neon UI*, escala de tipografías, componentes interactivos y esquema ergonómico en pantalla móvil.
+### 2. Design System General y Flujo de Pantallas en Figma
+Resumen integrado del sistema de diseño y flujo real de pantallas diseñado en Figma para el juego *Una decisión más / Juego Limpio*:
 
 ![Design System](img/design_system.png)
 
+#### Flujo Continuo de Pantallas (Figma):
+1. **Splash / Identificación:** Pantalla de bienvenida con el título *"Juego Limpio"* y campo para ingresar el nombre/apodo.
+2. **Personalización de Avatar:** Selección táctil de 3 avatares con anillos luminosos Neón y botón *"Siguiente"*.
+3. **Bienvenida al Personaje:** Pantalla de saludo a Mateo (*"¡Hola Mateo! ¿Estás listo para jugar?"*) y botón *"Iniciar Historia"*.
+4. **Jornada Lunes (Trivia Contrarreloj):** Diálogo de WhatsApp del cajero clandestino, barra temporal interactiva y botones de respuesta (*"Apostar $1.000"* / *"No apostar"*).
+5. **Veredicto y Acompañamiento:** Visualización de deuda (`Deuda $ 0` / `Deuda $ 1.000`) y acceso directo a canales oficiales de orientación (Boti WhatsApp +54 9 11 5050-0147 y Consumo Digital PBA 0800-222-5462).
+
+![Flujo de Pantallas](img/flujo_pantallas.png)
+
 ---
 
-### 3. Paleta de Colores y Códigos RGB
-Especificación técnica de la paleta cromática con valores HEX y RGB, contraste WCAG 2.1 AAA y justificación contextual de uso.
+### 3. Paleta de Colores y Códigos RGB (Figma)
+Especificación técnica de la paleta cromática real extraída del tablero de Figma con valores HEX y RGB, contraste WCAG 2.1 AAA y justificación contextual de uso.
 
 ![Colores y Códigos RGB](img/colores_rgb.png)
 
 | Color / Token | Valor HEX | Valor RGB | Función y Uso en la Interfaz |
 | :--- | :--- | :--- | :--- |
-| **Fondo Principal (Dark Slate)** | `#0D1117` | `RGB(13, 17, 23)` | Canvas base. Reduce la fatiga visual nocturna en la habitación de Mateo y refuerza la estética gamer. |
-| **Superficie / Cards** | `#161B22` | `RGB(22, 27, 34)` | Contenedores de diálogos de WhatsApp, tarjetas de situaciones y modales. |
-| **Contenedor Secundario** | `#21262D` | `RGB(33, 38, 45)` | Bordes estructurales, divisores y botones secundarios inactivos. |
-| **Neón Cyan (Acción Principal)** | `#00F0FF` | `RGB(0, 240, 255)` | Botones de decisión táctil, opciones interactivas y acentos de alto contraste a plena luz solar. |
-| **Neón Violet (Identidad Gamer)** | `#8A2BE2` | `RGB(138, 43, 226)` | Personalización de avatar, barra de progreso interactivo y acentos eSports. |
-| **Neón Coral (Alerta / Deuda)** | `#FF3366` | `RGB(255, 51, 102)` | Indicador crítico de `DEUDA`, opciones erróneas y parpadeo de los últimos 3 segundos del temporizador. |
-| **Neón Esmeralda (Éxito / Seguro)** | `#00FF88` | `RGB(0, 255, 136)` | Estado seguro (`DEUDA: $0`), selección correcta y pantalla de victoria dominical. |
-| **Texto Primario (High Contrast)** | `#FFFFFF` | `RGB(255, 255, 255)` | Títulos, enunciados de trivia y texto de opciones (Ratio > 12:1 WCAG AAA). |
-| **Texto Secundario (Muted Silver)**| `#94A3B8` | `RGB(148, 163, 184)` | Metadatos, timestamps de mensajes y etiquetas auxiliares sin recargar la pantalla. |
+| **Fondo General (Dark Slate)** | `#0D1117` | `RGB(13, 17, 23)` | Canvas base de la app. Reduce la fatiga visual nocturna en la habitación de Mateo y refuerza la atmósfera gamer. |
+| **Burbuja WhatsApp / Cards** | `#24142D` | `RGB(36, 20, 45)` | Fondo de mensajes de chat y tarjetas de situaciones, con borde magenta tenue (`#8E1E5C`). |
+| **Neón Fucsia / Magenta (Gradiente)** | `#E91E63` | `RGB(233, 30, 99)` | Inicio del gradiente en bordes de botones píldora (*"Siguiente"*, *"Iniciar Historia"*) y halo de avatar. |
+| **Neón Cyan (Gradiente)** | `#00E5FF` | `RGB(0, 229, 255)` | Fin del gradiente en botones, acentos interactivos y resplandor de alto contraste solar. |
+| **Verde Éxito (Billete / Deuda $0)** | `#57B956` | `RGB(87, 185, 86)` | Ilustración del billete de dinero, estado seguro `Deuda $ 0` y tramo seguro del temporizador. |
+| **Alerta / Tiempo Crítico** | `#FF3B30` | `RGB(255, 59, 48)` | Tramo final de urgencia en la barra de 10s y penalización en caso de selección errónea. |
+| **Texto Primario (High Contrast)** | `#FFFFFF` | `RGB(255, 255, 255)` | Títulos, diálogos y texto de botones (Ratio > 12:1 WCAG AAA). |
+| **Texto Secundario (Gris Claro)** | `#A0AEC0` | `RGB(160, 174, 192)` | Subtítulos (*"¿Cómo te llamás?"*), metadatos y etiquetas auxiliares. |
+| **Acento Violeta / Púrpura** | `#7B2CBF` | `RGB(123, 44, 191)` | Fondo atmosférico en pantallas de selección de avatar y bienvenida. |
 
 ---
 
@@ -93,24 +102,24 @@ Escala tipográfica unificada en `px` para garantizar consistencia entre platafo
 
 ![Tipografías](img/tipografias.png)
 
-* **Display / Splash Title (32px Bold, line-height 40px):** Pantalla de inicio, bienvenida y evaluación final.
-* **Título H1 / Días de Semana (24px Bold, line-height 32px):** Encabezados de jornada (Lunes a Domingo) y situaciones de impacto.
-* **Enunciado de Trivia (20px SemiBold, line-height 28px):** Preguntas y encrucijadas decisionales expuestas a Mateo.
-* **Cuerpo / Diálogos WhatsApp (16px Regular, line-height 24px):** Mensajes en formato chat de compañeros y descripciones reflexivas.
-* **Botones de Decisión Táctil (16px SemiBold, letter-spacing 0.5px):** Opciones de respuesta en botones de 52px de alto.
-* **Métrica de DEUDA y Temporizador (22px Bold Monospace):** Panel numérico superior de visualización instantánea.
+* **Display / Splash Title (36px Serif Bold, line-height 44px):** Título principal del juego (*"Juego Limpio"*) en pantalla splash.
+* **Título H1 / Días de Semana (26px Serif Bold, line-height 34px):** Encabezados de jornada (*"Lunes"*, *"Martes"*) en las pantallas de trivia.
+* **Subtítulo / Bienvenida (20px Sans Bold, line-height 28px):** Enunciados e interacción (*"¡Hola Mateo! ¿Estás listo para jugar?"*).
+* **Cuerpo / Diálogos WhatsApp (15px Sans Regular, line-height 22px):** Mensajes en formato chat del cajero y compañeros en pantalla.
+* **Botones de Flujo y Decisión (18px Sans Bold, letter-spacing 0.5px):** Textos dentro de los botones píldora (*"Iniciar Historia"*, *"Apostar $1.000"*, *"No apostar"*).
+* **Indicadores Numéricos y Horario (22px Sans Bold):** Panel superior de deuda (*"Deuda $ 0"*) y reloj contextual (*"[21:14]"*).
 
 ---
 
 ### 5. Botones y Ergonomía del Pulgar (Thumb Zone)
-Especificación de estados táctiles de botones y análisis ergonómico para uso con una sola mano.
+Especificación de los componentes de botones reales diseñados en Figma, sus estados y análisis ergonómico para uso con una sola mano.
 
 ![Botones](img/botones.png)
 
-* **Altura Táctil:** 52px (supera la recomendación mínima de 48px de accesibilidad para móviles).
-* **Ubicación:** Concentrados en el tercio inferior de la pantalla (*Thumb Zone*), optimizados para manipulación con el pulgar mientras el usuario viaja en transporte público o camina por la escuela.
-* **Separación:** Espaciado vertical de 12px entre opciones para evitar pulsaciones erróneas involuntarias (*fat-finger effect*) durante los 10 segundos de la trivia.
-* **Estados Interactivos:** Normal (borde neón sutil), Hover/Focus (resplandor cian), Pressed (relleno sólido contrastado) y Deshabilitado (opacidad atenuada).
+* **Forma y Estilo:** Formato píldora (*border-radius: 9999px*) con borde lineal de 2px en degradé Neón Fucsia-Cyan (`#E91E63` a `#00E5FF`) y fondo oscuro translúcido.
+* **Altura Táctil:** 52px (supera la recomendación mínima de 48px de accesibilidad para móviles), asegurando una pulsación cómoda sin errores.
+* **Ubicación:** Concentrados en el tercio inferior de la pantalla (*Thumb Zone*), optimizados para manipulación con el pulgar mientras el usuario viaja en colectivo o camina por la escuela.
+* **Separación:** Espaciado vertical de 14px entre opciones de decisión (*"Apostar $1.000"* vs. *"No apostar"*) para prevenir el efecto *fat-finger* durante la cuenta regresiva de 10 segundos.
 
 ---
 
@@ -119,12 +128,13 @@ Especificación de estados táctiles de botones y análisis ergonómico para uso
 ```text
 ├── README.md              # Documentación central, integrantes, roles, figma y galería
 ├── relato.md              # Relato completo de la partida y matriz de trivia semanal
-└── img/                   # Capturas y especificaciones visuales requeridas
+└── img/                   # Capturas y especificaciones visuales del proyecto
     ├── persona_usuaria.png # Ficha oficial de Mateo R. (Persona Usuaria)
     ├── design_system.png   # Panel maestro de Design System y layout mobile
-    ├── colores_rgb.png     # Paleta con códigos HEX y RGB + Justificación
+    ├── flujo_pantallas.png # Flujo de pantallas reales diseñadas en Figma
+    ├── colores_rgb.png     # Paleta oficial con códigos HEX y RGB (Figma)
     ├── tipografias.png     # Escala y jerarquía tipográfica en píxeles (px)
-    └── botones.png         # Componentes de botones, estados y ergonomía del pulgar
+    └── botones.png         # Componentes reales de botones píldora y ergonomía
 ```
 
 ---
