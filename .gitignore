@@ -11,6 +11,16 @@ desktop.ini
 *.njsproj
 *.sln
 *.sw?
+*.iml
+
+# Gradle & Android Build Files
+.gradle/
+build/
+app/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
 
 # Temporary / Scratch files
 scratch/
