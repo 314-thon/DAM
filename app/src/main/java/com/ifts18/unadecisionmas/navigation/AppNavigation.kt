@@ -39,16 +39,40 @@ fun AppNavigation(
             val playerName = backStackEntry.arguments?.getString("playerName") ?: "Mateo"
             FirstDecisionScreen(
                 playerName = playerName,
+                onApostarClick = {
+                    navController.navigate(Screen.InfoResources.createRoute(didBet = true))
+                },
+                onNoApostarClick = {
+                    navController.navigate(Screen.InfoResources.createRoute(didBet = false))
+                },
                 onNavigateToInfo = {
-                    navController.navigate(Screen.InfoResources.route)
+                    navController.navigate(Screen.InfoResources.createRoute(didBet = false))
+                },
+                onTimeout = {
+                    navController.navigate(Screen.InfoResources.createRoute(didBet = false))
                 }
             )
         }
 
-        composable(route = Screen.InfoResources.route) {
+        composable(
+            route = Screen.InfoResources.route,
+            arguments = listOf(
+                navArgument("didBet") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                }
+            )
+        ) { backStackEntry ->
+            val didBet = backStackEntry.arguments?.getBoolean("didBet") ?: false
             InfoResourcesScreen(
+                didBet = didBet,
                 onNavigateBack = {
                     navController.popBackStack()
+                },
+                onRestartGame = {
+                    navController.navigate(Screen.Welcome.route) {
+                        popUpTo(Screen.Welcome.route) { inclusive = true }
+                    }
                 }
             )
         }

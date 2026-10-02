@@ -73,8 +73,8 @@ import kotlinx.coroutines.delay
 fun FirstDecisionScreen(
     playerName: String = "Mateo",
     onApostarClick: () -> Unit = {},
-    onNoApostarClick: () -> Unit = {},
     onNavigateToInfo: () -> Unit = {},
+    onNoApostarClick: () -> Unit = onNavigateToInfo,
     onTimeout: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -248,7 +248,6 @@ fun FirstDecisionScreen(
                     onClick = {
                         isTimerActive = false
                         onNoApostarClick()
-                        onNavigateToInfo()
                     },
                     isPulsing = isLast5Seconds,
                     pulseScale = pulseScale,
