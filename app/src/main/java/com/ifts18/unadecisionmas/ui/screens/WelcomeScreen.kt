@@ -3,12 +3,10 @@ package com.ifts18.unadecisionmas.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,11 +20,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,7 +42,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -66,8 +64,9 @@ import com.ifts18.unadecisionmas.ui.theme.GradienteJuegoMedio
 import com.ifts18.unadecisionmas.ui.theme.GradienteLimpioFin
 import com.ifts18.unadecisionmas.ui.theme.GradienteLimpioInicio
 import com.ifts18.unadecisionmas.ui.theme.GradienteLimpioMedio
-import com.ifts18.unadecisionmas.ui.theme.SpaceGrotesk
 import com.ifts18.unadecisionmas.ui.theme.JuegoLimpioTheme
+import com.ifts18.unadecisionmas.ui.theme.SpaceGrotesk
+import com.ifts18.unadecisionmas.ui.theme.TextoSecundario
 import kotlinx.coroutines.launch
 
 @Composable
@@ -81,8 +80,6 @@ fun WelcomeScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val scrollState = rememberScrollState()
     val coroutineScope = rememberCoroutineScope()
-
-    val maxCharacters = 10
 
     val submitName: () -> Unit = {
         keyboardController?.hide()
@@ -190,7 +187,7 @@ fun WelcomeScreen(
                     )
                 }
 
-                // 2. Seccion "Ingresa tu nombre" con input centrado dinamicamente y guiones referenciales
+                // 2. Seccion "Ingresa tu nombre" con TextField Material minimalista
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -209,73 +206,60 @@ fun WelcomeScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Area interactiva centrada para el nombre y los guiones
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {
-                                focusRequester.requestFocus()
-                                keyboardController?.show()
-                            },
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        // Nombre centrado dinamicamente a medida que el usuario escribe
-                        BasicTextField(
-                            value = playerName,
-                            onValueChange = { input ->
-                                if (input.length <= maxCharacters && !input.contains("\n")) {
-                                    playerName = input
-                                }
-                            },
-                            singleLine = true,
-                            textStyle = TextStyle(
-                                fontFamily = SpaceGrotesk,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 28.sp,
-                                color = Color.White,
-                                textAlign = TextAlign.Center,
-                                letterSpacing = 2.sp
-                            ),
-                            cursorBrush = SolidColor(Color.White),
-                            keyboardOptions = KeyboardOptions(
-                                capitalization = KeyboardCapitalization.Words,
-                                keyboardType = KeyboardType.Text,
-                                imeAction = ImeAction.Done
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onDone = { submitName() }
-                            ),
-                            modifier = Modifier
-                                .focusRequester(focusRequester)
-                                .onFocusChanged { isFocused = it.isFocused }
-                                .fillMaxWidth()
-                                .heightIn(min = 38.dp)
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // 10 guiones bajos referenciales centrados con distancia comoda y visible
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(7.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally)
-                        ) {
-                            repeat(maxCharacters) {
-                                Box(
-                                    modifier = Modifier
-                                        .width(16.dp)
-                                        .height(3.5.dp)
-                                        .background(
-                                            color = Color.White,
-                                            shape = RoundedCornerShape(2.dp)
-                                        )
-                                )
+                    // TextField de Material Design minimalista con linea inferior continua y fondo transparente
+                    TextField(
+                        value = playerName,
+                        onValueChange = { input ->
+                            if (input.length <= 25 && !input.contains("\n")) {
+                                playerName = input
                             }
-                        }
-                    }
+                        },
+                        singleLine = true,
+                        textStyle = TextStyle(
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 24.sp,
+                            color = Color.White,
+                            textAlign = TextAlign.Center
+                        ),
+                        placeholder = {
+                            Text(
+                                text = "Ej: Marcos",
+                                style = TextStyle(
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Normal,
+                                    fontSize = 22.sp,
+                                    color = TextoSecundario.copy(alpha = 0.6f),
+                                    textAlign = TextAlign.Center
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        },
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            disabledContainerColor = Color.Transparent,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            cursorColor = Color.White,
+                            focusedIndicatorColor = Color.White,
+                            unfocusedIndicatorColor = Color(0x66FFFFFF),
+                            focusedPlaceholderColor = TextoSecundario.copy(alpha = 0.6f),
+                            unfocusedPlaceholderColor = TextoSecundario.copy(alpha = 0.6f)
+                        ),
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Words,
+                            keyboardType = KeyboardType.Text,
+                            imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = { submitName() }
+                        ),
+                        modifier = Modifier
+                            .focusRequester(focusRequester)
+                            .onFocusChanged { isFocused = it.isFocused }
+                            .width(260.dp)
+                    )
                 }
 
                 // 3. Boton "Siguiente" centrado y ubicado por encima del teclado
