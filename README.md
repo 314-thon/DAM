@@ -113,16 +113,53 @@ Componentes de botones y su disposicion para uso en dispositivos moviles:
 
 ---
 
+## Decisiones en Torno al Desarrollo
+
+Para encarar el proyecto elegimos Jetpack Compose porque nos resultaba mucho más práctico para armar la interfaz de forma moderna. Al no depender de los archivos XML tradicionales, pudimos armar componentes reutilizables (como los botones estilizados y las tarjetas de mensaje) y mantener el mismo criterio visual en toda la app.
+
+En cuanto al diseño, nos inclinamos por un estilo oscuro con detalles neón. La idea principal fue imitar la estética de las aplicaciones y plataformas que usan los adolescentes, buscando que la experiencia se sienta cercana y real. Por ejemplo, en las pantallas de decisión mostramos las propuestas en formato de chat para simular los mensajes persuasivos que suelen recibir en el celular.
+
+Durante el proceso enfrentamos y resolvimos distintos desafíos técnicos:
+* **Compatibilidad del entorno:** En las primeras etapas detectamos discrepancias con la versión de Java y la configuración de Gradle entre los integrantes del equipo, lo cual resolvimos estandarizando las variables del entorno de desarrollo.
+* **Flujo de trabajo en Git:** Organizamos la colaboración mediante el uso de ramas individuales en GitHub, asegurando la integración continua del código sin superponer los avances de cada miembro.
+* **Ajustes de UI:** Dedicamos tiempo a pulir detalles de diseño en Compose, especialmente en lo referente a bordes redondeados y degradados de color, para garantizar una correcta renderización visual.
+
+Las pantallas actuales corresponden a una primera versión orientada a iteraciones futuras.
+
+---
+
 ## Estructura del Repositorio
 
 ```text
+├── app/
+│   ├── src/main/
+│   │   ├── AndroidManifest.xml
+│   │   ├── java/com/ifts18/unadecisionmas/
+│   │   │   ├── MainActivity.kt
+│   │   │   ├── navigation/
+│   │   │   │   ├── AppNavigation.kt
+│   │   │   │   └── Screen.kt
+│   │   │   ├── ui/screens/
+│   │   │   │   ├── FirstDecisionScreen.kt
+│   │   │   │   ├── InfoResourcesScreen.kt
+│   │   │   │   └── WelcomeScreen.kt
+│   │   │   └── ui/theme/
+│   │   │       ├── Color.kt
+│   │   │       ├── Theme.kt
+│   │   │       └── Type.kt
+│   │   └── res/font/
+│   │       ├── space_grotesk_bold.ttf
+│   │       ├── space_grotesk_medium.ttf
+│   │       └── space_grotesk_regular.ttf
+│   └── build.gradle.kts
+├── img/
+│   ├── persona_usuaria.png
+│   ├── design_system.png
+│   ├── flujo_pantallas.png
+│   ├── colores_rgb.png
+│   ├── tipografias.png
+│   └── botones.png
 ├── README.md
 ├── relato.md
-└── img/
-    ├── persona_usuaria.png
-    ├── design_system.png
-    ├── flujo_pantallas.png
-    ├── colores_rgb.png
-    ├── tipografias.png
-    └── botones.png
+└── settings.gradle.kts
 ```
