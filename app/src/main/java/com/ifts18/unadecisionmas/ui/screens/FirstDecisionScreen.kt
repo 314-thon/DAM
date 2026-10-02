@@ -1,5 +1,21 @@
 package com.ifts18.unadecisionmas.ui.screens
 
+import android.media.AudioManager
+import android.media.RingtoneManager
+import android.media.ToneGenerator
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,6 +28,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -25,12 +42,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -40,9 +64,10 @@ import com.ifts18.unadecisionmas.ui.theme.BordeCyan
 import com.ifts18.unadecisionmas.ui.theme.BordeMagenta
 import com.ifts18.unadecisionmas.ui.theme.BurbujaChat
 import com.ifts18.unadecisionmas.ui.theme.FondoGeneral
+import com.ifts18.unadecisionmas.ui.theme.JuegoLimpioTheme
 import com.ifts18.unadecisionmas.ui.theme.RojoAlerta
-import com.ifts18.unadecisionmas.ui.theme.UnaDecisionMasTheme
 import com.ifts18.unadecisionmas.ui.theme.VerdeExito
+import kotlinx.coroutines.delay
 
 @Composable
 fun FirstDecisionScreen(
@@ -50,8 +75,74 @@ fun FirstDecisionScreen(
     onApostarClick: () -> Unit = {},
     onNoApostarClick: () -> Unit = {},
     onNavigateToInfo: () -> Unit = {},
+    onTimeout: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current
+
+    // Estado de carga y llegada del mensaje
+    var isMessageLoaded by remember { mutableStateOf(false) }
+
+    // Control del temporizador de 15 segundos
+    var isTimerActive by remember { mutableStateOf(false) }
+    val timerProgress = remember { Animatable(1f) }
+
+    // Determinar si estamos en los ultimos 5 segundos (5s / 15s = un tercio del tiempo)
+    val isLast5Seconds = isMessageLoaded && isTimerActive && timerProgress.value <= (5f / 15f)
+
+    // Animacion de latido (heartbeat / pulso) para los botones en los ultimos 5 segundos
+    val pulseTransition = rememberInfiniteTransition(label = "buttonHeartbeat")
+    val pulseScale by pulseTransition.animateFloat(
+        initialValue = 1.0f,
+        targetValue = 1.07f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseScale"
+    )
+
+    // 1. Simular carga del mensaje, reproducir sonido de notificacion y activar animacion
+    LaunchedEffect(Unit) {
+        delay(700L) // Breve tiempo de anticipacion / carga del mensaje
+
+        if (!isPreview) {
+            // Reproducir sonido de notificacion del sistema (con fallback a ToneGenerator)
+            try {
+                val notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                val ringtone = RingtoneManager.getRingtone(context, notificationUri)
+                ringtone?.play()
+            } catch (_: Exception) {
+                try {
+                    ToneGenerator(AudioManager.STREAM_NOTIFICATION, 90).startTone(ToneGenerator.TONE_PROP_BEEP, 200)
+                } catch (_: Exception) {}
+            }
+        }
+
+        // Marcar mensaje como entregado para disparar animacion de entrada
+        isMessageLoaded = true
+    }
+
+    // 2. Temporizador real de 15 segundos que arranca inmediatamente despues de llegar el mensaje
+    LaunchedEffect(isMessageLoaded) {
+        if (isMessageLoaded) {
+            isTimerActive = true
+            timerProgress.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(
+                    durationMillis = 15_000,
+                    easing = LinearEasing
+                )
+            )
+
+            if (isTimerActive && timerProgress.value <= 0.001f) {
+                isTimerActive = false
+                onTimeout()
+            }
+        }
+    }
+
     // Gradiente difuminado verde/azulado en la esquina superior izquierda
     val backgroundBrush = Brush.radialGradient(
         colors = listOf(
@@ -81,24 +172,59 @@ fun FirstDecisionScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // 2. TARJETA CENTRAL ESTILO CHAT (Speech Bubble)
-            ChatMessageCard(
-                playerName = playerName,
-                modifier = Modifier.fillMaxWidth()
-            )
+            // 2. TARJETA CENTRAL: Carga y animacion de entrada del mensaje
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 120.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!isMessageLoaded) {
+                    // Indicador sutil de carga / mensaje entrante
+                    TypingIndicatorCard(
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
-            Spacer(modifier = Modifier.height(24.dp))
+                this@Column.AnimatedVisibility(
+                    visible = isMessageLoaded,
+                    enter = fadeIn(animationSpec = tween(350)) +
+                            slideInVertically(
+                                animationSpec = spring(
+                                    dampingRatio = 0.75f,
+                                    stiffness = 380f
+                                )
+                            ) { -it / 2 } +
+                            scaleIn(
+                                initialScale = 0.92f,
+                                animationSpec = spring(
+                                    dampingRatio = 0.75f,
+                                    stiffness = 380f
+                                )
+                            )
+                ) {
+                    ChatMessageCard(
+                        playerName = playerName,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
 
-            // 3. BARRA DE PROGRESO (Dividida en Verde y Rojo)
+            Spacer(modifier = Modifier.height(28.dp))
+
+            // 3. BARRA DE PROGRESO - TIMER REAL DE 15 SEGUNDOS (Verde se reduce, Rojo aumenta)
+            val currentGreenRatio = timerProgress.value
+            val currentRedRatio = 1f - timerProgress.value
+
             SplitProgressBar(
-                greenRatio = 0.78f,
-                redRatio = 0.22f,
+                greenRatio = currentGreenRatio,
+                redRatio = currentRedRatio,
                 modifier = Modifier.fillMaxWidth(0.85f)
             )
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // 4. BOTONES DE ACCIÓN INFERIORES
+            // 4. BOTONES DE ACCION INFERIORES (Laten en los ultimos 5 segundos)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -108,19 +234,78 @@ fun FirstDecisionScreen(
             ) {
                 GradientPillButton(
                     text = "Apostar $1.000",
-                    onClick = onApostarClick,
+                    onClick = {
+                        isTimerActive = false
+                        onApostarClick()
+                    },
+                    isPulsing = isLast5Seconds,
+                    pulseScale = pulseScale,
                     modifier = Modifier.fillMaxWidth(0.85f)
                 )
 
                 GradientPillButton(
                     text = "No apostar",
                     onClick = {
+                        isTimerActive = false
                         onNoApostarClick()
                         onNavigateToInfo()
                     },
+                    isPulsing = isLast5Seconds,
+                    pulseScale = pulseScale,
                     modifier = Modifier.fillMaxWidth(0.85f)
                 )
             }
+        }
+    }
+}
+
+/**
+ * Indicador de mensaje cargando / escribiendo con puntos animados
+ */
+@Composable
+private fun TypingIndicatorCard(
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(20.dp)
+    val transition = rememberInfiniteTransition(label = "typingDots")
+    val dot1Alpha by transition.animateFloat(
+        initialValue = 0.3f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(400), RepeatMode.Reverse), label = "d1"
+    )
+    val dot2Alpha by transition.animateFloat(
+        initialValue = 0.3f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(400, delayMillis = 150), RepeatMode.Reverse), label = "d2"
+    )
+    val dot3Alpha by transition.animateFloat(
+        initialValue = 0.3f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(400, delayMillis = 300), RepeatMode.Reverse), label = "d3"
+    )
+
+    Box(
+        modifier = modifier
+            .border(
+                width = 1.dp,
+                color = BordeCyan.copy(alpha = 0.3f),
+                shape = shape
+            )
+            .clip(shape)
+            .background(BurbujaChat.copy(alpha = 0.6f))
+            .padding(horizontal = 24.dp, vertical = 20.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Entrando mensaje",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Box(modifier = Modifier.size(6.dp).background(BordeCyan.copy(alpha = dot1Alpha), CircleShape))
+            Box(modifier = Modifier.size(6.dp).background(BordeCyan.copy(alpha = dot2Alpha), CircleShape))
+            Box(modifier = Modifier.size(6.dp).background(BordeCyan.copy(alpha = dot3Alpha), CircleShape))
         }
     }
 }
@@ -229,15 +414,19 @@ private fun ChatMessageCard(
 }
 
 /**
- * Barra de progreso lineal redondeada dividida en dos partes: Verde a la izquierda y Roja a la derecha.
+ * Barra de progreso lineal dividida en dos partes: Verde a la izquierda (tiempo restante) y Roja a la derecha.
+ * Opera como un temporizador real de 15 segundos donde la barra verde disminuye suavemente.
  */
 @Composable
 private fun SplitProgressBar(
     modifier: Modifier = Modifier,
-    greenRatio: Float = 0.78f,
-    redRatio: Float = 0.22f
+    greenRatio: Float = 1.0f,
+    redRatio: Float = 0.0f
 ) {
     val shape = RoundedCornerShape(8.dp)
+
+    val safeGreen = greenRatio.coerceIn(0.0001f, 0.9999f)
+    val safeRed = redRatio.coerceIn(0.0001f, 0.9999f)
 
     Row(
         modifier = modifier
@@ -245,46 +434,74 @@ private fun SplitProgressBar(
             .clip(shape)
             .background(Color(0xFF1E1E1E))
     ) {
-        // Seccion Verde (Izquierda)
-        Box(
-            modifier = Modifier
-                .weight(greenRatio)
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp))
-                .background(VerdeExito)
-        )
+        // Seccion Verde (Izquierda - disminuye continuamente con el timer)
+        if (greenRatio > 0.005f) {
+            Box(
+                modifier = Modifier
+                    .weight(safeGreen)
+                    .fillMaxHeight()
+                    .clip(
+                        if (redRatio <= 0.005f) shape
+                        else RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp)
+                    )
+                    .background(VerdeExito)
+            )
+        }
 
-        Spacer(modifier = Modifier.width(3.dp))
+        if (greenRatio > 0.005f && redRatio > 0.005f) {
+            Spacer(modifier = Modifier.width(3.dp))
+        }
 
-        // Seccion Roja (Derecha)
-        Box(
-            modifier = Modifier
-                .weight(redRatio)
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp))
-                .background(RojoAlerta)
-        )
+        // Seccion Roja (Derecha - se incrementa a medida que el tiempo se agota)
+        if (redRatio > 0.005f) {
+            Box(
+                modifier = Modifier
+                    .weight(safeRed)
+                    .fillMaxHeight()
+                    .clip(
+                        if (greenRatio <= 0.005f) shape
+                        else RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp)
+                    )
+                    .background(RojoAlerta)
+            )
+        }
     }
 }
 
 /**
- * Boton redondeado (pill-shaped) con borde de gradiente (magenta a cyan/verde) y fondo translucido.
+ * Boton redondeado (pill-shaped) con soporte para efecto de latido / pulso en los ultimos segundos.
  */
 @Composable
 private fun GradientPillButton(
     text: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isPulsing: Boolean = false,
+    pulseScale: Float = 1.0f
 ) {
     val shape = CircleShape
-    val borderBrush = Brush.horizontalGradient(
-        colors = listOf(BordeMagenta, BordeCyan)
-    )
+    val borderBrush = if (isPulsing) {
+        Brush.horizontalGradient(
+            colors = listOf(RojoAlerta, BordeMagenta, BordeCyan)
+        )
+    } else {
+        Brush.horizontalGradient(
+            colors = listOf(BordeMagenta, BordeCyan)
+        )
+    }
 
     Box(
         modifier = modifier
+            .graphicsLayer {
+                scaleX = if (isPulsing) pulseScale else 1f
+                scaleY = if (isPulsing) pulseScale else 1f
+            }
             .height(54.dp)
-            .border(width = 1.5.dp, brush = borderBrush, shape = shape)
+            .border(
+                width = if (isPulsing) 2.2.dp else 1.5.dp,
+                brush = borderBrush,
+                shape = shape
+            )
             .clip(shape)
             .background(Color(0x33121212))
             .clickable(onClick = onClick),
@@ -303,7 +520,7 @@ private fun GradientPillButton(
 @Preview(showBackground = true, backgroundColor = 0xFF0D1117)
 @Composable
 fun FirstDecisionScreenPreview() {
-    UnaDecisionMasTheme {
+    JuegoLimpioTheme {
         FirstDecisionScreen(
             playerName = "Mateo"
         )
