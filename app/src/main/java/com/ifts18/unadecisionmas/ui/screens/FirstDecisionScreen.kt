@@ -1,6 +1,7 @@
 package com.ifts18.unadecisionmas.ui.screens
 
 import android.media.AudioManager
+import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.media.ToneGenerator
 import androidx.compose.animation.AnimatedVisibility
@@ -42,6 +43,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,6 +62,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ifts18.unadecisionmas.R
 import com.ifts18.unadecisionmas.ui.theme.BordeCyan
 import com.ifts18.unadecisionmas.ui.theme.BordeMagenta
 import com.ifts18.unadecisionmas.ui.theme.BurbujaChat
@@ -103,6 +106,64 @@ fun FirstDecisionScreen(
         label = "pulseScale"
     )
 
+    // Reproductores de audio: musica de fondo en suspense y latido de corazon
+    val bgMusicPlayer = remember {
+        if (!isPreview) {
+            try {
+                MediaPlayer.create(context, R.raw.bg_music_suspense)?.apply {
+                    isLooping = true
+                    setVolume(0.50f, 0.50f)
+                }
+            } catch (_: Exception) {
+                null
+            }
+        } else null
+    }
+
+    val heartbeatPlayer = remember {
+        if (!isPreview) {
+            try {
+                MediaPlayer.create(context, R.raw.heartbeat)?.apply {
+                    isLooping = true
+                    setVolume(0.38f, 0.38f) // Levemente audible como fue solicitado
+                }
+            } catch (_: Exception) {
+                null
+            }
+        } else null
+    }
+
+    val stopAllAudio: () -> Unit = {
+        isTimerActive = false
+        try {
+            if (bgMusicPlayer?.isPlaying == true) {
+                bgMusicPlayer.pause()
+            }
+            if (heartbeatPlayer?.isPlaying == true) {
+                heartbeatPlayer.pause()
+            }
+        } catch (_: Exception) {}
+    }
+
+    // Liberar recursos de audio cuando la pantalla se desmonta
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                if (bgMusicPlayer?.isPlaying == true) {
+                    bgMusicPlayer.stop()
+                }
+                bgMusicPlayer?.release()
+            } catch (_: Exception) {}
+
+            try {
+                if (heartbeatPlayer?.isPlaying == true) {
+                    heartbeatPlayer.stop()
+                }
+                heartbeatPlayer?.release()
+            } catch (_: Exception) {}
+        }
+    }
+
     // 1. Simular carga del mensaje, reproducir sonido de notificacion y activar animacion
     LaunchedEffect(Unit) {
         delay(700L) // Breve tiempo de anticipacion / carga del mensaje
@@ -124,9 +185,16 @@ fun FirstDecisionScreen(
         isMessageLoaded = true
     }
 
-    // 2. Temporizador real de 15 segundos que arranca inmediatamente despues de llegar el mensaje
+    // 2. Temporizador real de 15 segundos y musica de fondo que arranca inmediatamente despues de llegar el mensaje
     LaunchedEffect(isMessageLoaded) {
         if (isMessageLoaded) {
+            // Iniciar musica de fondo a velocidad normal (1.0x)
+            try {
+                if (bgMusicPlayer != null && !bgMusicPlayer.isPlaying) {
+                    bgMusicPlayer.start()
+                }
+            } catch (_: Exception) {}
+
             isTimerActive = true
             timerProgress.animateTo(
                 targetValue = 0f,
@@ -137,9 +205,32 @@ fun FirstDecisionScreen(
             )
 
             if (isTimerActive && timerProgress.value <= 0.001f) {
-                isTimerActive = false
+                stopAllAudio()
                 onTimeout()
             }
+        }
+    }
+
+    // 3. En los ultimos 5 segundos: acelerar musica de fondo y reproducir latido leve sincronizado
+    LaunchedEffect(isLast5Seconds) {
+        if (isLast5Seconds && isTimerActive) {
+            // Acelerar la musica de fondo a 1.40x
+            try {
+                bgMusicPlayer?.let { player ->
+                    if (player.isPlaying) {
+                        player.playbackParams = player.playbackParams.setSpeed(1.40f)
+                    }
+                }
+            } catch (_: Exception) {}
+
+            // Iniciar el latido tenue
+            try {
+                heartbeatPlayer?.let { player ->
+                    if (!player.isPlaying) {
+                        player.start()
+                    }
+                }
+            } catch (_: Exception) {}
         }
     }
 
@@ -235,7 +326,7 @@ fun FirstDecisionScreen(
                 GradientPillButton(
                     text = "Apostar $1.000",
                     onClick = {
-                        isTimerActive = false
+                        stopAllAudio()
                         onApostarClick()
                     },
                     isPulsing = isLast5Seconds,
@@ -246,7 +337,7 @@ fun FirstDecisionScreen(
                 GradientPillButton(
                     text = "No apostar",
                     onClick = {
-                        isTimerActive = false
+                        stopAllAudio()
                         onNoApostarClick()
                     },
                     isPulsing = isLast5Seconds,
