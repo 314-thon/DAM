@@ -90,6 +90,7 @@ fun WelcomeScreen(
     // Al abrir el teclado o enfocar el input, asegurar que todo el bloque inferior sea visible
     LaunchedEffect(isFocused) {
         if (isFocused) {
+            keyboardController?.show()
             coroutineScope.launch {
                 scrollState.animateScrollTo(scrollState.maxValue)
             }
