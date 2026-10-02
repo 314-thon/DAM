@@ -1,10 +1,5 @@
 package com.ifts18.unadecisionmas.ui.screens
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -48,6 +43,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -88,26 +84,14 @@ fun WelcomeScreen(
 
     val maxCharacters = 10
 
-    // Animacion sutil de parpadeo del cursor en el slot activo
-    val infiniteTransition = rememberInfiniteTransition(label = "cursorAnimation")
-    val cursorAlpha by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 500),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "cursorAlpha"
-    )
-
     val submitName: () -> Unit = {
         keyboardController?.hide()
         val finalName = playerName.trim().ifEmpty { "Mateo" }
         onNavigateToDecision(finalName)
     }
 
-    // Asegurar que al abrir el teclado el input y boton se mantengan visibles
-    LaunchedEffect(isFocused, playerName) {
+    // Al abrir el teclado o enfocar el input, asegurar que todo el bloque inferior sea visible
+    LaunchedEffect(isFocused) {
         if (isFocused) {
             coroutineScope.launch {
                 scrollState.animateScrollTo(scrollState.maxValue)
@@ -120,7 +104,7 @@ fun WelcomeScreen(
             .fillMaxSize()
             .background(FondoOscuroInicio)
             .drawBehind {
-                // Brillo ambiental superior derecho (Cian / Esmeralda) sin bordes cortados
+                // Brillo ambiental superior derecho (Cian / Esmeralda) suave sin bordes duros
                 drawRect(
                     brush = Brush.radialGradient(
                         colors = listOf(
@@ -132,7 +116,7 @@ fun WelcomeScreen(
                     )
                 )
 
-                // Brillo ambiental inferior izquierdo (Violeta / Magenta) sin bordes cortados
+                // Brillo ambiental inferior izquierdo (Violeta / Magenta) suave sin bordes duros
                 drawRect(
                     brush = Brush.radialGradient(
                         colors = listOf(
@@ -156,7 +140,7 @@ fun WelcomeScreen(
                     .fillMaxWidth()
                     .heightIn(min = contentMinHeight)
                     .verticalScroll(scrollState)
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                    .padding(horizontal = 24.dp, vertical = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceEvenly
             ) {
@@ -206,7 +190,7 @@ fun WelcomeScreen(
                     )
                 }
 
-                // 2. Seccion central "Ingresa tu nombre" con guiones referenciales
+                // 2. Seccion "Ingresa tu nombre" con input centrado dinamicamente y guiones referenciales
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -225,19 +209,20 @@ fun WelcomeScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Input con 10 slots individuales y guiones bajos referenciales
-                    Box(
-                        contentAlignment = Alignment.Center,
+                    // Area interactiva centrada para el nombre y los guiones
+                    Column(
                         modifier = Modifier
-                            .wrapContentWidth(Alignment.CenterHorizontally)
+                            .fillMaxWidth()
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
                             ) {
                                 focusRequester.requestFocus()
                                 keyboardController?.show()
-                            }
+                            },
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        // Nombre centrado dinamicamente a medida que el usuario escribe
                         BasicTextField(
                             value = playerName,
                             onValueChange = { input ->
@@ -246,6 +231,15 @@ fun WelcomeScreen(
                                 }
                             },
                             singleLine = true,
+                            textStyle = TextStyle(
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 28.sp,
+                                color = Color.White,
+                                textAlign = TextAlign.Center,
+                                letterSpacing = 2.sp
+                            ),
+                            cursorBrush = SolidColor(Color.White),
                             keyboardOptions = KeyboardOptions(
                                 capitalization = KeyboardCapitalization.Words,
                                 keyboardType = KeyboardType.Text,
@@ -256,74 +250,35 @@ fun WelcomeScreen(
                             ),
                             modifier = Modifier
                                 .focusRequester(focusRequester)
-                                .onFocusChanged { isFocused = it.isFocused },
-                            decorationBox = {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    for (i in 0 until maxCharacters) {
-                                        val hasChar = i < playerName.length
-                                        val char = if (hasChar) playerName[i].toString() else ""
-                                        val isCurrentCursor = i == playerName.length && isFocused
-
-                                        Column(
-                                            modifier = Modifier.width(20.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.Center
-                                        ) {
-                                            // Caracter o cursor parpadeante
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(34.dp),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                if (hasChar) {
-                                                    Text(
-                                                        text = char,
-                                                        style = TextStyle(
-                                                            fontFamily = SpaceGrotesk,
-                                                            fontWeight = FontWeight.Bold,
-                                                            fontSize = 22.sp,
-                                                            color = Color.White,
-                                                            textAlign = TextAlign.Center
-                                                        )
-                                                    )
-                                                } else if (isCurrentCursor) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .width(2.5.dp)
-                                                            .height(22.dp)
-                                                            .background(
-                                                                Color.White.copy(alpha = cursorAlpha),
-                                                                RoundedCornerShape(1.dp)
-                                                            )
-                                                    )
-                                                }
-                                            }
-
-                                            Spacer(modifier = Modifier.height(4.dp))
-
-                                            // Guion bajo referencial 100% nitido y visible
-                                            Box(
-                                                modifier = Modifier
-                                                    .width(17.dp)
-                                                    .height(3.5.dp)
-                                                    .background(
-                                                        color = Color.White,
-                                                        shape = RoundedCornerShape(2.dp)
-                                                    )
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                                .onFocusChanged { isFocused = it.isFocused }
+                                .fillMaxWidth()
+                                .heightIn(min = 38.dp)
                         )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // 10 guiones bajos referenciales centrados con distancia comoda y visible
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally)
+                        ) {
+                            repeat(maxCharacters) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(16.dp)
+                                        .height(3.5.dp)
+                                        .background(
+                                            color = Color.White,
+                                            shape = RoundedCornerShape(2.dp)
+                                        )
+                                )
+                            }
+                        }
                     }
                 }
 
-                // 3. Boton "Siguiente" estilo Design System, ubicado por encima del teclado
+                // 3. Boton "Siguiente" centrado y ubicado por encima del teclado
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
