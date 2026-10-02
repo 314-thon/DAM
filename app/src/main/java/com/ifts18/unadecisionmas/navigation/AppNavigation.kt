@@ -39,6 +39,12 @@ fun AppNavigation(
             val playerName = backStackEntry.arguments?.getString("playerName") ?: "Mateo"
             FirstDecisionScreen(
                 playerName = playerName,
+                onApostarClick = {
+                    navController.navigate(Screen.InfoResources.route)
+                },
+                onNoApostarClick = {
+                    navController.navigate(Screen.InfoResources.route)
+                },
                 onNavigateToInfo = {
                     navController.navigate(Screen.InfoResources.route)
                 }

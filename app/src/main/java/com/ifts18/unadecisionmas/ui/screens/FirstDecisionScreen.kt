@@ -108,7 +108,10 @@ fun FirstDecisionScreen(
             ) {
                 GradientPillButton(
                     text = "Apostar $1.000",
-                    onClick = onApostarClick,
+                    onClick = {
+                        onApostarClick()
+                        onNavigateToInfo()
+                    },
                     modifier = Modifier.fillMaxWidth(0.85f)
                 )
 
