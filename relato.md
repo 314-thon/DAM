@@ -1,4 +1,4 @@
-# Relato de Partida: "Una decisión más"
+# Relato de Partida: "Juego Limpio"
 
 ## 1. Sinopsis y Mecánica General
 

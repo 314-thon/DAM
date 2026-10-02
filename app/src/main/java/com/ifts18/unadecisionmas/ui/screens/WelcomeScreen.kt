@@ -67,7 +67,7 @@ import com.ifts18.unadecisionmas.ui.theme.GradienteLimpioFin
 import com.ifts18.unadecisionmas.ui.theme.GradienteLimpioInicio
 import com.ifts18.unadecisionmas.ui.theme.GradienteLimpioMedio
 import com.ifts18.unadecisionmas.ui.theme.SpaceGrotesk
-import com.ifts18.unadecisionmas.ui.theme.UnaDecisionMasTheme
+import com.ifts18.unadecisionmas.ui.theme.JuegoLimpioTheme
 import kotlinx.coroutines.launch
 
 @Composable
@@ -323,7 +323,7 @@ fun WelcomeScreen(
 @Preview(showBackground = true, backgroundColor = 0xFF121118)
 @Composable
 fun WelcomeScreenPreview() {
-    UnaDecisionMasTheme {
+    JuegoLimpioTheme {
         WelcomeScreen(onNavigateToDecision = {})
     }
 }

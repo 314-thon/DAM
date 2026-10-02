@@ -20,7 +20,7 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 @Composable
-fun UnaDecisionMasTheme(
+fun JuegoLimpioTheme(
     content: @Composable () -> Unit
 ) {
     MaterialTheme(
@@ -29,3 +29,8 @@ fun UnaDecisionMasTheme(
         content = content
     )
 }
+
+@Composable
+fun UnaDecisionMasTheme(
+    content: @Composable () -> Unit
+) = JuegoLimpioTheme(content)

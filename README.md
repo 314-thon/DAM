@@ -1,4 +1,4 @@
-# Una decision mas - Concientizacion sobre Ciberapuestas en Adolescentes
+# Juego Limpio - Concientizacion sobre Ciberapuestas en Adolescentes
 
 Instituto de Formacion Tecnica Superior N° 18 (IFTS 18)  
 Tecnicatura Superior en Desarrollo de Software  
@@ -29,7 +29,7 @@ Se eligio esta tematica por su crecimiento en el ambito escolar y deportivo, imp
 
 ## Descripcion del Juego
 
-"Una decision mas" es un juego movil que combina novela grafica interactiva con una trivia contrarreloj de 10 segundos por decision.
+"Juego Limpio" es un juego movil que combina novela grafica interactiva con una trivia contrarreloj de 10 segundos por decision.
 
 El jugador sigue la historia de Mateo (15 anos) a lo largo de una semana (lunes a domingo). Durante la partida, Mateo recibe mensajes y propuestas vinculadas a apuestas online. La pantalla mantiene un marcador visible de "DEUDA: $0". Si el jugador toma decisiones preventivas a tiempo, la deuda no sube; si elige opciones de riesgo o se termina el tiempo, la deuda aumenta. El objetivo es terminar la semana con $0 de deuda.
 
