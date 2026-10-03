@@ -29,22 +29,22 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -77,6 +77,7 @@ import com.ifts18.unadecisionmas.ui.theme.BurbujaChat
 import com.ifts18.unadecisionmas.ui.theme.FondoGeneral
 import com.ifts18.unadecisionmas.ui.theme.JuegoLimpioTheme
 import com.ifts18.unadecisionmas.ui.theme.RojoAlerta
+import com.ifts18.unadecisionmas.ui.theme.SpaceGrotesk
 import com.ifts18.unadecisionmas.ui.theme.VerdeExito
 import kotlinx.coroutines.delay
 
@@ -92,6 +93,7 @@ fun FirstDecisionScreen(
     val context = LocalContext.current
     val view = LocalView.current
     val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current
+    val scrollState = rememberScrollState()
 
     // SoundPool para confirmacion sonora inmediata y tactil al clickear botones
     val soundPool = remember {
@@ -141,14 +143,14 @@ fun FirstDecisionScreen(
     var isTimerActive by remember { mutableStateOf(false) }
     val timerProgress = remember { Animatable(1f) }
 
-    // Determinar si estamos en los ultimos 5 segundos con derivedStateOf (evita recomposicion innecesaria)
+    // Determinar si estamos en los ultimos 5 segundos con derivedStateOf
     val isLast5Seconds by remember {
         derivedStateOf {
             isMessageLoaded && isTimerActive && timerProgress.value <= (5f / 15f)
         }
     }
 
-    // Animacion de latido (heartbeat / pulso) para los botones en los ultimos 5 segundos
+    // Animacion de latido (pulso) para los botones en los ultimos 5 segundos
     val pulseTransition = rememberInfiniteTransition(label = "buttonHeartbeat")
     val pulseScale by pulseTransition.animateFloat(
         initialValue = 1.0f,
@@ -206,7 +208,7 @@ fun FirstDecisionScreen(
                     afd.close()
                     prepare()
                     isLooping = true
-                    setVolume(0.35f, 0.35f) // Levemente audible como fue solicitado
+                    setVolume(0.35f, 0.35f)
                 }
             } catch (_: Exception) {
                 try {
@@ -258,10 +260,9 @@ fun FirstDecisionScreen(
 
     // 1. Simular carga del mensaje, reproducir sonido de notificacion y activar animacion
     LaunchedEffect(Unit) {
-        delay(700L) // Breve tiempo de anticipacion / carga del mensaje
+        delay(700L)
 
         if (!isPreview) {
-            // Reproducir sonido de notificacion del sistema (con fallback a ToneGenerator)
             try {
                 val notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                 val ringtone = RingtoneManager.getRingtone(context, notificationUri)
@@ -273,17 +274,14 @@ fun FirstDecisionScreen(
             }
         }
 
-        // Marcar mensaje como entregado para disparar animacion de entrada
         isMessageLoaded = true
     }
 
-    // 2. Temporizador real de 15 segundos y musica de fondo: arrancan 1.5s DESPUES de llegar el mensaje
+    // 2. Temporizador real de 15 segundos y musica: arrancan 1.5s DESPUES de llegar el mensaje
     LaunchedEffect(isMessageLoaded) {
         if (isMessageLoaded) {
-            // Pausa de 1.5 segundos para que el usuario pueda leer el mensaje antes de iniciar el estres
             delay(1500L)
 
-            // Iniciar musica de fondo a velocidad normal (1.0x)
             try {
                 if (bgMusicPlayer != null && !bgMusicPlayer.isPlaying) {
                     bgMusicPlayer.start()
@@ -306,19 +304,20 @@ fun FirstDecisionScreen(
         }
     }
 
-    // 3. En los ultimos 5 segundos: acelerar musica de fondo y reproducir latido leve sincronizado
+    // 3. En los ultimos 5 segundos: acelerar musica de fondo y reproducir latido leve
     LaunchedEffect(isLast5Seconds) {
-        if (isLast5Seconds && isTimerActive) {
-            // Acelerar la musica de fondo a 1.40x
+        if (isLast5Seconds) {
             try {
                 bgMusicPlayer?.let { player ->
-                    if (player.isPlaying) {
-                        player.playbackParams = player.playbackParams.setSpeed(1.40f)
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                        val params = player.playbackParams
+                        params.speed = 1.35f
+                        params.pitch = 1.10f
+                        player.playbackParams = params
                     }
                 }
             } catch (_: Exception) {}
 
-            // Iniciar el latido tenue
             try {
                 heartbeatPlayer?.let { player ->
                     if (!player.isPlaying) {
@@ -329,16 +328,16 @@ fun FirstDecisionScreen(
         }
     }
 
-    // Gradiente difuminado verde/azulado en la esquina superior izquierda
+    // Gradiente difuminado oscuro de fondo
     val backgroundBrush = remember {
         Brush.radialGradient(
             colors = listOf(
-                Color(0xFF00E676).copy(alpha = 0.28f),
-                Color(0xFF00E5FF).copy(alpha = 0.15f),
+                Color(0xFF00E676).copy(alpha = 0.22f),
+                Color(0xFF00E5FF).copy(alpha = 0.10f),
                 FondoGeneral
             ),
-            center = Offset(x = 100f, y = 350f),
-            radius = 900f
+            center = Offset(x = 120f, y = 300f),
+            radius = 850f
         )
     }
 
@@ -347,34 +346,65 @@ fun FirstDecisionScreen(
             .fillMaxSize()
             .background(backgroundBrush)
             .statusBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 16.dp)
+            .padding(horizontal = 20.dp, vertical = 14.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 1. BARRA SUPERIOR: Titulo "Lunes" y Foto de perfil circular
-            HeaderSection(
-                title = "Lunes"
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // 2. TARJETA CENTRAL: Carga y animacion de entrada del mensaje
-            Box(
+            // 1. ENCABEZADO MINIMALISTA: "Lunes" y avatar sutil
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 120.dp),
-                contentAlignment = Alignment.Center
+                    .height(48.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                if (!isMessageLoaded) {
-                    // Indicador sutil de carga / mensaje entrante
-                    TypingIndicatorCard(
-                        modifier = Modifier.fillMaxWidth()
+                Text(
+                    text = "Lunes",
+                    fontFamily = SpaceGrotesk,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 28.sp,
+                    color = Color.White
+                )
+
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .border(
+                            width = 1.5.dp,
+                            brush = Brush.linearGradient(
+                                colors = listOf(BordeCyan, BordeMagenta)
+                            ),
+                            shape = CircleShape
+                        )
+                        .clip(CircleShape)
+                        .background(Color(0xFF24142D)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Perfil",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
+            }
 
-                this@Column.AnimatedVisibility(
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 2. FLUJO SECUENCIAL DE MENSAJES HACIA ABAJO (Espaciado vertical ajustado)
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (!isMessageLoaded) {
+                    TypingIndicatorBubble()
+                }
+
+                AnimatedVisibility(
                     visible = isMessageLoaded,
                     enter = fadeIn(animationSpec = tween(350)) +
                             slideInVertically(
@@ -391,67 +421,206 @@ fun FirstDecisionScreen(
                                 )
                             )
                 ) {
-                    ChatMessageCard(
-                        playerName = playerName,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Mensaje 1: Propuesta del amigo
+                        ChatMessageBubble(
+                            sender = "Lucas",
+                            message = "¡Hola $playerName! ¿Querés ganar hoy mismo $2.000? Solo tenés que poner $1.000 ahora.",
+                            isDelivered = true
+                        )
+
+                        // Mensaje 2: Insistencia / Presión de tiempo
+                        ChatMessageBubble(
+                            sender = "Lucas",
+                            message = "¡Dale rápido que en menos de 10 segundos se cierra la cuota x5!",
+                            isDelivered = true
+                        )
+
+                        // Advertencia concisa (sin grandes espacios vacíos)
+                        PersuasiveAlertBox(
+                            message = "Aviso: Te apuran con urgencia para que actúes por impulso y sin pensar."
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // 3. BARRA DE PROGRESO - TIMER REAL DE 15 SEGUNDOS (Verde se reduce, Rojo aumenta)
-            SplitProgressBar(
-                progressProvider = { timerProgress.value },
-                modifier = Modifier.fillMaxWidth(0.85f)
-            )
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            // 4. BOTONES DE ACCION INFERIORES (Laten en los ultimos 5 segundos)
+            // 3. CONTROLES UNIFICADOS: Temporizador horizontal INMEDIATAMENTE encima de los botones
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                    .padding(bottom = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                GradientPillButton(
-                    text = "Apostar $1.000",
-                    onClick = {
-                        playClickFeedback()
-                        stopAllAudio()
-                        onApostarClick()
-                    },
-                    isPulsing = isLast5Seconds,
-                    pulseScale = { pulseScale },
-                    modifier = Modifier.fillMaxWidth(0.85f)
-                )
+                // Barra de temporizador horizontal con bordes redondeados y resplandor
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp)
+                ) {
+                    SplitProgressBar(
+                        progressProvider = { timerProgress.value },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
-                GradientPillButton(
-                    text = "No apostar",
-                    onClick = {
-                        playClickFeedback()
-                        stopAllAudio()
-                        onNoApostarClick()
-                    },
-                    isPulsing = isLast5Seconds,
-                    pulseScale = { pulseScale },
-                    modifier = Modifier.fillMaxWidth(0.85f)
-                )
+                // Dos botones de acción grandes y prominentes (lado a lado o apilados, texto blanco puro)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Boton 1: No apostar
+                    DecisionActionButton(
+                        text = "No apostar",
+                        isPrimary = false,
+                        onClick = {
+                            playClickFeedback()
+                            stopAllAudio()
+                            onNoApostarClick()
+                        },
+                        isPulsing = isLast5Seconds,
+                        pulseScale = { pulseScale },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    // Boton 2: Apostar $1.000
+                    DecisionActionButton(
+                        text = "Apostar $1.000",
+                        isPrimary = true,
+                        onClick = {
+                            playClickFeedback()
+                            stopAllAudio()
+                            onApostarClick()
+                        },
+                        isPulsing = isLast5Seconds,
+                        pulseScale = { pulseScale },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
     }
 }
 
 /**
- * Indicador de mensaje cargando / escribiendo con puntos animados
+ * Burbuja de mensaje secuencial de chat con texto 100% blanco puro.
  */
 @Composable
-private fun TypingIndicatorCard(
+private fun ChatMessageBubble(
+    sender: String,
+    message: String,
+    isDelivered: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(16.dp)
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.12f),
+                shape = shape
+            )
+            .clip(shape)
+            .background(BurbujaChat.copy(alpha = 0.85f))
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = sender,
+                    fontFamily = SpaceGrotesk,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = Color.White
+                )
+
+                if (isDelivered) {
+                    Icon(
+                        imageVector = Icons.Default.Done,
+                        contentDescription = "Entregado",
+                        tint = VerdeExito,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = message,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 21.sp,
+                color = Color.White
+            )
+        }
+    }
+}
+
+/**
+ * Advertencia concisa para romper la manipulación persuasiva.
+ */
+@Composable
+private fun PersuasiveAlertBox(
+    message: String,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(14.dp)
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = BordeCyan.copy(alpha = 0.40f),
+                shape = shape
+            )
+            .clip(shape)
+            .background(Color(0xFF1E172B).copy(alpha = 0.70f))
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = "Alerta",
+                tint = BordeCyan,
+                modifier = Modifier.size(20.dp)
+            )
+
+            Text(
+                text = message,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 17.sp,
+                color = Color.White
+            )
+        }
+    }
+}
+
+/**
+ * Indicador de mensaje cargando / escribiendo.
+ */
+@Composable
+private fun TypingIndicatorBubble(
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(16.dp)
     val transition = rememberInfiniteTransition(label = "typingDots")
     val dot1Alpha by transition.animateFloat(
         initialValue = 0.3f, targetValue = 1f,
@@ -468,14 +637,11 @@ private fun TypingIndicatorCard(
 
     Box(
         modifier = modifier
-            .border(
-                width = 1.dp,
-                color = BordeCyan.copy(alpha = 0.3f),
-                shape = shape
-            )
+            .fillMaxWidth()
+            .border(width = 1.dp, color = BordeCyan.copy(alpha = 0.3f), shape = shape)
             .clip(shape)
             .background(BurbujaChat.copy(alpha = 0.6f))
-            .padding(horizontal = 24.dp, vertical = 20.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         contentAlignment = Alignment.CenterStart
     ) {
         Row(
@@ -483,9 +649,9 @@ private fun TypingIndicatorCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "Entrando mensaje",
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 15.sp,
+                text = "Lucas está escribiendo",
+                color = Color.White,
+                fontSize = 13.5.sp,
                 fontWeight = FontWeight.Medium
             )
             Box(modifier = Modifier.size(6.dp).background(BordeCyan.copy(alpha = dot1Alpha), CircleShape))
@@ -496,111 +662,7 @@ private fun TypingIndicatorCard(
 }
 
 /**
- * Encabezado con el titulo centrado "Lunes" y foto de perfil alineada a la derecha.
- */
-@Composable
-private fun HeaderSection(
-    title: String,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(56.dp)
-    ) {
-        // Texto Centrado "Lunes"
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontWeight = FontWeight.Bold,
-                fontSize = 28.sp
-            ),
-            color = Color.White,
-            modifier = Modifier.align(Alignment.Center)
-        )
-
-        // Imagen de perfil circular a la derecha
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .size(50.dp)
-                .border(
-                    width = 1.5.dp,
-                    brush = Brush.linearGradient(
-                        colors = listOf(BordeCyan, BordeMagenta)
-                    ),
-                    shape = CircleShape
-                )
-                .clip(CircleShape)
-                .background(Color(0xFF2A2038)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = "Foto de perfil",
-                tint = Color.White.copy(alpha = 0.85f),
-                modifier = Modifier.size(32.dp)
-            )
-        }
-    }
-}
-
-/**
- * Tarjeta de mensaje estilo chat con bordes de gradiente (magenta a verde),
- * fondo translúcido, icono tilde verde y texto exacto.
- */
-@Composable
-private fun ChatMessageCard(
-    playerName: String,
-    modifier: Modifier = Modifier
-) {
-    val borderGradient = Brush.horizontalGradient(
-        colors = listOf(BordeMagenta, VerdeExito)
-    )
-
-    val shape = RoundedCornerShape(20.dp)
-
-    Box(
-        modifier = modifier
-            .border(width = 1.5.dp, brush = borderGradient, shape = shape)
-            .clip(shape)
-            .background(BurbujaChat.copy(alpha = 0.85f))
-            .padding(20.dp)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            // Icono pequeño de tilde/check verde en la esquina superior derecha
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Done,
-                    contentDescription = "Mensaje entregado",
-                    tint = VerdeExito,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Texto exacto según requerimiento
-            Text(
-                text = "Hola $playerName! Querés ganar hoy mismo $2.000.- ? Solo tenés que pagar $ 1.000.- ahora, en menos de 10 segudos!!! Te espero !!!",
-                color = Color.White,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-                lineHeight = 24.sp,
-                textAlign = TextAlign.Start
-            )
-        }
-    }
-}
-
-/**
- * Barra de progreso lineal dividida en dos partes: Verde a la izquierda (tiempo restante) y Roja a la derecha.
- * Opera como un temporizador real de 15 segundos optimizado en Canvas (solo corre en la fase de dibujo).
+ * Barra de temporizador horizontal de 15 segundos en Canvas (sin recomposiciones innecesarias).
  */
 @Composable
 private fun SplitProgressBar(
@@ -614,7 +676,7 @@ private fun SplitProgressBar(
         modifier = modifier
             .height(14.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFF1E1E1E))
+            .background(Color(0xFF161922))
     ) {
         val progress = progressProvider().coerceIn(0f, 1f)
         val w = size.width
@@ -646,26 +708,32 @@ private fun SplitProgressBar(
 }
 
 /**
- * Boton redondeado (pill-shaped) con soporte para efecto de latido / pulso en los ultimos segundos.
- * Optimizado con lambda de escala para ejecutar la transformacion en graphicsLayer sin recomponer el boton.
+ * Boton de accion prominente con texto en blanco puro y soporte para pulso / latido.
  */
 @Composable
-private fun GradientPillButton(
+private fun DecisionActionButton(
     text: String,
+    isPrimary: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isPulsing: Boolean = false,
     pulseScale: () -> Float = { 1.0f }
 ) {
-    val shape = CircleShape
+    val shape = RoundedCornerShape(14.dp)
     val borderBrush = if (isPulsing) {
         Brush.horizontalGradient(
             colors = listOf(RojoAlerta, BordeMagenta, BordeCyan)
         )
     } else {
-        Brush.horizontalGradient(
-            colors = listOf(BordeMagenta, BordeCyan)
-        )
+        if (isPrimary) {
+            Brush.horizontalGradient(
+                colors = listOf(BordeMagenta, BordeCyan)
+            )
+        } else {
+            Brush.horizontalGradient(
+                colors = listOf(Color.White.copy(alpha = 0.35f), Color.White.copy(alpha = 0.20f))
+            )
+        }
     }
 
     Box(
@@ -675,21 +743,24 @@ private fun GradientPillButton(
                 scaleX = scale
                 scaleY = scale
             }
-            .height(54.dp)
+            .height(52.dp)
             .border(
-                width = if (isPulsing) 2.2.dp else 1.5.dp,
+                width = if (isPulsing) 2.2.dp else 1.4.dp,
                 brush = borderBrush,
                 shape = shape
             )
             .clip(shape)
-            .background(Color(0x33121212))
+            .background(
+                if (isPrimary) Color(0x33121212) else Color(0x22FFFFFF)
+            )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
             color = Color.White,
-            fontSize = 18.sp,
+            fontFamily = SpaceGrotesk,
+            fontSize = 15.5.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
