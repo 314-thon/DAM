@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -236,6 +237,8 @@ fun InfoResourcesScreen(
             .fillMaxSize()
             .background(backgroundBrush)
             .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 20.dp, vertical = 12.dp)
     ) {
         // Confeti animado si no aposto (victoria)
         if (!didBet) {
@@ -245,10 +248,7 @@ fun InfoResourcesScreen(
         }
 
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
-                .padding(horizontal = 20.dp, vertical = 14.dp),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // 1. ENCABEZADO SIMPLE: 'Lunes' + flecha atras (SIN etiquetas ni pills de 'Decisión')
@@ -288,118 +288,132 @@ fun InfoResourcesScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // 2. TITULO DE RESULTADO GRANDE (Único elemento con color de acento)
-            Text(
-                text = if (didBet) "¡Fallaste!" else "¡Felicitaciones! 🎉",
-                fontFamily = SpaceGrotesk,
-                fontWeight = FontWeight.Bold,
-                fontSize = 36.sp,
-                color = if (didBet) RojoAlerta else VerdeExito,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            // 3. FLUJO SECUENCIAL DE MENSAJES HACIA ABAJO (Espaciado compacto, texto 100% blanco)
+            // 2. CONTENIDO PRINCIPAL (Ocupa el espacio restante, scrollable si la pantalla es reducida)
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(scrollState),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Mensaje 1
-                SequentialMessageBubble(
-                    text = if (didBet) {
-                        "Apostaste los $1.000 creyendo en la promesa del dinero fácil."
-                    } else {
-                        "Elegiste no apostar y cuidaste tu dinero."
-                    }
+                // TITULO DE RESULTADO GRANDE (Único elemento con color de acento)
+                Text(
+                    text = if (didBet) "¡Fallaste!" else "¡Felicitaciones! 🎉",
+                    fontFamily = SpaceGrotesk,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 36.sp,
+                    color = if (didBet) RojoAlerta else VerdeExito,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
 
-                // Mensaje 2
-                SequentialMessageBubble(
-                    text = if (didBet) {
-                        "La urgencia del mensaje te hizo reaccionar por impulso sin tiempo para pensar."
-                    } else {
-                        "Tuviste la cabeza fría para frenar a tiempo y no dejarte presionar por el grupo."
-                    }
-                )
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Advertencia concisa
-                ConciseWarningBox(
-                    text = if (didBet) {
-                        "En las apuestas digitales la casa siempre gana: el 95% de los apostadores pierde a largo plazo."
-                    } else {
-                        "Poder decir 'no' ante la insistencia social es la verdadera victoria."
-                    },
-                    accentColor = if (didBet) RojoAlerta else VerdeExito
-                )
+                // FLUJO SECUENCIAL DE MENSAJES HACIA ABAJO
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Mensaje 1
+                    SequentialMessageBubble(
+                        text = if (didBet) {
+                            "Apostaste los $1.000 creyendo en la promesa del dinero fácil."
+                        } else {
+                            "Elegiste no apostar y cuidaste tu dinero."
+                        }
+                    )
+
+                    // Mensaje 2
+                    SequentialMessageBubble(
+                        text = if (didBet) {
+                            "La urgencia del mensaje te hizo reaccionar por impulso sin tiempo para pensar."
+                        } else {
+                            "Tuviste la cabeza fría para frenar a tiempo y no dejarte presionar por el grupo."
+                        }
+                    )
+
+                    // Advertencia concisa
+                    ConciseWarningBox(
+                        text = if (didBet) {
+                            "En las apuestas digitales la casa siempre gana: el 95% de los apostadores pierde a largo plazo."
+                        } else {
+                            "Poder decir 'no' ante la insistencia social es la verdadera victoria."
+                        },
+                        accentColor = if (didBet) RojoAlerta else VerdeExito
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // 4. SECCION DE AYUDA: FILA HORIZONTAL DE EXACTAMENTE 3 BOTONES CON ICONOS
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Boton 1: Orientacion al Jugador
-                CompactHelpButton(
-                    title = "Orientación\nal Jugador",
-                    icon = Icons.Default.Info,
-                    onClick = { dialPhone("08006666006") },
-                    modifier = Modifier.weight(1f)
-                )
-
-                // Boton 2: Chat Boti
-                CompactHelpButton(
-                    title = "Chat\nBoti",
-                    icon = Icons.Default.Email,
-                    onClick = { openWhatsApp("1150500147") },
-                    modifier = Modifier.weight(1f)
-                )
-
-                // Boton 3: Linea 141
-                CompactHelpButton(
-                    title = "Línea\n141",
-                    icon = Icons.Default.Phone,
-                    onClick = { dialPhone("141") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // 5. PARTE INFERIOR: BOTON SECUNDARIO EN LA BASE PARA 'VOLVER A INTENTAR'
-            Box(
+            // 3. ZONA CALIENTE DEL PULGAR (FIJA EN LA BASE DE LA PANTALLA)
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0x26FFFFFF))
-                    .border(
-                        width = 1.dp,
-                        color = Color.White.copy(alpha = 0.25f),
-                        shape = RoundedCornerShape(14.dp)
-                    )
-                    .clickable(onClick = {
-                        playClickFeedback()
-                        onRestartGame()
-                    }),
-                contentAlignment = Alignment.Center
+                    .padding(bottom = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "Volver a intentar",
-                    color = Color.White,
-                    fontFamily = SpaceGrotesk,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
-            }
+                // Fila horizontal compacta de exactamente 3 botones con iconos
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Boton 1: Orientacion al Jugador
+                    CompactHelpButton(
+                        title = "Orientación\nal Jugador",
+                        icon = Icons.Default.Info,
+                        onClick = { dialPhone("08006666006") },
+                        modifier = Modifier.weight(1f)
+                    )
 
-            Spacer(modifier = Modifier.height(14.dp))
+                    // Boton 2: Chat Boti
+                    CompactHelpButton(
+                        title = "Chat\nBoti",
+                        icon = Icons.Default.Email,
+                        onClick = { openWhatsApp("1150500147") },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    // Boton 3: Linea 141
+                    CompactHelpButton(
+                        title = "Línea\n141",
+                        icon = Icons.Default.Phone,
+                        onClick = { dialPhone("141") },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // Boton secundario en la base para 'Volver a intentar'
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0x26FFFFFF))
+                        .border(
+                            width = 1.dp,
+                            color = Color.White.copy(alpha = 0.25f),
+                            shape = RoundedCornerShape(14.dp)
+                        )
+                        .clickable(onClick = {
+                            playClickFeedback()
+                            onRestartGame()
+                        }),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Volver a intentar",
+                        color = Color.White,
+                        fontFamily = SpaceGrotesk,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
     }
 }

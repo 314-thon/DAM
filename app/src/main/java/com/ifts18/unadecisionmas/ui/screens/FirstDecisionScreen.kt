@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -367,12 +368,11 @@ fun FirstDecisionScreen(
             .fillMaxSize()
             .background(backgroundBrush)
             .statusBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 14.dp)
+            .navigationBarsPadding()
+            .padding(horizontal = 20.dp, vertical = 12.dp)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // 1. ENCABEZADO MINIMALISTA: "Lunes" y avatar sutil
@@ -416,9 +416,12 @@ fun FirstDecisionScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 2. FLUJO SECUENCIAL DE MENSAJES HACIA ABAJO (1 seg de delay entre mensajes)
+            // 2. FLUJO SECUENCIAL DE MENSAJES HACIA ABAJO (Ocupa el espacio restante, scrollable si la pantalla es reducida)
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 if (!isMessage1Loaded) {
@@ -476,13 +479,13 @@ fun FirstDecisionScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // 3. CONTROLES UNIFICADOS: Temporizador horizontal INMEDIATAMENTE encima de los botones
+            // 3. ZONA CALIENTE DEL PULGAR (FIJA EN LA BASE DE LA PANTALLA)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 14.dp),
+                    .padding(bottom = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
