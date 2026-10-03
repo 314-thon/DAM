@@ -136,8 +136,9 @@ fun FirstDecisionScreen(
         } catch (_: Exception) {}
     }
 
-    // Estado de carga y llegada del mensaje
-    var isMessageLoaded by remember { mutableStateOf(false) }
+    // Estado de carga secuencial de los mensajes
+    var isMessage1Loaded by remember { mutableStateOf(false) }
+    var isMessage2Loaded by remember { mutableStateOf(false) }
 
     // Control del temporizador de 15 segundos
     var isTimerActive by remember { mutableStateOf(false) }
@@ -146,7 +147,7 @@ fun FirstDecisionScreen(
     // Determinar si estamos en los ultimos 5 segundos con derivedStateOf
     val isLast5Seconds by remember {
         derivedStateOf {
-            isMessageLoaded && isTimerActive && timerProgress.value <= (5f / 15f)
+            isMessage2Loaded && isTimerActive && timerProgress.value <= (5f / 15f)
         }
     }
 
@@ -258,10 +259,12 @@ fun FirstDecisionScreen(
         }
     }
 
-    // 1. Simular carga del mensaje, reproducir sonido de notificacion y activar animacion
+    // Secuencia temporal de llegada de mensajes y activacion del temporizador
     LaunchedEffect(Unit) {
-        delay(700L)
+        // 1. Breve tiempo de carga / anticipacion inicial
+        delay(600L)
 
+        // Notificacion sonora del Mensaje 1
         if (!isPreview) {
             try {
                 val notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
@@ -274,33 +277,51 @@ fun FirstDecisionScreen(
             }
         }
 
-        isMessageLoaded = true
-    }
+        // Carga Mensaje 1
+        isMessage1Loaded = true
 
-    // 2. Temporizador real de 15 segundos y musica: arrancan 1.5s DESPUES de llegar el mensaje
-    LaunchedEffect(isMessageLoaded) {
-        if (isMessageLoaded) {
-            delay(1500L)
+        // 2. Exactamente 1 segundo de delay entre mensajes
+        delay(1000L)
 
+        // Notificacion sonora del Mensaje 2
+        if (!isPreview) {
             try {
-                if (bgMusicPlayer != null && !bgMusicPlayer.isPlaying) {
-                    bgMusicPlayer.start()
-                }
-            } catch (_: Exception) {}
-
-            isTimerActive = true
-            timerProgress.animateTo(
-                targetValue = 0f,
-                animationSpec = tween(
-                    durationMillis = 15_000,
-                    easing = LinearEasing
-                )
-            )
-
-            if (isTimerActive && timerProgress.value <= 0.001f) {
-                stopAllAudio()
-                onTimeout()
+                val notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                val ringtone = RingtoneManager.getRingtone(context, notificationUri)
+                ringtone?.play()
+            } catch (_: Exception) {
+                try {
+                    ToneGenerator(AudioManager.STREAM_NOTIFICATION, 90).startTone(ToneGenerator.TONE_PROP_BEEP, 200)
+                } catch (_: Exception) {}
             }
+        }
+
+        // Carga Mensaje 2
+        isMessage2Loaded = true
+
+        // 3. Pausa de 1.5 segundos LUEGO DEL ÚLTIMO MENSAJE antes de arrancar timer y musica
+        delay(1500L)
+
+        // Iniciar musica de fondo a velocidad normal
+        try {
+            if (bgMusicPlayer != null && !bgMusicPlayer.isPlaying) {
+                bgMusicPlayer.start()
+            }
+        } catch (_: Exception) {}
+
+        // Iniciar el temporizador de 15 segundos
+        isTimerActive = true
+        timerProgress.animateTo(
+            targetValue = 0f,
+            animationSpec = tween(
+                durationMillis = 15_000,
+                easing = LinearEasing
+            )
+        )
+
+        if (isTimerActive && timerProgress.value <= 0.001f) {
+            stopAllAudio()
+            onTimeout()
         }
     }
 
@@ -395,17 +416,18 @@ fun FirstDecisionScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 2. FLUJO SECUENCIAL DE MENSAJES HACIA ABAJO (Espaciado vertical ajustado)
+            // 2. FLUJO SECUENCIAL DE MENSAJES HACIA ABAJO (1 seg de delay entre mensajes)
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                if (!isMessageLoaded) {
+                if (!isMessage1Loaded) {
                     TypingIndicatorBubble()
                 }
 
+                // Mensaje 1: Propuesta del amigo
                 AnimatedVisibility(
-                    visible = isMessageLoaded,
+                    visible = isMessage1Loaded,
                     enter = fadeIn(animationSpec = tween(350)) +
                             slideInVertically(
                                 animationSpec = spring(
@@ -421,28 +443,36 @@ fun FirstDecisionScreen(
                                 )
                             )
                 ) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        // Mensaje 1: Propuesta del amigo
-                        ChatMessageBubble(
-                            sender = "Lucas",
-                            message = "¡Hola $playerName! ¿Querés ganar hoy mismo $2.000? Solo tenés que poner $1.000 ahora.",
-                            isDelivered = true
-                        )
+                    ChatMessageBubble(
+                        sender = "Lucas",
+                        message = "¡Hola $playerName! ¿Querés ganar hoy mismo $2.000? Solo tenés que poner $1.000 ahora.",
+                        isDelivered = true
+                    )
+                }
 
-                        // Mensaje 2: Insistencia / Presión de tiempo
-                        ChatMessageBubble(
-                            sender = "Lucas",
-                            message = "¡Dale rápido que en menos de 10 segundos se cierra la cuota x5!",
-                            isDelivered = true
-                        )
-
-                        // Advertencia concisa (sin grandes espacios vacíos)
-                        PersuasiveAlertBox(
-                            message = "Aviso: Te apuran con urgencia para que actúes por impulso y sin pensar."
-                        )
-                    }
+                // Mensaje 2: Insistencia / Presión de tiempo (cae 1 segundo después)
+                AnimatedVisibility(
+                    visible = isMessage2Loaded,
+                    enter = fadeIn(animationSpec = tween(350)) +
+                            slideInVertically(
+                                animationSpec = spring(
+                                    dampingRatio = 0.75f,
+                                    stiffness = 380f
+                                )
+                            ) { -it / 2 } +
+                            scaleIn(
+                                initialScale = 0.92f,
+                                animationSpec = spring(
+                                    dampingRatio = 0.75f,
+                                    stiffness = 380f
+                                )
+                            )
+                ) {
+                    ChatMessageBubble(
+                        sender = "Lucas",
+                        message = "¡Dale rápido que en menos de 10 segundos se cierra la cuota x5!",
+                        isDelivered = true
+                    )
                 }
             }
 
@@ -569,49 +599,6 @@ private fun ChatMessageBubble(
     }
 }
 
-/**
- * Advertencia concisa para romper la manipulación persuasiva.
- */
-@Composable
-private fun PersuasiveAlertBox(
-    message: String,
-    modifier: Modifier = Modifier
-) {
-    val shape = RoundedCornerShape(14.dp)
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                color = BordeCyan.copy(alpha = 0.40f),
-                shape = shape
-            )
-            .clip(shape)
-            .background(Color(0xFF1E172B).copy(alpha = 0.70f))
-            .padding(horizontal = 14.dp, vertical = 10.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Warning,
-                contentDescription = "Alerta",
-                tint = BordeCyan,
-                modifier = Modifier.size(20.dp)
-            )
-
-            Text(
-                text = message,
-                fontSize = 12.5.sp,
-                fontWeight = FontWeight.Medium,
-                lineHeight = 17.sp,
-                color = Color.White
-            )
-        }
-    }
-}
 
 /**
  * Indicador de mensaje cargando / escribiendo.
