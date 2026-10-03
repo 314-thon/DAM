@@ -164,12 +164,29 @@ fun FirstDecisionScreen(
     val bgMusicPlayer = remember {
         if (!isPreview) {
             try {
-                MediaPlayer.create(context, R.raw.bg_music_suspense)?.apply {
+                MediaPlayer().apply {
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_GAME)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .build()
+                    )
+                    val afd = context.resources.openRawResourceFd(R.raw.bg_music_suspense)
+                    setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+                    afd.close()
+                    prepare()
                     isLooping = true
-                    setVolume(0.50f, 0.50f)
+                    setVolume(0.45f, 0.45f)
                 }
             } catch (_: Exception) {
-                null
+                try {
+                    MediaPlayer.create(context, R.raw.bg_music_suspense)?.apply {
+                        isLooping = true
+                        setVolume(0.45f, 0.45f)
+                    }
+                } catch (_: Exception) {
+                    null
+                }
             }
         } else null
     }
@@ -177,12 +194,29 @@ fun FirstDecisionScreen(
     val heartbeatPlayer = remember {
         if (!isPreview) {
             try {
-                MediaPlayer.create(context, R.raw.heartbeat)?.apply {
+                MediaPlayer().apply {
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_GAME)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    val afd = context.resources.openRawResourceFd(R.raw.heartbeat)
+                    setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+                    afd.close()
+                    prepare()
                     isLooping = true
-                    setVolume(0.38f, 0.38f) // Levemente audible como fue solicitado
+                    setVolume(0.35f, 0.35f) // Levemente audible como fue solicitado
                 }
             } catch (_: Exception) {
-                null
+                try {
+                    MediaPlayer.create(context, R.raw.heartbeat)?.apply {
+                        isLooping = true
+                        setVolume(0.35f, 0.35f)
+                    }
+                } catch (_: Exception) {
+                    null
+                }
             }
         } else null
     }
@@ -243,9 +277,12 @@ fun FirstDecisionScreen(
         isMessageLoaded = true
     }
 
-    // 2. Temporizador real de 15 segundos y musica de fondo que arranca inmediatamente despues de llegar el mensaje
+    // 2. Temporizador real de 15 segundos y musica de fondo: arrancan 1.5s DESPUES de llegar el mensaje
     LaunchedEffect(isMessageLoaded) {
         if (isMessageLoaded) {
+            // Pausa de 1.5 segundos para que el usuario pueda leer el mensaje antes de iniciar el estres
+            delay(1500L)
+
             // Iniciar musica de fondo a velocidad normal (1.0x)
             try {
                 if (bgMusicPlayer != null && !bgMusicPlayer.isPlaying) {
