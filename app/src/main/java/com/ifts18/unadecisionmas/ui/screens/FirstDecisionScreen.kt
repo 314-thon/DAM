@@ -20,6 +20,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -48,6 +49,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,10 +58,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -137,8 +141,12 @@ fun FirstDecisionScreen(
     var isTimerActive by remember { mutableStateOf(false) }
     val timerProgress = remember { Animatable(1f) }
 
-    // Determinar si estamos en los ultimos 5 segundos (5s / 15s = un tercio del tiempo)
-    val isLast5Seconds = isMessageLoaded && isTimerActive && timerProgress.value <= (5f / 15f)
+    // Determinar si estamos en los ultimos 5 segundos con derivedStateOf (evita recomposicion innecesaria)
+    val isLast5Seconds by remember {
+        derivedStateOf {
+            isMessageLoaded && isTimerActive && timerProgress.value <= (5f / 15f)
+        }
+    }
 
     // Animacion de latido (heartbeat / pulso) para los botones en los ultimos 5 segundos
     val pulseTransition = rememberInfiniteTransition(label = "buttonHeartbeat")
@@ -285,15 +293,17 @@ fun FirstDecisionScreen(
     }
 
     // Gradiente difuminado verde/azulado en la esquina superior izquierda
-    val backgroundBrush = Brush.radialGradient(
-        colors = listOf(
-            Color(0xFF00E676).copy(alpha = 0.28f),
-            Color(0xFF00E5FF).copy(alpha = 0.15f),
-            FondoGeneral
-        ),
-        center = Offset(x = 100f, y = 350f),
-        radius = 900f
-    )
+    val backgroundBrush = remember {
+        Brush.radialGradient(
+            colors = listOf(
+                Color(0xFF00E676).copy(alpha = 0.28f),
+                Color(0xFF00E5FF).copy(alpha = 0.15f),
+                FondoGeneral
+            ),
+            center = Offset(x = 100f, y = 350f),
+            radius = 900f
+        )
+    }
 
     Box(
         modifier = modifier
@@ -354,12 +364,8 @@ fun FirstDecisionScreen(
             Spacer(modifier = Modifier.height(28.dp))
 
             // 3. BARRA DE PROGRESO - TIMER REAL DE 15 SEGUNDOS (Verde se reduce, Rojo aumenta)
-            val currentGreenRatio = timerProgress.value
-            val currentRedRatio = 1f - timerProgress.value
-
             SplitProgressBar(
-                greenRatio = currentGreenRatio,
-                redRatio = currentRedRatio,
+                progressProvider = { timerProgress.value },
                 modifier = Modifier.fillMaxWidth(0.85f)
             )
 
@@ -381,7 +387,7 @@ fun FirstDecisionScreen(
                         onApostarClick()
                     },
                     isPulsing = isLast5Seconds,
-                    pulseScale = pulseScale,
+                    pulseScale = { pulseScale },
                     modifier = Modifier.fillMaxWidth(0.85f)
                 )
 
@@ -393,7 +399,7 @@ fun FirstDecisionScreen(
                         onNoApostarClick()
                     },
                     isPulsing = isLast5Seconds,
-                    pulseScale = pulseScale,
+                    pulseScale = { pulseScale },
                     modifier = Modifier.fillMaxWidth(0.85f)
                 )
             }
@@ -557,54 +563,46 @@ private fun ChatMessageCard(
 
 /**
  * Barra de progreso lineal dividida en dos partes: Verde a la izquierda (tiempo restante) y Roja a la derecha.
- * Opera como un temporizador real de 15 segundos donde la barra verde disminuye suavemente.
+ * Opera como un temporizador real de 15 segundos optimizado en Canvas (solo corre en la fase de dibujo).
  */
 @Composable
 private fun SplitProgressBar(
-    modifier: Modifier = Modifier,
-    greenRatio: Float = 1.0f,
-    redRatio: Float = 0.0f
+    progressProvider: () -> Float,
+    modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(8.dp)
+    val cornerRadius = with(LocalDensity.current) { 8.dp.toPx() }
+    val spacerWidth = with(LocalDensity.current) { 3.dp.toPx() }
 
-    val safeGreen = greenRatio.coerceIn(0.0001f, 0.9999f)
-    val safeRed = redRatio.coerceIn(0.0001f, 0.9999f)
-
-    Row(
+    Canvas(
         modifier = modifier
             .height(14.dp)
-            .clip(shape)
+            .clip(RoundedCornerShape(8.dp))
             .background(Color(0xFF1E1E1E))
     ) {
-        // Seccion Verde (Izquierda - disminuye continuamente con el timer)
-        if (greenRatio > 0.005f) {
-            Box(
-                modifier = Modifier
-                    .weight(safeGreen)
-                    .fillMaxHeight()
-                    .clip(
-                        if (redRatio <= 0.005f) shape
-                        else RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp)
-                    )
-                    .background(VerdeExito)
+        val progress = progressProvider().coerceIn(0f, 1f)
+        val w = size.width
+        val h = size.height
+
+        val greenW = w * progress
+        val redW = w - greenW
+
+        if (greenW > 1f) {
+            val drawGreenW = if (redW > 1f) (greenW - spacerWidth / 2f).coerceAtLeast(0f) else w
+            drawRoundRect(
+                color = VerdeExito,
+                topLeft = Offset.Zero,
+                size = Size(drawGreenW, h),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius)
             )
         }
 
-        if (greenRatio > 0.005f && redRatio > 0.005f) {
-            Spacer(modifier = Modifier.width(3.dp))
-        }
-
-        // Seccion Roja (Derecha - se incrementa a medida que el tiempo se agota)
-        if (redRatio > 0.005f) {
-            Box(
-                modifier = Modifier
-                    .weight(safeRed)
-                    .fillMaxHeight()
-                    .clip(
-                        if (greenRatio <= 0.005f) shape
-                        else RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp)
-                    )
-                    .background(RojoAlerta)
+        if (redW > 1f) {
+            val redStart = if (greenW > 1f) (greenW + spacerWidth / 2f).coerceAtMost(w) else 0f
+            drawRoundRect(
+                color = RojoAlerta,
+                topLeft = Offset(redStart, 0f),
+                size = Size(w - redStart, h),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius)
             )
         }
     }
@@ -612,6 +610,7 @@ private fun SplitProgressBar(
 
 /**
  * Boton redondeado (pill-shaped) con soporte para efecto de latido / pulso en los ultimos segundos.
+ * Optimizado con lambda de escala para ejecutar la transformacion en graphicsLayer sin recomponer el boton.
  */
 @Composable
 private fun GradientPillButton(
@@ -619,7 +618,7 @@ private fun GradientPillButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isPulsing: Boolean = false,
-    pulseScale: Float = 1.0f
+    pulseScale: () -> Float = { 1.0f }
 ) {
     val shape = CircleShape
     val borderBrush = if (isPulsing) {
@@ -635,8 +634,9 @@ private fun GradientPillButton(
     Box(
         modifier = modifier
             .graphicsLayer {
-                scaleX = if (isPulsing) pulseScale else 1f
-                scaleY = if (isPulsing) pulseScale else 1f
+                val scale = if (isPulsing) pulseScale() else 1f
+                scaleX = scale
+                scaleY = scale
             }
             .height(54.dp)
             .border(
