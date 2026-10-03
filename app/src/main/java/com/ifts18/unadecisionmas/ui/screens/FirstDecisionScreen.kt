@@ -44,7 +44,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -140,6 +139,7 @@ fun FirstDecisionScreen(
     // Estado de carga secuencial de los mensajes
     var isMessage1Loaded by remember { mutableStateOf(false) }
     var isMessage2Loaded by remember { mutableStateOf(false) }
+    var isMessage3Loaded by remember { mutableStateOf(false) }
 
     // Control del temporizador de 15 segundos
     var isTimerActive by remember { mutableStateOf(false) }
@@ -148,7 +148,7 @@ fun FirstDecisionScreen(
     // Determinar si estamos en los ultimos 5 segundos con derivedStateOf
     val isLast5Seconds by remember {
         derivedStateOf {
-            isMessage2Loaded && isTimerActive && timerProgress.value <= (5f / 15f)
+            isMessage3Loaded && isTimerActive && timerProgress.value <= (5f / 15f)
         }
     }
 
@@ -262,45 +262,36 @@ fun FirstDecisionScreen(
 
     // Secuencia temporal de llegada de mensajes y activacion del temporizador
     LaunchedEffect(Unit) {
-        // 1. Breve tiempo de carga / anticipacion inicial
-        delay(600L)
-
-        // Notificacion sonora del Mensaje 1
-        if (!isPreview) {
-            try {
-                val notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                val ringtone = RingtoneManager.getRingtone(context, notificationUri)
-                ringtone?.play()
-            } catch (_: Exception) {
+        val playMessageTone: () -> Unit = {
+            if (!isPreview) {
                 try {
-                    ToneGenerator(AudioManager.STREAM_NOTIFICATION, 90).startTone(ToneGenerator.TONE_PROP_BEEP, 200)
-                } catch (_: Exception) {}
+                    val notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                    val ringtone = RingtoneManager.getRingtone(context, notificationUri)
+                    ringtone?.play()
+                } catch (_: Exception) {
+                    try {
+                        ToneGenerator(AudioManager.STREAM_NOTIFICATION, 90).startTone(ToneGenerator.TONE_PROP_BEEP, 200)
+                    } catch (_: Exception) {}
+                }
             }
         }
 
-        // Carga Mensaje 1
+        // 1. Breve tiempo de anticipacion inicial
+        delay(600L)
+        playMessageTone()
         isMessage1Loaded = true
 
-        // 2. Exactamente 2 segundos de delay entre mensajes
+        // 2. Exactamente 2 segundos de delay para el Mensaje 2
         delay(2000L)
-
-        // Notificacion sonora del Mensaje 2
-        if (!isPreview) {
-            try {
-                val notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                val ringtone = RingtoneManager.getRingtone(context, notificationUri)
-                ringtone?.play()
-            } catch (_: Exception) {
-                try {
-                    ToneGenerator(AudioManager.STREAM_NOTIFICATION, 90).startTone(ToneGenerator.TONE_PROP_BEEP, 200)
-                } catch (_: Exception) {}
-            }
-        }
-
-        // Carga Mensaje 2
+        playMessageTone()
         isMessage2Loaded = true
 
-        // 3. Pausa de 1.5 segundos LUEGO DEL ÚLTIMO MENSAJE antes de arrancar timer y musica
+        // 3. Exactamente 2 segundos de delay para el Mensaje 3
+        delay(2000L)
+        playMessageTone()
+        isMessage3Loaded = true
+
+        // 4. Pausa de 1.5 segundos LUEGO DEL ÚLTIMO MENSAJE antes de arrancar timer y musica
         delay(1500L)
 
         // Iniciar musica de fondo a velocidad normal
@@ -422,12 +413,8 @@ fun FirstDecisionScreen(
                     .weight(1f)
                     .fillMaxWidth()
                     .verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (!isMessage1Loaded) {
-                    TypingIndicatorBubble()
-                }
-
                 // Mensaje 1: Propuesta del amigo
                 AnimatedVisibility(
                     visible = isMessage1Loaded,
@@ -448,12 +435,12 @@ fun FirstDecisionScreen(
                 ) {
                     ChatMessageBubble(
                         sender = "Lucas",
-                        message = "¡Hola $playerName! ¿Querés ganar hoy mismo $2.000? Solo tenés que poner $1.000 ahora.",
+                        message = "¡Che $playerName! Me pasaron una fija imperdible para el partido de hoy 🔥",
                         isDelivered = true
                     )
                 }
 
-                // Mensaje 2: Insistencia / Presión de tiempo (cae 1 segundo después)
+                // Mensaje 2: La oferta económica concreta
                 AnimatedVisibility(
                     visible = isMessage2Loaded,
                     enter = fadeIn(animationSpec = tween(350)) +
@@ -473,9 +460,39 @@ fun FirstDecisionScreen(
                 ) {
                     ChatMessageBubble(
                         sender = "Lucas",
-                        message = "¡Dale rápido que en menos de 10 segundos se cierra la cuota x5!",
+                        message = "¿Ponés $1.000 ahora y nos llevamos $2.000 cada uno al toque?",
                         isDelivered = true
                     )
+                }
+
+                // Mensaje 3: Urgencia y presión de tiempo
+                AnimatedVisibility(
+                    visible = isMessage3Loaded,
+                    enter = fadeIn(animationSpec = tween(350)) +
+                            slideInVertically(
+                                animationSpec = spring(
+                                    dampingRatio = 0.75f,
+                                    stiffness = 380f
+                                )
+                            ) { -it / 2 } +
+                            scaleIn(
+                                initialScale = 0.92f,
+                                animationSpec = spring(
+                                    dampingRatio = 0.75f,
+                                    stiffness = 380f
+                                )
+                            )
+                ) {
+                    ChatMessageBubble(
+                        sender = "Lucas",
+                        message = "¡Confirmame ya que en 15 segundos cierran la apuesta y se cae la cuota!",
+                        isDelivered = true
+                    )
+                }
+
+                // Indicador de escritura hasta que caiga el último mensaje
+                if (!isMessage3Loaded) {
+                    TypingIndicatorBubble()
                 }
             }
 
@@ -540,7 +557,7 @@ fun FirstDecisionScreen(
 }
 
 /**
- * Burbuja de mensaje secuencial de chat con texto 100% blanco puro.
+ * Burbuja de mensaje secuencial de chat con texto 100% blanco puro y tipografía uniforme agrandada.
  */
 @Composable
 private fun ChatMessageBubble(
@@ -561,7 +578,7 @@ private fun ChatMessageBubble(
             )
             .clip(shape)
             .background(BurbujaChat.copy(alpha = 0.85f))
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(horizontal = 18.dp, vertical = 14.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()
@@ -575,7 +592,7 @@ private fun ChatMessageBubble(
                     text = sender,
                     fontFamily = SpaceGrotesk,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
+                    fontSize = 14.sp,
                     color = Color.White
                 )
 
@@ -589,19 +606,19 @@ private fun ChatMessageBubble(
                 }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
                 text = message,
-                fontSize = 17.5.sp,
+                fontFamily = SpaceGrotesk,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Normal,
-                lineHeight = 24.sp,
+                lineHeight = 27.sp,
                 color = Color.White
             )
         }
     }
 }
-
 
 /**
  * Indicador de mensaje cargando / escribiendo.
@@ -631,7 +648,7 @@ private fun TypingIndicatorBubble(
             .border(width = 1.dp, color = BordeCyan.copy(alpha = 0.3f), shape = shape)
             .clip(shape)
             .background(BurbujaChat.copy(alpha = 0.6f))
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 18.dp, vertical = 14.dp),
         contentAlignment = Alignment.CenterStart
     ) {
         Row(
@@ -640,8 +657,9 @@ private fun TypingIndicatorBubble(
         ) {
             Text(
                 text = "Lucas está escribiendo",
+                fontFamily = SpaceGrotesk,
                 color = Color.White,
-                fontSize = 13.5.sp,
+                fontSize = 14.5.sp,
                 fontWeight = FontWeight.Medium
             )
             Box(modifier = Modifier.size(6.dp).background(BordeCyan.copy(alpha = dot1Alpha), CircleShape))

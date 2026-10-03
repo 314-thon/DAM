@@ -38,7 +38,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -104,7 +103,7 @@ fun InfoResourcesScreen(
     // Estados para la aparición secuencial de mensajes cada 2 segundos
     var isMessage1Loaded by remember { mutableStateOf(false) }
     var isMessage2Loaded by remember { mutableStateOf(false) }
-    var isConclusionLoaded by remember { mutableStateOf(false) }
+    var isMessage3Loaded by remember { mutableStateOf(false) }
 
     // 1. Reproductor de sonido de resultado: Felicitaciones o Perder (48 kHz, baja latencia)
     val resultSoundPlayer = remember {
@@ -193,9 +192,9 @@ fun InfoResourcesScreen(
         delay(2000L)
         isMessage2Loaded = true
 
-        // Conclusión / advertencia aparece 2 segundos después
+        // Mensaje 3 aparece 2 segundos después
         delay(2000L)
-        isConclusionLoaded = true
+        isMessage3Loaded = true
     }
 
     // Liberar recursos al salir
@@ -360,9 +359,9 @@ fun InfoResourcesScreen(
                     ) {
                         SequentialMessageBubble(
                             text = if (didBet) {
-                                "Apostaste los $1.000 creyendo en la promesa del dinero fácil."
+                                "Apostaste los $1.000 buscando una ganancia rápida y fácil."
                             } else {
-                                "Elegiste no apostar y cuidaste tu dinero."
+                                "Elegiste no apostar y supiste cuidar tu dinero."
                             }
                         )
                     }
@@ -387,16 +386,16 @@ fun InfoResourcesScreen(
                     ) {
                         SequentialMessageBubble(
                             text = if (didBet) {
-                                "La urgencia del mensaje te hizo reaccionar por impulso sin tiempo para pensar."
+                                "La urgencia del mensaje te hizo reaccionar por impulso sin tiempo para evaluar los riesgos."
                             } else {
-                                "Tuviste la cabeza fría para frenar a tiempo y no dejarte presionar por el grupo."
+                                "Tuviste la cabeza fría para frenar a tiempo y no dejarte presionar por la urgencia del grupo."
                             }
                         )
                     }
 
-                    // Advertencia / conclusión concisa (cae 2 seg después)
+                    // Mensaje 3 (cae 2 seg después)
                     AnimatedVisibility(
-                        visible = isConclusionLoaded,
+                        visible = isMessage3Loaded,
                         enter = fadeIn(animationSpec = tween(350)) +
                                 slideInVertically(
                                     animationSpec = spring(
@@ -412,13 +411,12 @@ fun InfoResourcesScreen(
                                     )
                                 )
                     ) {
-                        ConciseWarningBox(
+                        SequentialMessageBubble(
                             text = if (didBet) {
                                 "En las apuestas digitales la casa siempre gana: el 95% de los apostadores pierde a largo plazo."
                             } else {
-                                "Poder decir 'no' ante la insistencia social es la verdadera victoria."
-                            },
-                            accentColor = if (didBet) RojoAlerta else VerdeExito
+                                "Saber poner límites y decir que 'no' ante las falsas promesas es la verdadera victoria."
+                            }
                         )
                     }
                 }
@@ -497,7 +495,7 @@ fun InfoResourcesScreen(
 }
 
 /**
- * Burbuja de mensaje en cascada con texto en blanco puro y fuente agrandada.
+ * Burbuja de mensaje en cascada con texto en blanco puro y tipografía uniforme agrandada.
  */
 @Composable
 private fun SequentialMessageBubble(
@@ -520,56 +518,12 @@ private fun SequentialMessageBubble(
     ) {
         Text(
             text = text,
-            fontSize = 17.5.sp,
+            fontFamily = SpaceGrotesk,
+            fontSize = 20.sp,
             fontWeight = FontWeight.Normal,
-            lineHeight = 25.sp,
+            lineHeight = 27.sp,
             color = Color.White
         )
-    }
-}
-
-/**
- * Caja de advertencia concisa con texto en blanco puro y fuente agrandada.
- */
-@Composable
-private fun ConciseWarningBox(
-    text: String,
-    accentColor: Color,
-    modifier: Modifier = Modifier
-) {
-    val shape = RoundedCornerShape(14.dp)
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                color = accentColor.copy(alpha = 0.45f),
-                shape = shape
-            )
-            .clip(shape)
-            .background(Color(0xFF1E1629).copy(alpha = 0.80f))
-            .padding(horizontal = 16.dp, vertical = 14.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Warning,
-                contentDescription = "Aviso",
-                tint = accentColor,
-                modifier = Modifier.size(24.dp)
-            )
-
-            Text(
-                text = text,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                lineHeight = 22.sp,
-                color = Color.White
-            )
-        }
     }
 }
 
