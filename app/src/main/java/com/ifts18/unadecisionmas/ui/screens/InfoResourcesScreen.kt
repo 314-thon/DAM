@@ -3,6 +3,7 @@ package com.ifts18.unadecisionmas.ui.screens
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import kotlinx.coroutines.delay
 import android.media.SoundPool
 import android.net.Uri
 import android.view.SoundEffectConstants
@@ -31,9 +32,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -70,12 +68,10 @@ import com.ifts18.unadecisionmas.ui.theme.RojoAlerta
 import com.ifts18.unadecisionmas.ui.theme.SpaceGrotesk
 import com.ifts18.unadecisionmas.ui.theme.TextoSecundario
 import com.ifts18.unadecisionmas.ui.theme.VerdeExito
-import kotlinx.coroutines.delay
 
 /**
- * Pantalla final MVP con el resultado de la decision:
- * - Apostar -> Sonido de perder + Hero "¡Fallaste!" + Canales directos de ayuda CABA.
- * - No apostar -> Sonido de felicitacion + Confeti + Hero "¡Felicitaciones!" + Canales CABA para compartir.
+ * Pantalla final con el resultado de la decision (Apostar -> Fallaste, No apostar -> Felicitaciones con Confeti)
+ * y los canales oficiales de asistencia y orientacion para la Ciudad Autonoma de Buenos Aires (CABA).
  */
 @Composable
 fun InfoResourcesScreen(
@@ -89,7 +85,7 @@ fun InfoResourcesScreen(
     val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current
     val scrollState = rememberScrollState()
 
-    // 1. Reproductor de sonido de resultado: Felicitaciones o Perder (48 kHz, baja latencia)
+    // Reproductor de sonido de resultado: Felicitaciones o Perder (48 kHz, baja latencia)
     val resultSoundPlayer = remember {
         if (!isPreview) {
             try {
@@ -120,7 +116,14 @@ fun InfoResourcesScreen(
         } else null
     }
 
-    // 2. SoundPool para confirmacion sonora leve en toques de botones
+    LaunchedEffect(Unit) {
+        delay(120L)
+        try {
+            resultSoundPlayer?.start()
+        } catch (_: Exception) {}
+    }
+
+    // SoundPool para confirmacion sonora leve en botones
     val soundPool = remember {
         if (!isPreview) {
             try {
@@ -161,15 +164,6 @@ fun InfoResourcesScreen(
         } catch (_: Exception) {}
     }
 
-    // Reproducir sonido al ingresar a la pantalla
-    LaunchedEffect(Unit) {
-        delay(120L)
-        try {
-            resultSoundPlayer?.start()
-        } catch (_: Exception) {}
-    }
-
-    // Liberar recursos al salir
     DisposableEffect(Unit) {
         onDispose {
             try {
@@ -185,7 +179,7 @@ fun InfoResourcesScreen(
         }
     }
 
-    // Acciones directas
+    // Accion para discar telefono en el marcador del sistema
     val dialPhone: (String) -> Unit = { phoneNumber ->
         playClickFeedback()
         try {
@@ -194,6 +188,7 @@ fun InfoResourcesScreen(
         } catch (_: Exception) {}
     }
 
+    // Accion para abrir WhatsApp
     val openWhatsApp: (String) -> Unit = { phone ->
         playClickFeedback()
         try {
@@ -204,12 +199,21 @@ fun InfoResourcesScreen(
         } catch (_: Exception) {}
     }
 
-    // Gradiente de fondo condicional
+    // Accion para abrir enlace web informativo
+    val openWeb: (String) -> Unit = { url ->
+        playClickFeedback()
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            context.startActivity(intent)
+        } catch (_: Exception) {}
+    }
+
+    // Gradiente de fondo condicional segun resultado
     val backgroundBrush = if (didBet) {
         Brush.radialGradient(
             colors = listOf(
                 RojoAlerta.copy(alpha = 0.22f),
-                BordeMagenta.copy(alpha = 0.10f),
+                BordeMagenta.copy(alpha = 0.12f),
                 FondoGeneral
             ),
             center = Offset(x = 200f, y = 200f),
@@ -219,7 +223,7 @@ fun InfoResourcesScreen(
         Brush.radialGradient(
             colors = listOf(
                 VerdeExito.copy(alpha = 0.25f),
-                BordeCyan.copy(alpha = 0.12f),
+                BordeCyan.copy(alpha = 0.14f),
                 FondoGeneral
             ),
             center = Offset(x = 200f, y = 200f),
@@ -233,7 +237,7 @@ fun InfoResourcesScreen(
             .background(backgroundBrush)
             .statusBarsPadding()
     ) {
-        // Confeti animado si no aposto (celebracion)
+        // Si no aposto, se despliega animacion de confeti celebratoria
         if (!didBet) {
             ConfettiEffect(
                 modifier = Modifier.fillMaxSize()
@@ -244,19 +248,19 @@ fun InfoResourcesScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(horizontal = 20.dp, vertical = 14.dp),
+                .padding(horizontal = 20.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 1. BARRA SUPERIOR MVP
+            // 1. BARRA SUPERIOR CON BOTON VOLVER
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(44.dp),
+                    .height(48.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
                         .background(Color(0x33FFFFFF))
                         .clickable(onClick = {
@@ -269,42 +273,43 @@ fun InfoResourcesScreen(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Volver",
                         tint = Color.White,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
 
+                // Badge de estado
                 Box(
                     modifier = Modifier
                         .border(
                             width = 1.dp,
-                            color = if (didBet) RojoAlerta.copy(alpha = 0.7f) else VerdeExito.copy(alpha = 0.7f),
+                            color = if (didBet) RojoAlerta else VerdeExito,
                             shape = RoundedCornerShape(12.dp)
                         )
                         .background(
-                            if (didBet) RojoAlerta.copy(alpha = 0.12f)
-                            else VerdeExito.copy(alpha = 0.12f),
+                            if (didBet) RojoAlerta.copy(alpha = 0.15f)
+                            else VerdeExito.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(12.dp)
                         )
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(
                         text = if (didBet) "DECISIÓN: APOSTASTE" else "DECISIÓN: NO APOSTASTE",
                         fontFamily = SpaceGrotesk,
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (didBet) RojoAlerta else VerdeExito
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // 2. HERO PRINCIPAL: Icono + Titulo + Subtitulo directo
+            // 2. HERO PRINCIPAL: Titulo e impacto visual
             Box(
                 modifier = Modifier
-                    .size(68.dp)
+                    .size(72.dp)
                     .clip(CircleShape)
                     .background(
                         if (didBet) RojoAlerta.copy(alpha = 0.18f)
@@ -321,17 +326,17 @@ fun InfoResourcesScreen(
                     imageVector = if (didBet) Icons.Default.Close else Icons.Default.Check,
                     contentDescription = if (didBet) "Fallaste" else "Felicitaciones",
                     tint = if (didBet) RojoAlerta else VerdeExito,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(38.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Text(
                 text = if (didBet) "¡Fallaste!" else "¡Felicitaciones!",
                 fontFamily = SpaceGrotesk,
                 fontWeight = FontWeight.Bold,
-                fontSize = 32.sp,
+                fontSize = 34.sp,
                 color = if (didBet) RojoAlerta else VerdeExito,
                 textAlign = TextAlign.Center
             )
@@ -340,117 +345,158 @@ fun InfoResourcesScreen(
 
             Text(
                 text = if (didBet) {
-                    "Apostaste los $1.000. La presión del grupo y la promesa de ganar rápido te hicieron caer en la trampa."
+                    "Perdiste los $1.000.- y caíste en la trampa del dinero fácil. En las apuestas digitales la casa siempre está calculada para que el usuario pierda."
                 } else {
-                    "Elegiste no apostar. Tuviste la cabeza fría para frenar a tiempo y no dejarte manipular por la urgencia."
+                    "¡Excelente decisión! Supiste frenar a tiempo y no te dejaste manipular por la urgencia. No arriesgar tu dinero es la verdadera victoria."
                 },
-                fontSize = 14.5.sp,
+                fontSize = 15.sp,
                 color = Color.White.copy(alpha = 0.9f),
                 textAlign = TextAlign.Center,
-                lineHeight = 21.sp,
-                modifier = Modifier.padding(horizontal = 12.dp)
+                lineHeight = 22.sp,
+                modifier = Modifier.padding(horizontal = 8.dp)
             )
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // 3. TARJETA DE REFLEXION MVP (1 sola idea clave y directa)
+            // 3. TARJETA EDUCATIVA / REFLEXION
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .border(
                         width = 1.dp,
-                        color = if (didBet) RojoAlerta.copy(alpha = 0.4f) else VerdeExito.copy(alpha = 0.4f),
-                        shape = RoundedCornerShape(14.dp)
+                        brush = Brush.horizontalGradient(
+                            if (didBet) listOf(RojoAlerta.copy(alpha = 0.6f), BordeMagenta.copy(alpha = 0.6f))
+                            else listOf(BordeCyan.copy(alpha = 0.6f), VerdeExito.copy(alpha = 0.6f))
+                        ),
+                        shape = RoundedCornerShape(16.dp)
                     )
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(BurbujaChat.copy(alpha = 0.75f))
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(BurbujaChat.copy(alpha = 0.85f))
+                    .padding(16.dp)
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Icon(
-                        imageVector = if (didBet) Icons.Default.Warning else Icons.Default.Info,
-                        contentDescription = "Aviso",
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Informacion",
                         tint = if (didBet) BordeMagenta else BordeCyan,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                     Text(
                         text = if (didBet) {
-                            "Las plataformas están programadas para que la casa siempre gane: el 95% de los apostadores pierde a largo plazo."
+                            "La ludopatía digital en adolescentes suele comenzar con microapuestas bajo presión de tiempo o pares. Reconocer el impulso es el primer paso para no quedar atrapado."
                         } else {
-                            "Decir 'no' frente a la insistencia y cuidar tu plata es una verdadera victoria personal."
+                            "Apostar no es un juego inofensivo ni un método para ganar ingresos. Tener el criterio para decir 'No' ante mensajes persuasivos te protege a vos y a tu entorno."
                         },
-                        fontSize = 13.sp,
+                        fontSize = 13.5.sp,
                         color = Color.White.copy(alpha = 0.85f),
-                        lineHeight = 18.sp
+                        lineHeight = 20.sp
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
-            // 4. CANALES OFICIALES CABA (Formato MVP directo y accionable)
+            // 4. SECCION DE CANALES OFICIALES DE CABA
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.Start
             ) {
                 Text(
-                    text = if (didBet) "Canales oficiales de ayuda · CABA" else "Canales para compartir · CABA",
+                    text = if (didBet) "Canales oficiales de ayuda · CABA" else "Canales por si conocés a alguien que esté apostando",
                     fontFamily = SpaceGrotesk,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
+                    fontSize = 18.sp,
                     color = Color.White
                 )
 
+                Spacer(modifier = Modifier.height(4.dp))
+
                 Text(
-                    text = "Asistencia gratuita, confidencial y disponible 24 hs en la Ciudad:",
-                    fontSize = 12.5.sp,
+                    text = if (didBet) {
+                        "Si sentís que las apuestas te generan angustia, deudas o no podés parar, comunicate con estos canales gratuitos y confidenciales de la Ciudad:"
+                    } else {
+                        "Muchos jóvenes caen en las apuestas online en silencio. Si un amigo, compañero o familiar está apostando, compartile estos contactos oficiales de CABA:"
+                    },
+                    fontSize = 13.sp,
                     color = TextoSecundario,
-                    lineHeight = 17.sp
+                    lineHeight = 18.sp
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // CANAL 1: LOTBA - Linea Gratuita
-            MvpChannelCard(
-                title = "Línea de Orientación (LOTBA)",
-                contactNumber = "0800-666-6006",
-                actionLabel = "Llamar gratis",
-                badgeText = "24/7",
-                themeColor = if (didBet) RojoAlerta else VerdeExito,
+            // CANAL 1: LOTBA - Saber Jugar (CABA)
+            OfficialChannelCard(
+                title = "Línea de Orientación al Jugador Problemático",
+                organization = "Lotería de la Ciudad (LOTBA) · Saber Jugar",
+                badge = "Gratuito · CABA",
+                badgeColor = VerdeExito,
+                description = "Asesoramiento profesional, contención psicológica y derivación especializada para personas y familiares de CABA.",
+                contactInfo = "0800-666-6006",
+                actionLabel = "Llamar al 0800-666-6006",
                 onActionClick = { dialPhone("08006666006") }
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // CANAL 2: WhatsApp BOTI CABA
-            MvpChannelCard(
-                title = "WhatsApp BOTI · Salud Mental",
-                contactNumber = "11 5050-0147",
-                actionLabel = "Abrir chat",
-                badgeText = "Chat CABA",
-                themeColor = BordeCyan,
+            OfficialChannelCard(
+                title = "WhatsApp BOTI · Salud Mental CABA",
+                organization = "Gobierno de la Ciudad de Buenos Aires",
+                badge = "Chat 24/7 · CABA",
+                badgeColor = BordeCyan,
+                description = "Chateá con BOTI escribiendo 'Llamada Salud Mental' o 'Juego Responsable' para recibir orientación inmediata.",
+                contactInfo = "11 5050-0147",
+                actionLabel = "Abrir WhatsApp con BOTI",
                 onActionClick = { openWhatsApp("1150500147") }
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // 5. BOTONES DE ACCION PRINCIPALES
+            // CANAL 3: Linea 141 SEDRONAR
+            OfficialChannelCard(
+                title = "Línea 141 · Asistencia en Adicciones",
+                organization = "SEDRONAR · Cobertura CABA y Nacional",
+                badge = "24 hs · 365 días",
+                badgeColor = GlowCyan,
+                description = "Servicio telefónico confidencial de escucha, contención y acompañamiento profesional para la persona afectada o allegados.",
+                contactInfo = "Línea 141",
+                actionLabel = "Llamar al 141",
+                onActionClick = { dialPhone("141") }
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // CANAL 4: Red CeSACs y Hospitales CABA
+            OfficialChannelCard(
+                title = "Red de CeSACs y Hospitales de la Ciudad",
+                organization = "Ministerio de Salud CABA",
+                badge = "Presencial · CABA",
+                badgeColor = BordeMagenta,
+                description = "Centros de Salud y Acción Comunitaria en todos los barrios porteños con equipos especializados en salud mental.",
+                contactInfo = "Centros de Salud CABA",
+                actionLabel = "Ver centros de salud en CABA",
+                onActionClick = { openWeb("https://buenosaires.gob.ar/salud/centros-de-salud-y-accion-comunitaria-cesac") }
+            )
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            // 5. BOTONES DE ACCION INFERIORES
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                    .padding(bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Boton Primario: Reiniciar / Volver a intentar
+                // Boton principal de reinicio / volver a jugar
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.92f)
-                        .height(52.dp)
+                        .fillMaxWidth(0.9f)
+                        .height(54.dp)
                         .border(
                             width = 1.8.dp,
                             brush = Brush.horizontalGradient(
@@ -471,28 +517,28 @@ fun InfoResourcesScreen(
                         text = if (didBet) "Volver a intentar" else "Jugar otra partida",
                         color = Color.White,
                         fontFamily = SpaceGrotesk,
-                        fontSize = 16.sp,
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
                 }
 
-                // Boton Secundario: Volver al inicio
+                // Boton secundario para revisar la decision anterior
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.92f)
-                        .height(40.dp)
+                        .fillMaxWidth(0.9f)
+                        .height(44.dp)
                         .clip(CircleShape)
                         .clickable(onClick = {
                             playClickFeedback()
-                            onRestartGame()
+                            onNavigateBack()
                         }),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Volver al inicio",
+                        text = "Revisar decisión anterior",
                         color = TextoSecundario,
-                        fontSize = 13.5.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center
                     )
@@ -503,15 +549,17 @@ fun InfoResourcesScreen(
 }
 
 /**
- * Tarjeta compacta MVP para canales oficiales de CABA con boton directo de accion.
+ * Tarjeta individual para mostrar un canal oficial de asistencia con boton directo de accion.
  */
 @Composable
-private fun MvpChannelCard(
+private fun OfficialChannelCard(
     title: String,
-    contactNumber: String,
+    organization: String,
+    badge: String,
+    badgeColor: Color,
+    description: String,
+    contactInfo: String,
     actionLabel: String,
-    badgeText: String,
-    themeColor: Color,
     onActionClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -520,78 +568,98 @@ private fun MvpChannelCard(
             .fillMaxWidth()
             .border(
                 width = 1.dp,
-                color = Color.White.copy(alpha = 0.10f),
-                shape = RoundedCornerShape(12.dp)
+                color = Color.White.copy(alpha = 0.12f),
+                shape = RoundedCornerShape(16.dp)
             )
-            .clip(RoundedCornerShape(12.dp))
-            .background(BurbujaChat.copy(alpha = 0.60f))
-            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(BurbujaChat.copy(alpha = 0.65f))
+            .padding(16.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        Column(
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column(
-                modifier = Modifier.weight(1f)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Text(
+                    text = organization,
+                    fontSize = 12.sp,
+                    color = TextoSecundario,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f)
+                )
+
+                Box(
+                    modifier = Modifier
+                        .border(
+                            width = 0.8.dp,
+                            color = badgeColor.copy(alpha = 0.6f),
+                            shape = RoundedCornerShape(6.dp)
+                        )
+                        .background(badgeColor.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
-                        text = title,
-                        fontFamily = SpaceGrotesk,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp,
-                        color = Color.White
+                        text = badge,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = badgeColor
                     )
-
-                    Box(
-                        modifier = Modifier
-                            .background(themeColor.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = badgeText,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = themeColor
-                        )
-                    }
                 }
-
-                Spacer(modifier = Modifier.height(2.dp))
-
-                Text(
-                    text = contactNumber,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = TextoSecundario
-                )
             }
 
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-            // Boton de accion directa
+            Text(
+                text = title,
+                fontFamily = SpaceGrotesk,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                color = Color.White
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = description,
+                fontSize = 13.sp,
+                color = Color.White.copy(alpha = 0.8f),
+                lineHeight = 18.sp
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Contacto: $contactInfo",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = badgeColor.copy(alpha = 0.9f)
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Boton de accion
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(themeColor.copy(alpha = 0.18f))
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF2A2038))
                     .border(
                         width = 1.dp,
-                        color = themeColor.copy(alpha = 0.50f),
-                        shape = RoundedCornerShape(8.dp)
+                        color = badgeColor.copy(alpha = 0.45f),
+                        shape = RoundedCornerShape(10.dp)
                     )
-                    .clickable(onClick = onActionClick)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .clickable(onClick = onActionClick),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = actionLabel,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = themeColor
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = badgeColor
                 )
             }
         }
@@ -620,7 +688,7 @@ private data class ConfettiParticle(
 @Composable
 private fun ConfettiEffect(
     modifier: Modifier = Modifier,
-    particleCount: Int = 60
+    particleCount: Int = 65
 ) {
     val colors = remember {
         listOf(
