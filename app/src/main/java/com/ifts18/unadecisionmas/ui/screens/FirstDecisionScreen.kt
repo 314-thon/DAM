@@ -1,9 +1,12 @@
 package com.ifts18.unadecisionmas.ui.screens
 
+import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
+import android.media.SoundPool
 import android.media.ToneGenerator
+import android.view.SoundEffectConstants
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -57,6 +60,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -82,7 +86,49 @@ fun FirstDecisionScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
     val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current
+
+    // SoundPool para confirmacion sonora inmediata y tactil al clickear botones
+    val soundPool = remember {
+        if (!isPreview) {
+            try {
+                SoundPool.Builder()
+                    .setMaxStreams(2)
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    .build()
+            } catch (_: Exception) {
+                null
+            }
+        } else null
+    }
+
+    val clickSoundId = remember(soundPool) {
+        if (!isPreview && soundPool != null) {
+            try {
+                soundPool.load(context, R.raw.button_click, 1)
+            } catch (_: Exception) {
+                0
+            }
+        } else 0
+    }
+
+    val playClickFeedback: () -> Unit = {
+        try {
+            view.playSoundEffect(SoundEffectConstants.CLICK)
+        } catch (_: Exception) {}
+
+        try {
+            if (!isPreview && soundPool != null && clickSoundId != 0) {
+                soundPool.play(clickSoundId, 0.40f, 0.40f, 1, 0, 1.0f)
+            }
+        } catch (_: Exception) {}
+    }
 
     // Estado de carga y llegada del mensaje
     var isMessageLoaded by remember { mutableStateOf(false) }
@@ -160,6 +206,10 @@ fun FirstDecisionScreen(
                     heartbeatPlayer.stop()
                 }
                 heartbeatPlayer?.release()
+            } catch (_: Exception) {}
+
+            try {
+                soundPool?.release()
             } catch (_: Exception) {}
         }
     }
@@ -326,6 +376,7 @@ fun FirstDecisionScreen(
                 GradientPillButton(
                     text = "Apostar $1.000",
                     onClick = {
+                        playClickFeedback()
                         stopAllAudio()
                         onApostarClick()
                     },
@@ -337,6 +388,7 @@ fun FirstDecisionScreen(
                 GradientPillButton(
                     text = "No apostar",
                     onClick = {
+                        playClickFeedback()
                         stopAllAudio()
                         onNoApostarClick()
                     },

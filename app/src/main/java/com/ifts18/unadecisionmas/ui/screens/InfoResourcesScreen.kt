@@ -1,7 +1,10 @@
 package com.ifts18.unadecisionmas.ui.screens
 
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.SoundPool
 import android.net.Uri
+import android.view.SoundEffectConstants
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,6 +33,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -45,11 +49,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ifts18.unadecisionmas.R
 import com.ifts18.unadecisionmas.ui.theme.BordeCyan
 import com.ifts18.unadecisionmas.ui.theme.BordeMagenta
 import com.ifts18.unadecisionmas.ui.theme.BurbujaChat
@@ -73,10 +79,62 @@ fun InfoResourcesScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
+    val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current
     val scrollState = rememberScrollState()
+
+    // SoundPool para confirmacion sonora leve en botones
+    val soundPool = remember {
+        if (!isPreview) {
+            try {
+                SoundPool.Builder()
+                    .setMaxStreams(2)
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    .build()
+            } catch (_: Exception) {
+                null
+            }
+        } else null
+    }
+
+    val clickSoundId = remember(soundPool) {
+        if (!isPreview && soundPool != null) {
+            try {
+                soundPool.load(context, R.raw.button_click, 1)
+            } catch (_: Exception) {
+                0
+            }
+        } else 0
+    }
+
+    val playClickFeedback: () -> Unit = {
+        try {
+            view.playSoundEffect(SoundEffectConstants.CLICK)
+        } catch (_: Exception) {}
+
+        try {
+            if (!isPreview && soundPool != null && clickSoundId != 0) {
+                soundPool.play(clickSoundId, 0.40f, 0.40f, 1, 0, 1.0f)
+            }
+        } catch (_: Exception) {}
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                soundPool?.release()
+            } catch (_: Exception) {}
+        }
+    }
 
     // Accion para discar telefono en el marcador del sistema
     val dialPhone: (String) -> Unit = { phoneNumber ->
+        playClickFeedback()
         try {
             val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phoneNumber"))
             context.startActivity(intent)
@@ -85,6 +143,7 @@ fun InfoResourcesScreen(
 
     // Accion para abrir WhatsApp
     val openWhatsApp: (String) -> Unit = { phone ->
+        playClickFeedback()
         try {
             val cleanPhone = phone.replace("+", "").replace(" ", "").replace("-", "")
             val url = "https://wa.me/549$cleanPhone?text=Hola,%20necesito%20orientacion%20sobre%20juego%20problematico"
@@ -95,6 +154,7 @@ fun InfoResourcesScreen(
 
     // Accion para abrir enlace web informativo
     val openWeb: (String) -> Unit = { url ->
+        playClickFeedback()
         try {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
             context.startActivity(intent)
@@ -156,7 +216,10 @@ fun InfoResourcesScreen(
                         .size(40.dp)
                         .clip(CircleShape)
                         .background(Color(0x33FFFFFF))
-                        .clickable(onClick = onNavigateBack),
+                        .clickable(onClick = {
+                            playClickFeedback()
+                            onNavigateBack()
+                        }),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -397,7 +460,10 @@ fun InfoResourcesScreen(
                         )
                         .clip(CircleShape)
                         .background(Color(0x33121212))
-                        .clickable(onClick = onRestartGame),
+                        .clickable(onClick = {
+                            playClickFeedback()
+                            onRestartGame()
+                        }),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -416,7 +482,10 @@ fun InfoResourcesScreen(
                         .fillMaxWidth(0.9f)
                         .height(44.dp)
                         .clip(CircleShape)
-                        .clickable(onClick = onNavigateBack),
+                        .clickable(onClick = {
+                            playClickFeedback()
+                            onNavigateBack()
+                        }),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(

@@ -1,5 +1,8 @@
 package com.ifts18.unadecisionmas.ui.screens
 
+import android.media.AudioAttributes
+import android.media.SoundPool
+import android.view.SoundEffectConstants
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,7 +46,9 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -52,6 +58,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ifts18.unadecisionmas.R
 import com.ifts18.unadecisionmas.ui.theme.BordeCyan
 import com.ifts18.unadecisionmas.ui.theme.BordeMagenta
 import com.ifts18.unadecisionmas.ui.theme.BurbujaChat
@@ -81,7 +88,60 @@ fun WelcomeScreen(
     val scrollState = rememberScrollState()
     val coroutineScope = rememberCoroutineScope()
 
+    val context = LocalContext.current
+    val view = LocalView.current
+    val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current
+
+    val soundPool = remember {
+        if (!isPreview) {
+            try {
+                SoundPool.Builder()
+                    .setMaxStreams(2)
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    .build()
+            } catch (_: Exception) {
+                null
+            }
+        } else null
+    }
+
+    val clickSoundId = remember(soundPool) {
+        if (!isPreview && soundPool != null) {
+            try {
+                soundPool.load(context, R.raw.button_click, 1)
+            } catch (_: Exception) {
+                0
+            }
+        } else 0
+    }
+
+    val playClickFeedback: () -> Unit = {
+        try {
+            view.playSoundEffect(SoundEffectConstants.CLICK)
+        } catch (_: Exception) {}
+
+        try {
+            if (!isPreview && soundPool != null && clickSoundId != 0) {
+                soundPool.play(clickSoundId, 0.40f, 0.40f, 1, 0, 1.0f)
+            }
+        } catch (_: Exception) {}
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                soundPool?.release()
+            } catch (_: Exception) {}
+        }
+    }
+
     val submitName: () -> Unit = {
+        playClickFeedback()
         keyboardController?.hide()
         val finalName = playerName.trim().ifEmpty { "Mateo" }
         onNavigateToDecision(finalName)
