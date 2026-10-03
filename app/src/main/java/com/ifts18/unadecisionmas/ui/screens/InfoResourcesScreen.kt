@@ -6,7 +6,14 @@ import android.media.MediaPlayer
 import android.media.SoundPool
 import android.net.Uri
 import android.view.SoundEffectConstants
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,7 +36,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Warning
@@ -40,6 +46,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -54,6 +61,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -68,7 +76,6 @@ import com.ifts18.unadecisionmas.ui.theme.GlowCyan
 import com.ifts18.unadecisionmas.ui.theme.JuegoLimpioTheme
 import com.ifts18.unadecisionmas.ui.theme.RojoAlerta
 import com.ifts18.unadecisionmas.ui.theme.SpaceGrotesk
-import com.ifts18.unadecisionmas.ui.theme.TextoSecundario
 import com.ifts18.unadecisionmas.ui.theme.VerdeExito
 import kotlinx.coroutines.delay
 
@@ -76,10 +83,10 @@ import kotlinx.coroutines.delay
  * Pantalla final con diseño UI/UX estilo mockup Dribbble / Jetpack Compose:
  * - Encabezado minimalista: 'Lunes' + resultado grande '¡Fallaste!' o '¡Felicitaciones!'.
  * - Cero etiquetas en forma de píldora ni textos que digan 'Decisión'.
- * - Todo el texto del cuerpo, burbujas y botones en blanco puro (#FFFFFF).
- * - Flujo secuencial de mensajes hacia abajo con espaciado vertical compacto.
- * - Fila horizontal de exactamente 3 botones con iconos: 'Orientación al Jugador', 'Chat Boti' y 'Línea 141'.
- * - Botón secundario en la base: 'Volver a intentar'.
+ * - Todo el texto del cuerpo, burbujas y botones en blanco puro (#FFFFFF) con tipografía agrandada.
+ * - Flujo secuencial de mensajes que van apareciendo cada 2 segundos.
+ * - Fila horizontal de botones de ayuda más grandes con el logo oficial de Boti sin fondo.
+ * - Botones y controles fijos en la zona caliente del pulgar.
  * - Efectos de sonido win/lose en 48 kHz.
  */
 @Composable
@@ -93,6 +100,11 @@ fun InfoResourcesScreen(
     val view = LocalView.current
     val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current
     val scrollState = rememberScrollState()
+
+    // Estados para la aparición secuencial de mensajes cada 2 segundos
+    var isMessage1Loaded by remember { mutableStateOf(false) }
+    var isMessage2Loaded by remember { mutableStateOf(false) }
+    var isConclusionLoaded by remember { mutableStateOf(false) }
 
     // 1. Reproductor de sonido de resultado: Felicitaciones o Perder (48 kHz, baja latencia)
     val resultSoundPlayer = remember {
@@ -166,12 +178,24 @@ fun InfoResourcesScreen(
         } catch (_: Exception) {}
     }
 
-    // Reproducir sonido al ingresar a la pantalla
+    // Reproducir sonido al ingresar y desplegar mensajes secuencialmente cada 2 seg
     LaunchedEffect(Unit) {
         delay(120L)
         try {
             resultSoundPlayer?.start()
         } catch (_: Exception) {}
+
+        // Mensaje 1 aparece a los 350 ms
+        delay(350L)
+        isMessage1Loaded = true
+
+        // Mensaje 2 aparece 2 segundos después
+        delay(2000L)
+        isMessage2Loaded = true
+
+        // Conclusión / advertencia aparece 2 segundos después
+        delay(2000L)
+        isConclusionLoaded = true
     }
 
     // Liberar recursos al salir
@@ -311,38 +335,92 @@ fun InfoResourcesScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // FLUJO SECUENCIAL DE MENSAJES HACIA ABAJO
+                // FLUJO SECUENCIAL DE MENSAJES HACIA ABAJO (Aparecen cada 2 segundos)
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // Mensaje 1
-                    SequentialMessageBubble(
-                        text = if (didBet) {
-                            "Apostaste los $1.000 creyendo en la promesa del dinero fácil."
-                        } else {
-                            "Elegiste no apostar y cuidaste tu dinero."
-                        }
-                    )
+                    AnimatedVisibility(
+                        visible = isMessage1Loaded,
+                        enter = fadeIn(animationSpec = tween(350)) +
+                                slideInVertically(
+                                    animationSpec = spring(
+                                        dampingRatio = 0.75f,
+                                        stiffness = 380f
+                                    )
+                                ) { -it / 2 } +
+                                scaleIn(
+                                    initialScale = 0.92f,
+                                    animationSpec = spring(
+                                        dampingRatio = 0.75f,
+                                        stiffness = 380f
+                                    )
+                                )
+                    ) {
+                        SequentialMessageBubble(
+                            text = if (didBet) {
+                                "Apostaste los $1.000 creyendo en la promesa del dinero fácil."
+                            } else {
+                                "Elegiste no apostar y cuidaste tu dinero."
+                            }
+                        )
+                    }
 
-                    // Mensaje 2
-                    SequentialMessageBubble(
-                        text = if (didBet) {
-                            "La urgencia del mensaje te hizo reaccionar por impulso sin tiempo para pensar."
-                        } else {
-                            "Tuviste la cabeza fría para frenar a tiempo y no dejarte presionar por el grupo."
-                        }
-                    )
+                    // Mensaje 2 (cae 2 seg después)
+                    AnimatedVisibility(
+                        visible = isMessage2Loaded,
+                        enter = fadeIn(animationSpec = tween(350)) +
+                                slideInVertically(
+                                    animationSpec = spring(
+                                        dampingRatio = 0.75f,
+                                        stiffness = 380f
+                                    )
+                                ) { -it / 2 } +
+                                scaleIn(
+                                    initialScale = 0.92f,
+                                    animationSpec = spring(
+                                        dampingRatio = 0.75f,
+                                        stiffness = 380f
+                                    )
+                                )
+                    ) {
+                        SequentialMessageBubble(
+                            text = if (didBet) {
+                                "La urgencia del mensaje te hizo reaccionar por impulso sin tiempo para pensar."
+                            } else {
+                                "Tuviste la cabeza fría para frenar a tiempo y no dejarte presionar por el grupo."
+                            }
+                        )
+                    }
 
-                    // Advertencia concisa
-                    ConciseWarningBox(
-                        text = if (didBet) {
-                            "En las apuestas digitales la casa siempre gana: el 95% de los apostadores pierde a largo plazo."
-                        } else {
-                            "Poder decir 'no' ante la insistencia social es la verdadera victoria."
-                        },
-                        accentColor = if (didBet) RojoAlerta else VerdeExito
-                    )
+                    // Advertencia / conclusión concisa (cae 2 seg después)
+                    AnimatedVisibility(
+                        visible = isConclusionLoaded,
+                        enter = fadeIn(animationSpec = tween(350)) +
+                                slideInVertically(
+                                    animationSpec = spring(
+                                        dampingRatio = 0.75f,
+                                        stiffness = 380f
+                                    )
+                                ) { -it / 2 } +
+                                scaleIn(
+                                    initialScale = 0.92f,
+                                    animationSpec = spring(
+                                        dampingRatio = 0.75f,
+                                        stiffness = 380f
+                                    )
+                                )
+                    ) {
+                        ConciseWarningBox(
+                            text = if (didBet) {
+                                "En las apuestas digitales la casa siempre gana: el 95% de los apostadores pierde a largo plazo."
+                            } else {
+                                "Poder decir 'no' ante la insistencia social es la verdadera victoria."
+                            },
+                            accentColor = if (didBet) RojoAlerta else VerdeExito
+                        )
+                    }
                 }
             }
 
@@ -356,7 +434,7 @@ fun InfoResourcesScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Fila horizontal compacta de exactamente 3 botones con iconos
+                // Fila horizontal compacta de los 3 canales de ayuda (más grandes, con logo oficial Boti sin fondo)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -369,10 +447,10 @@ fun InfoResourcesScreen(
                         modifier = Modifier.weight(1f)
                     )
 
-                    // Boton 2: Chat Boti
+                    // Boton 2: Chat Boti con logo oficial de Boti sin fondo
                     CompactHelpButton(
                         title = "Chat\nBoti",
-                        icon = Icons.Default.Email,
+                        imageRes = R.drawable.ic_boti,
                         onClick = { openWhatsApp("1150500147") },
                         modifier = Modifier.weight(1f)
                     )
@@ -408,7 +486,7 @@ fun InfoResourcesScreen(
                         text = "Volver a intentar",
                         color = Color.White,
                         fontFamily = SpaceGrotesk,
-                        fontSize = 16.sp,
+                        fontSize = 16.5.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
@@ -419,7 +497,7 @@ fun InfoResourcesScreen(
 }
 
 /**
- * Burbuja de mensaje en cascada con texto en blanco puro.
+ * Burbuja de mensaje en cascada con texto en blanco puro y fuente agrandada.
  */
 @Composable
 private fun SequentialMessageBubble(
@@ -438,20 +516,20 @@ private fun SequentialMessageBubble(
             )
             .clip(shape)
             .background(BurbujaChat.copy(alpha = 0.85f))
-            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .padding(horizontal = 18.dp, vertical = 14.dp)
     ) {
         Text(
             text = text,
-            fontSize = 15.sp,
+            fontSize = 17.5.sp,
             fontWeight = FontWeight.Normal,
-            lineHeight = 21.sp,
+            lineHeight = 25.sp,
             color = Color.White
         )
     }
 }
 
 /**
- * Caja de advertencia concisa con texto en blanco puro.
+ * Caja de advertencia concisa con texto en blanco puro y fuente agrandada.
  */
 @Composable
 private fun ConciseWarningBox(
@@ -471,7 +549,7 @@ private fun ConciseWarningBox(
             )
             .clip(shape)
             .background(Color(0xFF1E1629).copy(alpha = 0.80f))
-            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -481,14 +559,14 @@ private fun ConciseWarningBox(
                 imageVector = Icons.Default.Warning,
                 contentDescription = "Aviso",
                 tint = accentColor,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(24.dp)
             )
 
             Text(
                 text = text,
-                fontSize = 13.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
-                lineHeight = 18.sp,
+                lineHeight = 22.sp,
                 color = Color.White
             )
         }
@@ -496,27 +574,28 @@ private fun ConciseWarningBox(
 }
 
 /**
- * Boton compacto de canal de ayuda (fila horizontal de 3 botones) con icono y texto blanco puro.
+ * Boton compacto de canal de ayuda más grande, con soporte para icono o imagen oficial (Boti) y texto blanco puro.
  */
 @Composable
 private fun CompactHelpButton(
     title: String,
-    icon: ImageVector,
+    icon: ImageVector? = null,
+    imageRes: Int? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(16.dp)
 
     Box(
         modifier = modifier
-            .height(86.dp)
+            .height(102.dp)
             .border(
                 width = 1.dp,
-                color = Color.White.copy(alpha = 0.15f),
+                color = Color.White.copy(alpha = 0.18f),
                 shape = shape
             )
             .clip(shape)
-            .background(Color(0xFF1A1D26).copy(alpha = 0.85f))
+            .background(Color(0xFF1A1D26).copy(alpha = 0.90f))
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
@@ -525,23 +604,31 @@ private fun CompactHelpButton(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = Color.White,
-                modifier = Modifier.size(24.dp)
-            )
+            if (imageRes != null) {
+                Image(
+                    painter = painterResource(id = imageRes),
+                    contentDescription = title,
+                    modifier = Modifier.size(36.dp)
+                )
+            } else if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = Color.White,
+                    modifier = Modifier.size(30.dp)
+                )
+            }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
                 text = title,
                 fontFamily = SpaceGrotesk,
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Bold,
                 color = Color.White,
                 textAlign = TextAlign.Center,
-                lineHeight = 14.sp
+                lineHeight = 15.sp
             )
         }
     }

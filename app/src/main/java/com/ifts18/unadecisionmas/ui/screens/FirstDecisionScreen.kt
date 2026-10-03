@@ -281,8 +281,8 @@ fun FirstDecisionScreen(
         // Carga Mensaje 1
         isMessage1Loaded = true
 
-        // 2. Exactamente 1 segundo de delay entre mensajes
-        delay(1000L)
+        // 2. Exactamente 2 segundos de delay entre mensajes
+        delay(2000L)
 
         // Notificacion sonora del Mensaje 2
         if (!isPreview) {
@@ -593,9 +593,9 @@ private fun ChatMessageBubble(
 
             Text(
                 text = message,
-                fontSize = 15.sp,
+                fontSize = 17.5.sp,
                 fontWeight = FontWeight.Normal,
-                lineHeight = 21.sp,
+                lineHeight = 24.sp,
                 color = Color.White
             )
         }
