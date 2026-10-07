@@ -77,6 +77,11 @@ import com.ifts18.unadecisionmas.ui.theme.RojoAlerta
 import com.ifts18.unadecisionmas.ui.theme.SpaceGrotesk
 import com.ifts18.unadecisionmas.ui.theme.VerdeExito
 import kotlinx.coroutines.delay
+// Imports de Lottie para Jetpack Compose
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.rememberLottieComposition
 
 /**
  * Pantalla final con diseño UI/UX estilo mockup Dribbble / Jetpack Compose:
@@ -445,10 +450,10 @@ fun InfoResourcesScreen(
                         modifier = Modifier.weight(1f)
                     )
 
-                    // Boton 2: Chat Boti con logo oficial de Boti sin fondo
+                    // Boton 2: Chat Boti con animación Lottie
                     CompactHelpButton(
                         title = "Chat\nBoti",
-                        imageRes = R.drawable.ic_boti,
+                        lottieRawRes = R.raw.boti_animacion, // <--- Usar lottieRawRes con tu archivo json
                         onClick = { openWhatsApp("1150500147") },
                         modifier = Modifier.weight(1f)
                     )
@@ -530,11 +535,15 @@ private fun SequentialMessageBubble(
 /**
  * Boton compacto de canal de ayuda más grande, con soporte para icono o imagen oficial (Boti) y texto blanco puro.
  */
+/**
+ * Boton compacto de canal de ayuda más grande, con soporte para Lottie JSON
+ */
 @Composable
 private fun CompactHelpButton(
     title: String,
     icon: ImageVector? = null,
     imageRes: Int? = null,
+    lottieRawRes: Int? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -558,7 +567,14 @@ private fun CompactHelpButton(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (imageRes != null) {
+            if (lottieRawRes != null) {
+                val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(lottieRawRes))
+                LottieAnimation(
+                    composition = composition,
+                    iterations = LottieConstants.IterateForever,
+                    modifier = Modifier.size(38.dp)
+                )
+            } else if (imageRes != null) {
                 Image(
                     painter = painterResource(id = imageRes),
                     contentDescription = title,

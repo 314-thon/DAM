@@ -67,4 +67,7 @@ dependencies {
     // Herramientas de depuracion y preview
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+    // Lottie para Jetpack Compose
+    implementation("com.airbnb.android:lottie-compose:6.4.0")
 }
