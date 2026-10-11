@@ -474,7 +474,7 @@ private fun HelpButton(
 
     Box(
         modifier = modifier
-            .height(96.dp)
+            .height(102.dp)
             .border(
                 width = 1.2.dp,
                 color = if (lottieRawRes != null) BordeCyan.copy(alpha = 0.40f) else Color.White.copy(alpha = 0.22f),
@@ -483,7 +483,7 @@ private fun HelpButton(
             .clip(shape)
             .background(Color(0xFF1D212C).copy(alpha = 0.95f))
             .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 8.dp),
+            .padding(horizontal = 4.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -495,7 +495,7 @@ private fun HelpButton(
                 LottieAnimation(
                     composition = composition,
                     iterations = LottieConstants.IterateForever,
-                    modifier = Modifier.size(46.dp)
+                    modifier = Modifier.size(56.dp)
                 )
             } else if (imageRes != null) {
                 Image(
@@ -512,7 +512,7 @@ private fun HelpButton(
                 )
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
                 text = title,
