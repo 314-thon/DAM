@@ -7,7 +7,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,19 +38,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -66,16 +61,15 @@ import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.ifts18.unadecisionmas.R
 import com.ifts18.unadecisionmas.audio.SoundManager
+import com.ifts18.unadecisionmas.data.model.DecisionRecord
 import com.ifts18.unadecisionmas.data.model.GameState
 import com.ifts18.unadecisionmas.ui.components.ConfettiEffect
 import com.ifts18.unadecisionmas.ui.theme.BordeCyan
 import com.ifts18.unadecisionmas.ui.theme.BordeMagenta
 import com.ifts18.unadecisionmas.ui.theme.BurbujaChat
 import com.ifts18.unadecisionmas.ui.theme.FondoGeneral
-import com.ifts18.unadecisionmas.ui.theme.GlowCyan
 import com.ifts18.unadecisionmas.ui.theme.RojoAlerta
 import com.ifts18.unadecisionmas.ui.theme.SpaceGrotesk
-import com.ifts18.unadecisionmas.ui.theme.TextoSecundario
 import com.ifts18.unadecisionmas.ui.theme.VerdeExito
 import kotlinx.coroutines.delay
 
@@ -93,7 +87,7 @@ fun GameResultScreen(
     var isContentVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        delay(200L)
+        delay(150L)
         isContentVisible = true
     }
 
@@ -125,8 +119,8 @@ fun GameResultScreen(
     val backgroundBrush = if (isWon) {
         Brush.radialGradient(
             colors = listOf(
-                VerdeExito.copy(alpha = 0.24f),
-                BordeCyan.copy(alpha = 0.12f),
+                VerdeExito.copy(alpha = 0.20f),
+                BordeCyan.copy(alpha = 0.10f),
                 FondoGeneral
             ),
             center = Offset(x = 160f, y = 200f),
@@ -135,8 +129,8 @@ fun GameResultScreen(
     } else {
         Brush.radialGradient(
             colors = listOf(
-                RojoAlerta.copy(alpha = 0.24f),
-                BordeMagenta.copy(alpha = 0.12f),
+                RojoAlerta.copy(alpha = 0.20f),
+                BordeMagenta.copy(alpha = 0.10f),
                 FondoGeneral
             ),
             center = Offset(x = 160f, y = 200f),
@@ -150,7 +144,7 @@ fun GameResultScreen(
             .background(backgroundBrush)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         if (isWon) {
             ConfettiEffect(modifier = Modifier.fillMaxSize())
@@ -161,156 +155,154 @@ fun GameResultScreen(
                 .fillMaxSize()
                 .verticalScroll(scrollState),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // =========================================================================
-            // BLOQUE 1: AVISO / RESULTADO (Título de impacto, estado pedagógico y mensaje)
+            // BLOQUE 1: AVISO / RESULTADO (Compacto y equilibrado)
             // =========================================================================
             AnimatedVisibility(
                 visible = isContentVisible,
-                enter = fadeIn(tween(400)) + slideInVertically(tween(400)) { -it / 2 }
+                enter = fadeIn(tween(350)) + slideInVertically(tween(350)) { -it / 2 }
             ) {
-                Column(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color(0xFF161922).copy(alpha = 0.85f))
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF161922).copy(alpha = 0.90f))
                         .border(
                             width = 1.dp,
-                            color = if (isWon) VerdeExito.copy(alpha = 0.4f) else RojoAlerta.copy(alpha = 0.4f),
-                            shape = RoundedCornerShape(20.dp)
+                            color = if (isWon) VerdeExito.copy(alpha = 0.5f) else RojoAlerta.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(16.dp)
                         )
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (isWon) "¡Felicitaciones! 🎉" else "¡Atención! ⚠️",
-                        fontFamily = SpaceGrotesk,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 32.sp,
-                        color = if (isWon) VerdeExito else RojoAlerta,
-                        textAlign = TextAlign.Center
+                        text = if (isWon) "🎉" else "⚠️",
+                        fontSize = 30.sp,
+                        modifier = Modifier.padding(end = 12.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = if (isWon) {
-                            "¡Completaste la semana con $0 de deuda!\nDemostraste autocontrol ante las ofertas y presiones sociales."
-                        } else {
-                            "Terminaste la semana con una deuda contraída.\nLas apuestas digitales están algorítmicamente diseñadas para generar pérdidas continuas."
-                        },
-                        fontFamily = SpaceGrotesk,
-                        fontSize = 15.5.sp,
-                        lineHeight = 22.sp,
-                        color = Color.White,
-                        textAlign = TextAlign.Center
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isWon) "¡Felicitaciones! Deuda $0" else "¡Atención! Deuda contraída",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = if (isWon) VerdeExito else RojoAlerta
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isWon) {
+                                "Superaste la semana sin deudas. Demostraste autocontrol ante las ofertas."
+                            } else {
+                                "En ciberapuestas la casa siempre gana: el 95% de los jugadores pierde dinero a largo plazo."
+                            },
+                            fontFamily = SpaceGrotesk,
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
+                            color = Color.White
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
-
             // =========================================================================
-            // BLOQUE 2: CANTIDAD DE ACIERTOS / DESACIERTOS CON SALDO FINAL
+            // BLOQUE 2: CANTIDAD DE ACIERTOS / DESACIERTOS CON SALDO FINAL Y DESGLOSE 2 COLS
             // =========================================================================
             AnimatedVisibility(
                 visible = isContentVisible,
-                enter = fadeIn(tween(500)) + slideInVertically(tween(500)) { it / 3 }
+                enter = fadeIn(tween(450)) + slideInVertically(tween(450)) { it / 3 }
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .background(BurbujaChat.copy(alpha = 0.85f))
                         .border(
                             width = 1.dp,
                             color = Color.White.copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(20.dp)
+                            shape = RoundedCornerShape(16.dp)
                         )
-                        .padding(18.dp)
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
                 ) {
                     Text(
                         text = "Balance de Decisiones",
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
+                        fontSize = 16.sp,
                         color = Color.White
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                    // Métricas: Aciertos, Desaciertos y Saldo Final
+                    // 3 Tarjetas de métricas superiores
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         // Tarjeta Aciertos
                         Column(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(10.dp))
                                 .background(Color(0xFF141F18))
-                                .border(1.dp, VerdeExito.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                                .padding(vertical = 10.dp, horizontal = 8.dp),
+                                .border(1.dp, VerdeExito.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                                .padding(vertical = 6.dp, horizontal = 4.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = VerdeExito, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Aciertos", fontFamily = SpaceGrotesk, fontSize = 12.sp, color = VerdeExito)
+                                Icon(Icons.Default.Check, contentDescription = null, tint = VerdeExito, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text("Aciertos", fontFamily = SpaceGrotesk, fontSize = 11.sp, color = VerdeExito)
                             }
                             Text(
                                 text = "${gameState.correctDecisionsCount} / 7",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp,
+                                fontSize = 16.sp,
                                 color = Color.White
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        // Tarjeta Desaciertos
+                        // Tarjeta Desaciertos / Riesgo
                         Column(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(10.dp))
                                 .background(Color(0xFF261418))
-                                .border(1.dp, RojoAlerta.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                                .padding(vertical = 10.dp, horizontal = 8.dp),
+                                .border(1.dp, RojoAlerta.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                                .padding(vertical = 6.dp, horizontal = 4.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Close, contentDescription = null, tint = RojoAlerta, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Riesgo", fontFamily = SpaceGrotesk, fontSize = 12.sp, color = RojoAlerta)
+                                Icon(Icons.Default.Close, contentDescription = null, tint = RojoAlerta, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text("Riesgo", fontFamily = SpaceGrotesk, fontSize = 11.sp, color = RojoAlerta)
                             }
                             Text(
                                 text = "${gameState.incorrectDecisionsCount} / 7",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp,
+                                fontSize = 16.sp,
                                 color = Color.White
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        // Tarjeta Saldo / Deuda Final
+                        // Tarjeta Deuda Final
                         Column(
                             modifier = Modifier
-                                .weight(1.2f)
-                                .clip(RoundedCornerShape(12.dp))
+                                .weight(1.15f)
+                                .clip(RoundedCornerShape(10.dp))
                                 .background(if (isWon) Color(0xFF141F18) else Color(0xFF261418))
-                                .border(1.dp, if (isWon) VerdeExito else RojoAlerta, RoundedCornerShape(12.dp))
-                                .padding(vertical = 10.dp, horizontal = 8.dp),
+                                .border(1.dp, if (isWon) VerdeExito else RojoAlerta, RoundedCornerShape(10.dp))
+                                .padding(vertical = 6.dp, horizontal = 4.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
                                 text = "Deuda Final",
                                 fontFamily = SpaceGrotesk,
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = if (isWon) VerdeExito else RojoAlerta
                             )
@@ -318,60 +310,45 @@ fun GameResultScreen(
                                 text = "$${gameState.currentDebt}",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp,
+                                fontSize = 16.sp,
                                 color = Color.White
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                    // Desglose sintético del historial
-                    Column(
+                    // Desglose optimizado en 2 columnas para no desbordar el alto
+                    val history = gameState.decisionHistory
+                    val firstCol = history.take(4)
+                    val secondCol = history.drop(4)
+
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        gameState.decisionHistory.forEach { record ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0x33000000))
-                                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(8.dp)
-                                            .clip(CircleShape)
-                                            .background(if (record.isSafe) VerdeExito else RojoAlerta)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = record.dayName,
-                                        fontFamily = SpaceGrotesk,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = Color.White
-                                    )
-                                }
+                        // Columna Izquierda (Lunes a Jueves)
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            firstCol.forEach { record ->
+                                CompactDayRecordPill(record)
+                            }
+                        }
 
-                                Text(
-                                    text = if (record.isSafe) "+$0" else "+$${record.addedDebt}",
-                                    fontFamily = SpaceGrotesk,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    color = if (record.isSafe) VerdeExito else RojoAlerta
-                                )
+                        // Columna Derecha (Viernes a Domingo)
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            secondCol.forEach { record ->
+                                CompactDayRecordPill(record)
                             }
                         }
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(14.dp))
 
             // =========================================================================
             // BLOQUE 3: BOTONES DE AYUDA Y VOLVER A EMPEZAR
@@ -379,14 +356,14 @@ fun GameResultScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                    .padding(bottom = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Fila horizontal compacta de los 3 canales de ayuda
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     // Botón 1: Orientación al Jugador
                     HelpButton(
@@ -396,7 +373,7 @@ fun GameResultScreen(
                         modifier = Modifier.weight(1f)
                     )
 
-                    // Botón 2: Chat Boti con animación Lottie (aporte de Evelyn)
+                    // Botón 2: Chat Boti con animación Lottie
                     HelpButton(
                         title = "Chat\nBoti",
                         lottieRawRes = R.raw.boti_animacion,
@@ -417,8 +394,8 @@ fun GameResultScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
                         .background(
                             brush = Brush.horizontalGradient(listOf(BordeMagenta, BordeCyan))
                         )
@@ -432,13 +409,53 @@ fun GameResultScreen(
                         text = "Volver a empezar",
                         color = Color.White,
                         fontFamily = SpaceGrotesk,
-                        fontSize = 16.5.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(6.dp))
         }
+    }
+}
+
+@Composable
+private fun CompactDayRecordPill(record: DecisionRecord) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color(0x33000000))
+            .padding(horizontal = 7.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(if (record.isSafe) VerdeExito else RojoAlerta)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = record.dayName,
+                fontFamily = SpaceGrotesk,
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.5.sp,
+                color = Color.White
+            )
+        }
+
+        Text(
+            text = if (record.isSafe) "+$0" else "+$${record.addedDebt}",
+            fontFamily = SpaceGrotesk,
+            fontWeight = FontWeight.Bold,
+            fontSize = 11.5.sp,
+            color = if (record.isSafe) VerdeExito else RojoAlerta
+        )
     }
 }
 
@@ -451,11 +468,11 @@ private fun HelpButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(12.dp)
 
     Box(
         modifier = modifier
-            .height(98.dp)
+            .height(66.dp)
             .border(
                 width = 1.dp,
                 color = Color.White.copy(alpha = 0.18f),
@@ -464,7 +481,7 @@ private fun HelpButton(
             .clip(shape)
             .background(Color(0xFF1A1D26).copy(alpha = 0.90f))
             .clickable(onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 8.dp),
+            .padding(horizontal = 4.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -476,36 +493,34 @@ private fun HelpButton(
                 LottieAnimation(
                     composition = composition,
                     iterations = LottieConstants.IterateForever,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(26.dp)
                 )
             } else if (imageRes != null) {
                 Image(
                     painter = painterResource(id = imageRes),
                     contentDescription = title,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(24.dp)
                 )
             } else if (icon != null) {
                 Icon(
                     imageVector = icon,
                     contentDescription = title,
                     tint = Color.White,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(3.dp))
 
             Text(
                 text = title,
                 fontFamily = SpaceGrotesk,
-                fontSize = 12.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
                 textAlign = TextAlign.Center,
-                lineHeight = 14.sp
+                lineHeight = 12.sp
             )
         }
     }
 }
-
-
