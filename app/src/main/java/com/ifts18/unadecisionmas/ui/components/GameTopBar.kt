@@ -106,37 +106,44 @@ fun GameTopBar(
                 }
             }
 
-            // Indicador de Deuda en tiempo real
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(
-                        if (isDebtZero) VerdeExito.copy(alpha = 0.18f)
-                        else RojoAlerta.copy(alpha = 0.22f)
-                    )
-                    .border(
-                        width = 1.dp,
-                        color = if (isDebtZero) VerdeExito else RojoAlerta,
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                contentAlignment = Alignment.Center
+            // Controles derechos: Botón de Mute + Indicador de Deuda
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "DEUDA",
-                        fontFamily = SpaceGrotesk,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 10.sp,
-                        color = if (isDebtZero) VerdeExito else RojoAlerta
-                    )
-                    Text(
-                        text = "$${gameState.currentDebt}",
-                        fontFamily = SpaceGrotesk,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp,
-                        color = Color.White
-                    )
+                SoundToggleButton()
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            if (isDebtZero) VerdeExito.copy(alpha = 0.18f)
+                            else RojoAlerta.copy(alpha = 0.22f)
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = if (isDebtZero) VerdeExito else RojoAlerta,
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "DEUDA",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 10.sp,
+                            color = if (isDebtZero) VerdeExito else RojoAlerta
+                        )
+                        Text(
+                            text = "$${gameState.currentDebt}",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp,
+                            color = Color.White
+                        )
+                    }
                 }
             }
         }

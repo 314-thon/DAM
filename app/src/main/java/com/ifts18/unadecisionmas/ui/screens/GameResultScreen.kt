@@ -64,6 +64,7 @@ import com.ifts18.unadecisionmas.audio.SoundManager
 import com.ifts18.unadecisionmas.data.model.DecisionRecord
 import com.ifts18.unadecisionmas.data.model.GameState
 import com.ifts18.unadecisionmas.ui.components.ConfettiEffect
+import com.ifts18.unadecisionmas.ui.components.SoundToggleButton
 import com.ifts18.unadecisionmas.ui.theme.BordeCyan
 import com.ifts18.unadecisionmas.ui.theme.BordeMagenta
 import com.ifts18.unadecisionmas.ui.theme.BurbujaChat
@@ -209,6 +210,10 @@ fun GameResultScreen(
                                 color = Color.White
                             )
                         }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        SoundToggleButton()
                     }
                 }
 

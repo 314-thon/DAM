@@ -109,7 +109,8 @@ class GameViewModel : ViewModel() {
     }
 
     private fun handleGameOverSound() {
-        SoundManager.stopBgMusic()
+        SoundManager.resetMusicSpeed()
+        SoundManager.stopHeartbeat()
         if (_gameState.value.currentDebt == 0) {
             SoundManager.playWin()
         } else {

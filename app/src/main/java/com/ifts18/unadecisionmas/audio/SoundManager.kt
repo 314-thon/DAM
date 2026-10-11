@@ -5,6 +5,8 @@ import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.SoundPool
 import android.os.Build
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
 import com.ifts18.unadecisionmas.R
 
 object SoundManager {
@@ -18,7 +20,11 @@ object SoundManager {
     private var winSoundId: Int = 0
     private var loseSoundId: Int = 0
 
-    private var isMusicEnabled = true
+    // Estado reactivo de mute observable por Jetpack Compose
+    private val _isMutedState = mutableStateOf(false)
+    val isMuted: State<Boolean> = _isMutedState
+
+    private var currentSpeed: Float = 1.0f
     private var isMusicPausedByLifecycle = false
 
     fun init(context: Context) {
@@ -63,13 +69,15 @@ object SoundManager {
                 afd.close()
                 prepare()
                 isLooping = true
-                setVolume(0.40f, 0.40f)
+                val vol = if (_isMutedState.value) 0f else 0.40f
+                setVolume(vol, vol)
             }
         } catch (_: Exception) {
             try {
                 bgMusicPlayer = MediaPlayer.create(context, R.raw.bg_music_suspense)?.apply {
                     isLooping = true
-                    setVolume(0.40f, 0.40f)
+                    val vol = if (_isMutedState.value) 0f else 0.40f
+                    setVolume(vol, vol)
                 }
             } catch (_: Exception) {
                 bgMusicPlayer = null
@@ -91,13 +99,15 @@ object SoundManager {
                 afd.close()
                 prepare()
                 isLooping = true
-                setVolume(0.30f, 0.30f)
+                val vol = if (_isMutedState.value) 0f else 0.30f
+                setVolume(vol, vol)
             }
         } catch (_: Exception) {
             try {
                 heartbeatPlayer = MediaPlayer.create(context, R.raw.heartbeat)?.apply {
                     isLooping = true
-                    setVolume(0.30f, 0.30f)
+                    val vol = if (_isMutedState.value) 0f else 0.30f
+                    setVolume(vol, vol)
                 }
             } catch (_: Exception) {
                 heartbeatPlayer = null
@@ -105,12 +115,36 @@ object SoundManager {
         }
     }
 
+    fun toggleMute(): Boolean {
+        setMuted(!_isMutedState.value)
+        return _isMutedState.value
+    }
+
+    fun setMuted(muted: Boolean) {
+        _isMutedState.value = muted
+        if (muted) {
+            try {
+                bgMusicPlayer?.setVolume(0f, 0f)
+                heartbeatPlayer?.setVolume(0f, 0f)
+            } catch (_: Exception) {}
+        } else {
+            try {
+                bgMusicPlayer?.setVolume(0.40f, 0.40f)
+                heartbeatPlayer?.setVolume(0.30f, 0.30f)
+                if (bgMusicPlayer?.isPlaying == false && !isMusicPausedByLifecycle) {
+                    bgMusicPlayer?.start()
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
     fun startBgMusic() {
-        if (!isMusicEnabled) return
         try {
             if (bgMusicPlayer == null && appContext != null) {
                 initBgMusic(appContext!!)
             }
+            val vol = if (_isMutedState.value) 0f else 0.40f
+            bgMusicPlayer?.setVolume(vol, vol)
             if (bgMusicPlayer?.isPlaying == false) {
                 resetMusicSpeed()
                 bgMusicPlayer?.start()
@@ -129,9 +163,10 @@ object SoundManager {
     }
 
     fun resumeBgMusic() {
-        if (!isMusicEnabled) return
         try {
             if (isMusicPausedByLifecycle && bgMusicPlayer != null && !bgMusicPlayer!!.isPlaying) {
+                val vol = if (_isMutedState.value) 0f else 0.40f
+                bgMusicPlayer?.setVolume(vol, vol)
                 bgMusicPlayer?.start()
                 isMusicPausedByLifecycle = false
             }
@@ -149,6 +184,7 @@ object SoundManager {
     }
 
     fun setMusicSpeed(speed: Float) {
+        currentSpeed = speed
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 bgMusicPlayer?.let { player ->
@@ -169,6 +205,8 @@ object SoundManager {
 
     fun startHeartbeat() {
         try {
+            val vol = if (_isMutedState.value) 0f else 0.30f
+            heartbeatPlayer?.setVolume(vol, vol)
             if (heartbeatPlayer?.isPlaying == false) {
                 heartbeatPlayer?.start()
             }
@@ -185,6 +223,7 @@ object SoundManager {
     }
 
     fun playClick() {
+        if (_isMutedState.value) return
         try {
             if (clickSoundId != 0) {
                 soundPool?.play(clickSoundId, 0.5f, 0.5f, 1, 0, 1.0f)
@@ -193,6 +232,7 @@ object SoundManager {
     }
 
     fun playWin() {
+        if (_isMutedState.value) return
         try {
             if (winSoundId != 0) {
                 soundPool?.play(winSoundId, 0.7f, 0.7f, 2, 0, 1.0f)
@@ -201,6 +241,7 @@ object SoundManager {
     }
 
     fun playLose() {
+        if (_isMutedState.value) return
         try {
             if (loseSoundId != 0) {
                 soundPool?.play(loseSoundId, 0.7f, 0.7f, 2, 0, 1.0f)

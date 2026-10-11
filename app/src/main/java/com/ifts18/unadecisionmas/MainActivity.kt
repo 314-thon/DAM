@@ -14,8 +14,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Inicializar gestor multimedia global
+        // Inicializar gestor multimedia global y arrancar música de fondo
         SoundManager.init(this)
+        SoundManager.startBgMusic()
 
         setContent {
             JuegoLimpioTheme {

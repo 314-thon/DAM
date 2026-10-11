@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ifts18.unadecisionmas.R
 import com.ifts18.unadecisionmas.audio.SoundManager
+import com.ifts18.unadecisionmas.ui.components.SoundToggleButton
 import com.ifts18.unadecisionmas.ui.theme.BordeCyan
 import com.ifts18.unadecisionmas.ui.theme.BordeMagenta
 import com.ifts18.unadecisionmas.ui.theme.BurbujaChat
@@ -174,6 +175,14 @@ fun WelcomeScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
+                // Control superior de mute/audio
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    SoundToggleButton()
+                }
+
                 // 1. Título principal "Juego Limpio"
                 Column(
                     modifier = Modifier.fillMaxWidth(),
