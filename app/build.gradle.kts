@@ -68,6 +68,10 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
+    // Lifecycle y ViewModel para Compose (MVVM)
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+
     // Lottie para Jetpack Compose
     implementation("com.airbnb.android:lottie-compose:6.4.0")
 }

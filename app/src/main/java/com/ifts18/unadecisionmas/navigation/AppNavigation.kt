@@ -1,75 +1,55 @@
 package com.ifts18.unadecisionmas.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
-import com.ifts18.unadecisionmas.ui.screens.FirstDecisionScreen
-import com.ifts18.unadecisionmas.ui.screens.InfoResourcesScreen
+import com.ifts18.unadecisionmas.ui.screens.GameDecisionScreen
+import com.ifts18.unadecisionmas.ui.screens.GameResultScreen
 import com.ifts18.unadecisionmas.ui.screens.WelcomeScreen
+import com.ifts18.unadecisionmas.ui.viewmodel.GameViewModel
 
 @Composable
 fun AppNavigation(
-    navController: NavHostController = rememberNavController()
+    navController: NavHostController = rememberNavController(),
+    viewModel: GameViewModel = viewModel()
 ) {
+    val gameState by viewModel.gameState.collectAsStateWithLifecycle()
+
     NavHost(
         navController = navController,
         startDestination = Screen.Welcome.route
     ) {
         composable(route = Screen.Welcome.route) {
             WelcomeScreen(
-                onNavigateToDecision = { playerName ->
-                    navController.navigate(Screen.FirstDecision.createRoute(playerName))
+                onNavigateToDecision = { playerName, avatarResId ->
+                    viewModel.setPlayerProfile(playerName, avatarResId)
+                    navController.navigate(Screen.GameDecision.route)
                 }
             )
         }
 
-        composable(
-            route = Screen.FirstDecision.route,
-            arguments = listOf(
-                navArgument("playerName") {
-                    type = NavType.StringType
-                    defaultValue = "Mateo"
-                }
-            )
-        ) { backStackEntry ->
-            val playerName = backStackEntry.arguments?.getString("playerName") ?: "Mateo"
-            FirstDecisionScreen(
-                playerName = playerName,
-                onApostarClick = {
-                    navController.navigate(Screen.InfoResources.createRoute(didBet = true))
-                },
-                onNoApostarClick = {
-                    navController.navigate(Screen.InfoResources.createRoute(didBet = false))
-                },
-                onNavigateToInfo = {
-                    navController.navigate(Screen.InfoResources.createRoute(didBet = false))
-                },
-                onTimeout = {
-                    navController.navigate(Screen.InfoResources.createRoute(didBet = false))
+        composable(route = Screen.GameDecision.route) {
+            GameDecisionScreen(
+                viewModel = viewModel,
+                gameState = gameState,
+                onNavigateToResult = {
+                    navController.navigate(Screen.Result.route) {
+                        popUpTo(Screen.GameDecision.route) { inclusive = true }
+                    }
                 }
             )
         }
 
-        composable(
-            route = Screen.InfoResources.route,
-            arguments = listOf(
-                navArgument("didBet") {
-                    type = NavType.BoolType
-                    defaultValue = false
-                }
-            )
-        ) { backStackEntry ->
-            val didBet = backStackEntry.arguments?.getBoolean("didBet") ?: false
-            InfoResourcesScreen(
-                didBet = didBet,
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
+        composable(route = Screen.Result.route) {
+            GameResultScreen(
+                gameState = gameState,
                 onRestartGame = {
+                    viewModel.restartGame()
                     navController.navigate(Screen.Welcome.route) {
                         popUpTo(Screen.Welcome.route) { inclusive = true }
                     }

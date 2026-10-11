@@ -1,130 +1,127 @@
-# Juego Limpio - Concientizacion sobre Ciberapuestas en Adolescentes
+# Juego Limpio - Concientización sobre Ciberapuestas en Adolescentes
 
-Instituto de Formacion Tecnica Superior N° 18 (IFTS 18)  
-Tecnicatura Superior en Desarrollo de Software  
-Desarrollo para Aplicaciones Moviles (DAM)  
-Grupo 1  
-
----
-
-## Integrantes y Roles
-
-| Integrante | Rol en el Proyecto | Responsabilidades |
-| :--- | :--- | :--- |
-| **Martin Jonas Avilas** | Lider IT | Coordinacion tecnica, repositorio GitHub y control de versiones |
-| **Roberto Araujo** | Disenador UX / Fundamentacion | Fundamentacion teorica e identidad visual (colores RGB) |
-| **Evelyn Gaitan** | Narrative Designer / UX Writer | Redaccion narrativa, relato de partida y benchmark |
-| **Juan Chaile** | Game Designer y Prototipado | Mecanicas de juego, dinamica de trivia y pantallas Figma |
-| **Lucia Marisol Pobeda** | Investigadora UX / User Persona | Investigacion de campo, relevamiento y persona usuaria |
+**Instituto de Formación Técnica Superior N.° 18 (IFTS 18)**  
+**Tecnicatura Superior en Desarrollo de Software**  
+**Materia:** Desarrollo para Aplicaciones Móviles (DAM)  
+**Trabajo Grupal:** Grupo 1  
+**Fecha de Entrega:** 16-10-2026  
 
 ---
 
-## Tematica Elegida
+## A. Descripción del Juego
 
-Consumo problematico de apuestas digitales y ciberapuestas en adolescentes.
-
-Se eligio esta tematica por su crecimiento en el ambito escolar y deportivo, impulsado por billeteras virtuales, promociones en redes sociales y cajeros por WhatsApp. El objetivo es concientizar sobre los riesgos psicosociales y economicos asociados a este consumo.
-
----
-
-## Descripcion del Juego
-
-"Juego Limpio" es un juego movil que combina novela grafica interactiva con una trivia contrarreloj de 10 segundos por decision.
-
-El jugador sigue la historia de Mateo (15 anos) a lo largo de una semana (lunes a domingo). Durante la partida, Mateo recibe mensajes y propuestas vinculadas a apuestas online. La pantalla mantiene un marcador visible de "DEUDA: $0". Si el jugador toma decisiones preventivas a tiempo, la deuda no sube; si elige opciones de riesgo o se termina el tiempo, la deuda aumenta. El objetivo es terminar la semana con $0 de deuda.
+* **Nombre del Juego:** *Juego Limpio*
+* **Objetivo:** Concientizar y prevenir a los adolescentes sobre los riesgos psicosociales y económicos de las apuestas online ilegales, billeteras virtuales y la presión de pares, demostrando mediante la simulación interactiva que las probabilidades matemáticas siempre favorecen a las casas de apuestas (*la casa siempre gana*).
+* **Público Destinatario:** Estudiantes de nivel secundario (13 a 18 años), comunidad educativa y familias.
+* **Mecánica Principal:** Novela gráfica interactiva en formato de mensajería digital combinada con **trivia contrarreloj de 10 segundos** por decisión. Se inicia con un marcador de **`DEUDA: $0`**. Si el jugador elige la respuesta preventiva adecuada a tiempo, el saldo se conserva intacto; si elige la opción impulsiva o se agota el tiempo, el sistema suma penalizaciones financieras acumulativas. El objetivo es completar la semana con **$0 de deuda**.
+* **Forma de Interacción del Jugador:** Ergonomía adaptada a una sola mano en dispositivos móviles (zona de pulgar). El usuario visualiza mensajes secuenciales, escucha estímulos sonoros de urgencia y selecciona entre dos opciones táctiles ubicadas en el tercio inferior de la pantalla.
+* **Recorrido General de la Partida:** La experiencia abarca una semana completa escolar de **Lunes a Domingo** (7 escenarios cotidianos), simulando ofertas de bonos, apuestas deportivas con dinero prestado, falacia de la racha, invisibilización del gasto virtual, persecución de pérdidas (*chasing losses*), FOMO en redes sociales y falsas extorsiones de cajeros virtuales.
 
 ---
 
-## Enlace al Tablero de Diseno
+## B. Estructura de la Aplicación
 
-* Tablero de Figma: [Neon App UI (Community) en Figma](https://www.figma.com/design/bzjU3l80OI4mZELeOXOe39/Neon-App-UI--Community-?node-id=0-1&p=f&t=gZUvsA5NlCMdfpsa-0)
-* Planificacion grupal: [Organizacion TP en Google Sheets](https://docs.google.com/spreadsheets/d/1dQfBnHYNf5ZDdArd4o_fG_jp4r-J3kOh6mL_5OXK1Io/edit?gid=0#gid=0)
-* Relato completo: [relato.md](relato.md)
+La navegación sigue una secuencia interactiva y circular con soporte de reinicio:
 
----
+```mermaid
+flowchart LR
+    A["1. Inicio & Perfil\n(Apodo + Selección de Avatar)"] --> B["2. Situación Cotidiana\n(Chat de Mensajería Lunes-Domingo)"]
+    B --> C["3. Decisión Contrarreloj\n(Temporizador 10s + Botones)"]
+    C --> D["4. Impacto en Estado\n(Actualización de Deuda y Saldo)"]
+    D -->|Día < 7| B
+    D -->|Fin de Domingo| E["5. Pantalla Final\n(Resultado + Métricas + Ayuda 141/Boti)"]
+    E -->|Volver a empezar| A
+```
 
-## Galeria del Design System
-
-### 1. Persona Usuaria
-Ficha de Mateo R. (15 anos), estudiante de secundaria, contexto de uso, habitos y problematica analizada.
-
-![Persona Usuaria](img/persona_usuaria.png)
-
----
-
-### 2. Design System y Flujo de Pantallas
-Resumen visual del sistema de diseno y las pantallas desarrolladas en Figma:
-
-![Design System](img/design_system.png)
-
-Flujo de pantallas en Figma:
-1. Splash inicial ("Juego Limpio") con ingreso de nombre.
-2. Seleccion de avatar con anillos neon.
-3. Pantalla de bienvenida a Mateo.
-4. Trivia de Lunes con chat estilo WhatsApp, barra de tiempo y opciones de decision.
-5. Pantalla de resultado ("Deuda $0") y canales de asistencia.
-
-![Flujo de Pantallas](img/flujo_pantallas.png)
+### Pantallas Principales:
+1. **Inicio y Creación de Perfil (`WelcomeScreen`):** Ingreso de apodo del jugador y selección interactiva entre 4 avatares estilizados con anillos de selección neón.
+2. **Pantalla de Juego y Decisión (`GameDecisionScreen`):**
+   * **TopBar de Estado:** Avatar, apodo, indicador de día (1 a 7), registro visual de decisiones (puntos de acierto/riesgo) y marcador dinámico de **`DEUDA: $XXXX`**.
+   * **Área Narrativa:** Flujo conversacional con animaciones de entrada y tipografía uniforme *Space Grotesk*.
+   * **Área de Acción:** Temporizador horizontal en Canvas de 10s (con pulso y aceleración en los últimos 4s) y 2 botones pildora de decisión.
+3. **Pantalla de Cierre y Resultados (`GameResultScreen`):**
+   * **Bloque 1 (Aviso / Resultado):** Título de gran impacto visual (*¡Felicitaciones!* o *¡Atención!*), confeti animado para victoria y reflexión educativa sin juzgar moralmente.
+   * **Bloque 2 (Métricas del Jugador):** Cantidad de aciertos vs. desaciertos (sobre 7), saldo final de deuda y desglose paso a paso de cada día.
+   * **Bloque 3 (Asistencia y Reinicio):** Botones directos a canales oficiales de orientación (Orientación al Jugador 0800, Chat Boti WhatsApp con animación Lottie, y Línea 141 de consumos problemáticos) y botón principal para volver a empezar.
 
 ---
 
-### 3. Paleta de Colores y Codigos RGB
-Colores definidos a partir del diseno en Figma:
+## C. Prototipo y Design System
 
-![Colores y Codigos RGB](img/colores_rgb.png)
+* **Tablero de Figma:** [Neon App UI (Community) en Figma](https://www.figma.com/design/bzjU3l80OI4mZELeOXOe39/Neon-App-UI--Community-?node-id=0-1&p=f&t=gZUvsA5NlCMdfpsa-0)
+* **Planificación grupal:** [Organización TP en Google Sheets](https://docs.google.com/spreadsheets/d/1dQfBnHYNf5ZDdArd4o_fG_jp4r-J3kOh6mL_5OXK1Io/edit?gid=0#gid=0)
+* **Relato pedagógico detallado:** [relato.md](relato.md)
 
-| Color / Token | Hex | RGB | Uso en la Interfaz |
+### Justificación de las Decisiones Visuales:
+Se eligió una estética en **modo oscuro (*Dark Slate*) con acentos neón magenta y cian**, imitando las interfaces de las plataformas gamers y billeteras virtuales que utilizan habitualmente los jóvenes. Esto evita el tono escolarizado tradicional y genera empatía inmediata.
+
+#### 1. Paleta de Colores y Tokens RGB
+| Token | Hex | RGB | Propósito en la UI |
 | :--- | :--- | :--- | :--- |
 | **Fondo General** | `#0D1117` | `RGB(13, 17, 23)` | Fondo principal en modo oscuro para evitar fatiga visual. |
-| **Burbuja Chat** | `#24142D` | `RGB(36, 20, 45)` | Fondo de mensajes estilo WhatsApp con borde magenta. |
-| **Borde Magenta** | `#E91E63` | `RGB(233, 30, 99)` | Inicio de gradiente en botones y detalles de avatar. |
-| **Borde Cyan** | `#00E5FF` | `RGB(0, 229, 255)` | Fin de gradiente en botones y elementos destacados. |
-| **Verde Exito** | `#57B956` | `RGB(87, 185, 86)` | Indicador de resultado positivo y billete de deuda $0. |
-| **Rojo Alerta** | `#FF3B30` | `RGB(255, 59, 48)` | Tramo final de la barra de 10s y penalizaciones. |
-| **Texto Principal** | `#FFFFFF` | `RGB(255, 255, 255)` | Titulos, dialogos y opciones (alto contraste). |
-| **Texto Secundario** | `#A0AEC0` | `RGB(160, 174, 192)` | Subtitulos y textos informativos secundarios. |
-| **Acento Violeta** | `#7B2CBF` | `RGB(123, 44, 191)` | Fondo y ambientacion de pantallas de bienvenida. |
+| **Burbuja Chat** | `#24142D` | `RGB(36, 20, 45)` | Fondo de mensajes estilo chat con opacidad y contraste. |
+| **Borde Magenta** | `#E91E63` | `RGB(233, 30, 99)` | Gradiente de acento en botones principales y selector de avatar. |
+| **Borde Cyan** | `#00E5FF` | `RGB(0, 229, 255)` | Gradiente secundario neón para resaltados y confirmaciones. |
+| **Verde Éxito** | `#57B956` | `RGB(87, 185, 86)` | Indicador de deuda $0, aciertos y tramo seguro del tiempo. |
+| **Rojo Alerta** | `#FF3B30` | `RGB(255, 59, 48)` | Tramo final de los 10 segundos, botón de riesgo y deuda acumulada. |
+| **Texto Principal** | `#FFFFFF` | `RGB(255, 255, 255)` | Texto en blanco puro de alto contraste para máxima legibilidad. |
+| **Texto Secundario** | `#A0AEC0` | `RGB(160, 174, 192)` | Metadatos y subtítulos informativos. |
+
+#### 2. Tipografía y Ergonomía
+* **Familia:** *Space Grotesk* (Bold, Medium, Regular).
+* **Escala:** Display en 64sp, encabezados en 26sp, mensajes de chat en 18.5sp y botones en 15sp.
+* **Ergonomía:** Botones de 52dp ubicados en el tercio inferior (*Thumb Zone*) con separación vertical suficiente para prevenir pulsaciones involuntarias en situaciones de cuenta regresiva.
 
 ---
 
-### 4. Tipografias y Escala en Pixeles (px)
-Escala tipografica utilizada en el prototipo:
+## D. Implementación Técnica
 
-![Tipografias](img/tipografias.png)
+### 1. Aplicación del Patrón MVVM (Model-View-ViewModel)
+El proyecto desacopla estrictamente los datos, la lógica de presentación y las vistas:
+* **Model (`com.ifts18.unadecisionmas.data.model`):**
+  * `PlayerProfile`: Nombre y recurso del avatar seleccionado.
+  * `GameScenario` y `DecisionOption`: Encapsula los 7 escenarios de la semana (mensajes secuenciales, montos de penalización, enfoques pedagógicos y opciones preventivas/riesgosas).
+  * `GameState`: Estado inmutable con deuda, día actual, aciertos/desaciertos e historial.
+* **ViewModel (`com.ifts18.unadecisionmas.ui.viewmodel.GameViewModel`):**
+  * Expone un flujo reactivo inmutable `StateFlow<GameState>`.
+  * Centraliza las operaciones de negocio: `setPlayerProfile()`, `selectOption()`, `onTimeout()`, `restartGame()`.
+  * Evita que los Composables gestionen la lógica de puntuación o el avance de días.
+* **View (`com.ifts18.unadecisionmas.ui.screens`):**
+  * Vistas declarativas en Jetpack Compose observando `gameState` mediante `collectAsStateWithLifecycle()`.
 
-* **Display / Titulo Splash (36px):** Titulo principal "Juego Limpio" en la pantalla de inicio.
-* **Titulos de Dias (26px):** Encabezados "Lunes", "Martes", etc.
-* **Subtitulos y Dialogos (20px):** Mensajes de bienvenida y enunciados.
-* **Texto de Mensajes (15px):** Burbujas de chat de WhatsApp.
-* **Botones (18px):** Textos dentro de los botones de accion ("Iniciar Historia", "Apostar $1.000", "No apostar").
-* **Metricas y Horarios (22px):** Marcador "Deuda $0" y reloj en pantalla.
+### 2. Administración del Ciclo de Vida (Activity Lifecycle)
+En cumplimiento de la consigna 4:
+* `MainActivity` implementa los callbacks del ciclo de vida (`onResume`, `onPause`, `onDestroy`).
+* **`SoundManager`** pausa automáticamente la música de fondo y los efectos cuando la aplicación pasa a segundo plano (`onPause`), evitando el consumo innecesario de batería o reproducciones fantasma.
+* Al reanudar la aplicación (`onResume`), el audio se restablece sin reiniciar la partida.
+* Al destruirse la Activity (`onDestroy`), todos los recursos nativos de `MediaPlayer` y `SoundPool` son liberados explícitamente (`release()`).
+* El temporizador de 10s se detiene inmediatamente al seleccionar una opción o cambiar de pantalla, previniendo fugas de corrutinas en segundo plano.
+
+### 3. Recursos Multimedia Incorporados
+* **Música ambiental global:** `bg_music_suspense.ogg` administrada por `SoundManager` que acompaña el recorrido narrativo y acelera dinámicamente su velocidad de reproducción (1.35x) durante los últimos segundos del temporizador.
+* **Efectos sonoros inmediatos:** Gestionados con `SoundPool` para baja latencia: `button_click.wav`, `heartbeat.ogg` (latido cardíaco bajo presión), `win_sound.ogg` y `lose_sound.ogg`.
+* **Animaciones Lottie:** Integración de la biblioteca `lottie-compose` y el recurso `boti_animacion.json` para el botón oficial de asistencia ciudadana.
+* **Confeti en Canvas:** Motor de partículas vectoriales matemáticas renderizado con `Canvas` y `withFrameNanos` para la pantalla de victoria ($0 de deuda).
+
+### 4. Librerías y Dependencias Utilizadas
+* **Kotlin:** 1.9.10
+* **Jetpack Compose BOM:** 2024.02.02 (Material3, UI, Graphics, Tooling Preview)
+* **Navigation Compose:** `androidx.navigation:navigation-compose:2.7.7`
+* **Lifecycle ViewModel Compose:** `androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0`
+* **Lifecycle Runtime Compose:** `androidx.lifecycle:lifecycle-runtime-compose:2.7.0`
+* **Lottie Compose:** `com.airbnb.android:lottie-compose:6.4.0`
 
 ---
 
-### 5. Botones y Ergonomia
-Componentes de botones y su disposicion para uso en dispositivos moviles:
+## E. Participación de los Integrantes
 
-![Botones](img/botones.png)
-
-* **Forma:** Botones pildora con borde gradiente magenta-cyan y fondo oscuro translucido.
-* **Tamano:** Altura de 52px para asegurar un area tactil comoda.
-* **Ubicacion:** Ubicados en el tercio inferior de la pantalla para permitir el uso con una sola mano (zona del pulgar).
-* **Separacion:** Espacio vertical de 14px entre opciones para evitar pulsaciones accidentales con el temporizador activo.
-
----
-
-## Decisiones en Torno al Desarrollo
-
-Para encarar el proyecto elegimos Jetpack Compose porque nos resultaba mucho más práctico para armar la interfaz de forma moderna. Al no depender de los archivos XML tradicionales, pudimos armar componentes reutilizables (como los botones estilizados y las tarjetas de mensaje) y mantener el mismo criterio visual en toda la app.
-
-En cuanto al diseño, nos inclinamos por un estilo oscuro con detalles neón. La idea principal fue imitar la estética de las aplicaciones y plataformas que usan los adolescentes, buscando que la experiencia se sienta cercana y real. Por ejemplo, en las pantallas de decisión mostramos las propuestas en formato de chat para simular los mensajes persuasivos que suelen recibir en el celular.
-
-Durante el proceso enfrentamos y resolvimos distintos desafíos técnicos:
-* **Compatibilidad del entorno:** En las primeras etapas detectamos discrepancias con la versión de Java y la configuración de Gradle entre los integrantes del equipo, lo cual resolvimos estandarizando las variables del entorno de desarrollo.
-* **Flujo de trabajo en Git:** Organizamos la colaboración mediante el uso de ramas individuales en GitHub, asegurando la integración continua del código sin superponer los avances de cada miembro.
-* **Ajustes de UI:** Dedicamos tiempo a pulir detalles de diseño en Compose, especialmente en lo referente a bordes redondeados y degradados de color, para garantizar una correcta renderización visual.
-
-Las pantallas actuales corresponden a una primera versión orientada a iteraciones futuras.
+| Integrante | Rol en el Equipo | Tareas Realizadas |
+| :--- | :--- | :--- |
+| **Martín Jonas Avilas** | Líder IT & Desarrollador Android | Coordinación técnica, configuración del entorno Gradle, implementación de arquitectura MVVM (`GameViewModel`, `StateFlow`), control de versiones en GitHub y gestión del ciclo de vida en `MainActivity`. |
+| **Roberto Araujo** | Diseñador UX / Fundamentación | Definición de la fundamentación teórica sobre ciberapuestas, diseño de la paleta cromática neón (tokens RGB/Hex), contraste accesible y ergonomía del pulgar en Compose. |
+| **Evelyn Gaitán** | Narrative Designer / UX Writer & Multimedia | Redacción de los diálogos de chat y escenarios de Lunes a Domingo en `relato.md`, selección de recursos multimedia e integración de la animación Lottie para Boti (`boti_animacion.json`). |
+| **Juan Chaile** | Game Designer & Prototipado | Diseño de las mecánicas de juego contrarreloj (10s), prototipo interactivo en Figma, componentes de botones y estructura de los 3 bloques de la pantalla final. |
+| **Lucía Marisol Pobeda** | Investigadora UX / User Persona | Investigación de campo sobre hábitos de ciberapuestas en colegios secundarios, elaboración de la User Persona (Mateo R., 15 años) y redacción del apartado de canales de ayuda pública (Línea 141, Boti y Orientación). |
 
 ---
 
@@ -136,29 +133,51 @@ Las pantallas actuales corresponden a una primera versión orientada a iteracion
 │   │   ├── AndroidManifest.xml
 │   │   ├── java/com/ifts18/unadecisionmas/
 │   │   │   ├── MainActivity.kt
+│   │   │   ├── audio/
+│   │   │   │   └── SoundManager.kt
+│   │   │   ├── data/
+│   │   │   │   ├── model/
+│   │   │   │   │   └── GameModels.kt
+│   │   │   │   └── repository/
+│   │   │   │       └── GameScenariosRepository.kt
 │   │   │   ├── navigation/
 │   │   │   │   ├── AppNavigation.kt
 │   │   │   │   └── Screen.kt
-│   │   │   ├── ui/screens/
-│   │   │   │   ├── FirstDecisionScreen.kt
-│   │   │   │   ├── InfoResourcesScreen.kt
-│   │   │   │   └── WelcomeScreen.kt
-│   │   │   └── ui/theme/
-│   │   │       ├── Color.kt
-│   │   │       ├── Theme.kt
-│   │   │       └── Type.kt
-│   │   └── res/font/
-│   │       ├── space_grotesk_bold.ttf
-│   │       ├── space_grotesk_medium.ttf
-│   │       └── space_grotesk_regular.ttf
+│   │   │   ├── ui/
+│   │   │   │   ├── components/
+│   │   │   │   │   ├── ConfettiEffect.kt
+│   │   │   │   │   └── GameTopBar.kt
+│   │   │   │   ├── screens/
+│   │   │   │   │   ├── GameDecisionScreen.kt
+│   │   │   │   │   ├── GameResultScreen.kt
+│   │   │   │   │   ├── InfoResourcesScreen.kt
+│   │   │   │   │   └── WelcomeScreen.kt
+│   │   │   │   ├── theme/
+│   │   │   │   │   ├── Color.kt
+│   │   │   │   │   ├── Theme.kt
+│   │   │   │   │   └── Type.kt
+│   │   │   │   └── viewmodel/
+│   │   │   │       └── GameViewModel.kt
+│   │   └── res/
+│   │       ├── drawable/
+│   │       │   ├── avatar_1.jpg
+│   │       │   ├── avatar_2.png
+│   │       │   ├── avatar_3.png
+│   │       │   ├── avatar_4.png
+│   │       │   └── ic_boti.png
+│   │       ├── font/
+│   │       │   ├── space_grotesk_bold.ttf
+│   │       │   ├── space_grotesk_medium.ttf
+│   │       │   └── space_grotesk_regular.ttf
+│   │       └── raw/
+│   │           ├── bg_music_suspense.ogg
+│   │           ├── boti_animacion.json
+│   │           ├── button_click.wav
+│   │           ├── heartbeat.ogg
+│   │           ├── lose_sound.ogg
+│   │           └── win_sound.ogg
 │   └── build.gradle.kts
 ├── img/
-│   ├── persona_usuaria.png
-│   ├── design_system.png
-│   ├── flujo_pantallas.png
-│   ├── colores_rgb.png
-│   ├── tipografias.png
-│   └── botones.png
 ├── README.md
 ├── relato.md
 └── settings.gradle.kts
