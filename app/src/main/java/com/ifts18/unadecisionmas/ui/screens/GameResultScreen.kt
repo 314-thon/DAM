@@ -398,8 +398,8 @@ fun GameResultScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(14.dp))
                         .background(
                             brush = Brush.horizontalGradient(listOf(BordeMagenta, BordeCyan))
                         )
@@ -413,7 +413,7 @@ fun GameResultScreen(
                         text = "Volver a empezar",
                         color = Color.White,
                         fontFamily = SpaceGrotesk,
-                        fontSize = 16.sp,
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
@@ -470,20 +470,20 @@ private fun HelpButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(16.dp)
 
     Box(
         modifier = modifier
-            .height(66.dp)
+            .height(96.dp)
             .border(
-                width = 1.dp,
-                color = Color.White.copy(alpha = 0.18f),
+                width = 1.2.dp,
+                color = if (lottieRawRes != null) BordeCyan.copy(alpha = 0.40f) else Color.White.copy(alpha = 0.22f),
                 shape = shape
             )
             .clip(shape)
-            .background(Color(0xFF1A1D26).copy(alpha = 0.90f))
+            .background(Color(0xFF1D212C).copy(alpha = 0.95f))
             .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 6.dp),
+            .padding(horizontal = 4.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -495,33 +495,33 @@ private fun HelpButton(
                 LottieAnimation(
                     composition = composition,
                     iterations = LottieConstants.IterateForever,
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(46.dp)
                 )
             } else if (imageRes != null) {
                 Image(
                     painter = painterResource(id = imageRes),
                     contentDescription = title,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(38.dp)
                 )
             } else if (icon != null) {
                 Icon(
                     imageVector = icon,
                     contentDescription = title,
                     tint = Color.White,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(36.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(3.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
                 text = title,
                 fontFamily = SpaceGrotesk,
-                fontSize = 11.sp,
+                fontSize = 12.5.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
                 textAlign = TextAlign.Center,
-                lineHeight = 12.sp
+                lineHeight = 15.sp
             )
         }
     }
