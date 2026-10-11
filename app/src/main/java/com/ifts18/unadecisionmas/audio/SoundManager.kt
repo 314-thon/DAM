@@ -64,7 +64,7 @@ object SoundManager {
                         .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                         .build()
                 )
-                val afd = context.resources.openRawResourceFd(R.raw.bg_music_suspense)
+                val afd = context.resources.openRawResourceFd(R.raw.casino_vip_music)
                 setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
                 afd.close()
                 prepare()
@@ -74,7 +74,7 @@ object SoundManager {
             }
         } catch (_: Exception) {
             try {
-                bgMusicPlayer = MediaPlayer.create(context, R.raw.bg_music_suspense)?.apply {
+                bgMusicPlayer = MediaPlayer.create(context, R.raw.casino_vip_music)?.apply {
                     isLooping = true
                     val vol = if (_isMutedState.value) 0f else 0.40f
                     setVolume(vol, vol)

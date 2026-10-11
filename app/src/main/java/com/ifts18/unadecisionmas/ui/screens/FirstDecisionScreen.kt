@@ -175,7 +175,7 @@ fun FirstDecisionScreen(
                             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                             .build()
                     )
-                    val afd = context.resources.openRawResourceFd(R.raw.bg_music_suspense)
+                    val afd = context.resources.openRawResourceFd(R.raw.casino_vip_music)
                     setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
                     afd.close()
                     prepare()
@@ -184,7 +184,7 @@ fun FirstDecisionScreen(
                 }
             } catch (_: Exception) {
                 try {
-                    MediaPlayer.create(context, R.raw.bg_music_suspense)?.apply {
+                    MediaPlayer.create(context, R.raw.casino_vip_music)?.apply {
                         isLooping = true
                         setVolume(0.45f, 0.45f)
                     }

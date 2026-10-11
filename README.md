@@ -98,7 +98,7 @@ En cumplimiento de la consigna 4:
 * El temporizador de 10s se detiene inmediatamente al seleccionar una opción o cambiar de pantalla, previniendo fugas de corrutinas en segundo plano.
 
 ### 3. Recursos Multimedia Incorporados
-* **Música ambiental global:** `bg_music_suspense.ogg` administrada por `SoundManager` que acompaña el recorrido narrativo y acelera dinámicamente su velocidad de reproducción (1.35x) durante los últimos segundos del temporizador.
+* **Música ambiental global:** `casino_vip_music.mp3` administrada por `SoundManager` que acompaña el recorrido narrativo y acelera dinámicamente su velocidad de reproducción (1.35x) durante los últimos segundos del temporizador.
 * **Efectos sonoros inmediatos:** Gestionados con `SoundPool` para baja latencia: `button_click.wav`, `heartbeat.ogg` (latido cardíaco bajo presión), `win_sound.ogg` y `lose_sound.ogg`.
 * **Animaciones Lottie:** Integración de la biblioteca `lottie-compose` y el recurso `boti_animacion.json` para el botón oficial de asistencia ciudadana.
 * **Confeti en Canvas:** Motor de partículas vectoriales matemáticas renderizado con `Canvas` y `withFrameNanos` para la pantalla de victoria ($0 de deuda).
@@ -170,9 +170,9 @@ En cumplimiento de la consigna 4:
 │   │       │   ├── space_grotesk_medium.ttf
 │   │       │   └── space_grotesk_regular.ttf
 │   │       └── raw/
-│   │           ├── bg_music_suspense.ogg
 │   │           ├── boti_animacion.json
 │   │           ├── button_click.wav
+│   │           ├── casino_vip_music.mp3
 │   │           ├── heartbeat.ogg
 │   │           ├── lose_sound.ogg
 │   │           └── win_sound.ogg
