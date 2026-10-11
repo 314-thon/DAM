@@ -301,53 +301,65 @@ fun GameDecisionScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             // 3. ZONA CALIENTE DEL PULGAR: TEMPORIZADOR DE 10s Y BOTONES
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            // Aparecen únicamente cuando se activa el temporizador
+            AnimatedVisibility(
+                visible = isTimerActive,
+                enter = fadeIn(animationSpec = tween(300)) +
+                        slideInVertically(
+                            animationSpec = spring(
+                                dampingRatio = 0.8f,
+                                stiffness = 400f
+                            )
+                        ) { it / 2 }
             ) {
-                // Barra de temporizador en Canvas de 10s
-                SplitProgressBar(
-                    progressProvider = { timerProgress.value },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // Botones de acción: Opción preventiva vs Opción de riesgo
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Botón Seguro (Preventivo)
-                    DecisionButton(
-                        text = currentScenario.safeOption.text,
-                        isPrimary = false,
-                        onClick = {
-                            if (isTimerActive) {
-                                isTimerActive = false
-                                viewModel.selectOption(currentScenario.safeOption)
-                            }
-                        },
-                        isPulsing = isUrgent,
-                        pulseScale = { pulseScale },
-                        modifier = Modifier.weight(1f)
+                    // Barra de temporizador en Canvas de 10s
+                    SplitProgressBar(
+                        progressProvider = { timerProgress.value },
+                        modifier = Modifier.fillMaxWidth()
                     )
 
-                    // Botón Riesgoso (Apostar / Endeudarse)
-                    DecisionButton(
-                        text = currentScenario.riskyOption.text,
-                        isPrimary = true,
-                        onClick = {
-                            if (isTimerActive) {
-                                isTimerActive = false
-                                viewModel.selectOption(currentScenario.riskyOption)
-                            }
-                        },
-                        isPulsing = isUrgent,
-                        pulseScale = { pulseScale },
-                        modifier = Modifier.weight(1f)
-                    )
+                    // Botones de acción: No apostar vs Apostar
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Botón 1: No apostar
+                        DecisionButton(
+                            text = "No apostar",
+                            isPrimary = false,
+                            onClick = {
+                                if (isTimerActive) {
+                                    isTimerActive = false
+                                    viewModel.selectOption(currentScenario.safeOption)
+                                }
+                            },
+                            isPulsing = isUrgent,
+                            pulseScale = { pulseScale },
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        // Botón 2: Apostar
+                        DecisionButton(
+                            text = "Apostar",
+                            isPrimary = true,
+                            onClick = {
+                                if (isTimerActive) {
+                                    isTimerActive = false
+                                    viewModel.selectOption(currentScenario.riskyOption)
+                                }
+                            },
+                            isPulsing = isUrgent,
+                            pulseScale = { pulseScale },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
         }

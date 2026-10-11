@@ -151,207 +151,211 @@ fun GameResultScreen(
         }
 
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
             // =========================================================================
-            // BLOQUE 1: AVISO / RESULTADO (Compacto y equilibrado)
+            // ÁREA SUPERIOR Y MEDIA (Scrollable si la pantalla es reducida)
             // =========================================================================
-            AnimatedVisibility(
-                visible = isContentVisible,
-                enter = fadeIn(tween(350)) + slideInVertically(tween(350)) { -it / 2 }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(scrollState),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF161922).copy(alpha = 0.90f))
-                        .border(
-                            width = 1.dp,
-                            color = if (isWon) VerdeExito.copy(alpha = 0.5f) else RojoAlerta.copy(alpha = 0.5f),
-                            shape = RoundedCornerShape(16.dp)
-                        )
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // BLOQUE 1: AVISO / RESULTADO (Compacto y equilibrado)
+                AnimatedVisibility(
+                    visible = isContentVisible,
+                    enter = fadeIn(tween(350)) + slideInVertically(tween(350)) { -it / 2 }
                 ) {
-                    Text(
-                        text = if (isWon) "🎉" else "⚠️",
-                        fontSize = 30.sp,
-                        modifier = Modifier.padding(end = 12.dp)
-                    )
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (isWon) "¡Felicitaciones! Deuda $0" else "¡Atención! Deuda contraída",
-                            fontFamily = SpaceGrotesk,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = if (isWon) VerdeExito else RojoAlerta
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = if (isWon) {
-                                "Superaste la semana sin deudas. Demostraste autocontrol ante las ofertas."
-                            } else {
-                                "En ciberapuestas la casa siempre gana: el 95% de los jugadores pierde dinero a largo plazo."
-                            },
-                            fontFamily = SpaceGrotesk,
-                            fontSize = 12.sp,
-                            lineHeight = 16.sp,
-                            color = Color.White
-                        )
-                    }
-                }
-            }
-
-            // =========================================================================
-            // BLOQUE 2: CANTIDAD DE ACIERTOS / DESACIERTOS CON SALDO FINAL Y DESGLOSE 2 COLS
-            // =========================================================================
-            AnimatedVisibility(
-                visible = isContentVisible,
-                enter = fadeIn(tween(450)) + slideInVertically(tween(450)) { it / 3 }
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(BurbujaChat.copy(alpha = 0.85f))
-                        .border(
-                            width = 1.dp,
-                            color = Color.White.copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(16.dp)
-                        )
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
-                ) {
-                    Text(
-                        text = "Balance de Decisiones",
-                        fontFamily = SpaceGrotesk,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = Color.White
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // 3 Tarjetas de métricas superiores
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF161922).copy(alpha = 0.90f))
+                            .border(
+                                width = 1.dp,
+                                color = if (isWon) VerdeExito.copy(alpha = 0.5f) else RojoAlerta.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(16.dp)
+                            )
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Tarjeta Aciertos
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF141F18))
-                                .border(1.dp, VerdeExito.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-                                .padding(vertical = 6.dp, horizontal = 4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = VerdeExito, modifier = Modifier.size(13.dp))
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("Aciertos", fontFamily = SpaceGrotesk, fontSize = 11.sp, color = VerdeExito)
-                            }
+                        Text(
+                            text = if (isWon) "🎉" else "⚠️",
+                            fontSize = 30.sp,
+                            modifier = Modifier.padding(end = 12.dp)
+                        )
+
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "${gameState.correctDecisionsCount} / 7",
+                                text = if (isWon) "¡Felicitaciones! Deuda $0" else "¡Atención! Deuda contraída",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                color = Color.White
-                            )
-                        }
-
-                        // Tarjeta Desaciertos / Riesgo
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF261418))
-                                .border(1.dp, RojoAlerta.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-                                .padding(vertical = 6.dp, horizontal = 4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Close, contentDescription = null, tint = RojoAlerta, modifier = Modifier.size(13.dp))
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("Riesgo", fontFamily = SpaceGrotesk, fontSize = 11.sp, color = RojoAlerta)
-                            }
-                            Text(
-                                text = "${gameState.incorrectDecisionsCount} / 7",
-                                fontFamily = SpaceGrotesk,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                color = Color.White
-                            )
-                        }
-
-                        // Tarjeta Deuda Final
-                        Column(
-                            modifier = Modifier
-                                .weight(1.15f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (isWon) Color(0xFF141F18) else Color(0xFF261418))
-                                .border(1.dp, if (isWon) VerdeExito else RojoAlerta, RoundedCornerShape(10.dp))
-                                .padding(vertical = 6.dp, horizontal = 4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "Deuda Final",
-                                fontFamily = SpaceGrotesk,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
+                                fontSize = 18.sp,
                                 color = if (isWon) VerdeExito else RojoAlerta
                             )
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "$${gameState.currentDebt}",
+                                text = if (isWon) {
+                                    "Superaste la semana sin deudas. Demostraste autocontrol ante las ofertas."
+                                } else {
+                                    "En ciberapuestas la casa siempre gana: el 95% de los jugadores pierde dinero a largo plazo."
+                                },
                                 fontFamily = SpaceGrotesk,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp,
                                 color = Color.White
                             )
                         }
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Desglose optimizado en 2 columnas para no desbordar el alto
-                    val history = gameState.decisionHistory
-                    val firstCol = history.take(4)
-                    val secondCol = history.drop(4)
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                // BLOQUE 2: BALANCE DE DECISIONES, MÉTRICAS Y DESGLOSE EN 2 COLUMNAS
+                AnimatedVisibility(
+                    visible = isContentVisible,
+                    enter = fadeIn(tween(450)) + slideInVertically(tween(450)) { it / 3 }
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(BurbujaChat.copy(alpha = 0.85f))
+                            .border(
+                                width = 1.dp,
+                                color = Color.White.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(16.dp)
+                            )
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
                     ) {
-                        // Columna Izquierda (Lunes a Jueves)
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        Text(
+                            text = "Balance de Decisiones",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = Color.White
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // 3 Tarjetas de métricas
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            firstCol.forEach { record ->
-                                CompactDayRecordPill(record)
+                            // Aciertos
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFF141F18))
+                                    .border(1.dp, VerdeExito.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                                    .padding(vertical = 6.dp, horizontal = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = VerdeExito, modifier = Modifier.size(13.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("Aciertos", fontFamily = SpaceGrotesk, fontSize = 11.sp, color = VerdeExito)
+                                }
+                                Text(
+                                    text = "${gameState.correctDecisionsCount} / 7",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = Color.White
+                                )
+                            }
+
+                            // Desaciertos / Riesgo
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFF261418))
+                                    .border(1.dp, RojoAlerta.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                                    .padding(vertical = 6.dp, horizontal = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Close, contentDescription = null, tint = RojoAlerta, modifier = Modifier.size(13.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("Riesgo", fontFamily = SpaceGrotesk, fontSize = 11.sp, color = RojoAlerta)
+                                }
+                                Text(
+                                    text = "${gameState.incorrectDecisionsCount} / 7",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = Color.White
+                                )
+                            }
+
+                            // Deuda Final
+                            Column(
+                                modifier = Modifier
+                                    .weight(1.15f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (isWon) Color(0xFF141F18) else Color(0xFF261418))
+                                    .border(1.dp, if (isWon) VerdeExito else RojoAlerta, RoundedCornerShape(10.dp))
+                                    .padding(vertical = 6.dp, horizontal = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "Deuda Final",
+                                    fontFamily = SpaceGrotesk,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (isWon) VerdeExito else RojoAlerta
+                                )
+                                Text(
+                                    text = "$${gameState.currentDebt}",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = Color.White
+                                )
                             }
                         }
 
-                        // Columna Derecha (Viernes a Domingo)
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Desglose optimizado en 2 columnas
+                        val history = gameState.decisionHistory
+                        val firstCol = history.take(4)
+                        val secondCol = history.drop(4)
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            secondCol.forEach { record ->
-                                CompactDayRecordPill(record)
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                firstCol.forEach { record ->
+                                    CompactDayRecordPill(record)
+                                }
+                            }
+
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                secondCol.forEach { record ->
+                                    CompactDayRecordPill(record)
+                                }
                             }
                         }
                     }
                 }
             }
 
+            Spacer(modifier = Modifier.height(10.dp))
+
             // =========================================================================
-            // BLOQUE 3: BOTONES DE AYUDA Y VOLVER A EMPEZAR
+            // BLOQUE 3: ZONA DEL PULGAR (FIJA EN LA BASE, NUNCA SE CORTA)
             // =========================================================================
             Column(
                 modifier = Modifier
@@ -360,7 +364,7 @@ fun GameResultScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Fila horizontal compacta de los 3 canales de ayuda
+                // Fila horizontal de los 3 canales de ayuda
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -415,8 +419,6 @@ fun GameResultScreen(
                     )
                 }
             }
-
-            Spacer(modifier = Modifier.height(6.dp))
         }
     }
 }
