@@ -111,16 +111,15 @@ class GameViewModel : ViewModel() {
     private fun handleGameOverSound() {
         SoundManager.resetMusicSpeed()
         SoundManager.stopHeartbeat()
-        if (_gameState.value.currentDebt == 0) {
-            SoundManager.playWin()
-        } else {
-            SoundManager.playLose()
-        }
+        val isWon = _gameState.value.currentDebt == 0
+        SoundManager.playGameOverSequence(isWon)
     }
 
     fun restartGame() {
+        SoundManager.stopGameOverSequence()
         SoundManager.stopHeartbeat()
         SoundManager.resetMusicSpeed()
+        SoundManager.startBgMusic()
         _gameState.update { current ->
             GameState(
                 profile = current.profile,

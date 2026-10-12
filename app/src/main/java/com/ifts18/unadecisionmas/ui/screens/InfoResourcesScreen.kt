@@ -122,7 +122,7 @@ fun InfoResourcesScreen(
                             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                             .build()
                     )
-                    val soundResId = if (didBet) R.raw.lose_sound else R.raw.win_sound
+                    val soundResId = if (didBet) R.raw.fail_sound_comedy else R.raw.victory_trumpet
                     val afd = context.resources.openRawResourceFd(soundResId)
                     setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
                     afd.close()
@@ -131,7 +131,7 @@ fun InfoResourcesScreen(
                 }
             } catch (_: Exception) {
                 try {
-                    val soundResId = if (didBet) R.raw.lose_sound else R.raw.win_sound
+                    val soundResId = if (didBet) R.raw.fail_sound_comedy else R.raw.victory_trumpet
                     MediaPlayer.create(context, soundResId)?.apply {
                         setVolume(0.70f, 0.70f)
                     }

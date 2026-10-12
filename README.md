@@ -99,7 +99,9 @@ En cumplimiento de la consigna 4:
 
 ### 3. Recursos Multimedia Incorporados
 * **Música ambiental global:** `casino_vip_music.mp3` administrada por `SoundManager` que acompaña el recorrido narrativo y acelera dinámicamente su velocidad de reproducción (1.35x) durante los últimos segundos del temporizador.
-* **Efectos sonoros inmediatos:** Gestionados con `SoundPool` para baja latencia: `button_click.wav`, `heartbeat.ogg` (latido cardíaco bajo presión), `win_sound.ogg` y `lose_sound.ogg`.
+* **Jingles de desenlace:** Al finalizar la semana, la música global se corta y se reproduce `victory_trumpet.mp3` (trompeta triunfal si la deuda es $0) o `fail_sound_comedy.mp3` (efecto cómico si se contrajo deuda).
+* **Música de créditos finales:** `end_credits_music.mp3` (chiptune épico) que inicia en bucle continuo en la pantalla de resultados inmediatamente después de que culmina el jingle correspondiente.
+* **Efectos sonoros inmediatos:** Gestionados con `SoundPool` para baja latencia: `button_click.wav` y `heartbeat.ogg` (latido cardíaco bajo presión del temporizador).
 * **Animaciones Lottie:** Integración de la biblioteca `lottie-compose` y el recurso `boti_animacion.json` para el botón oficial de asistencia ciudadana.
 * **Confeti en Canvas:** Motor de partículas vectoriales matemáticas renderizado con `Canvas` y `withFrameNanos` para la pantalla de victoria ($0 de deuda).
 
@@ -173,9 +175,10 @@ En cumplimiento de la consigna 4:
 │   │           ├── boti_animacion.json
 │   │           ├── button_click.wav
 │   │           ├── casino_vip_music.mp3
+│   │           ├── end_credits_music.mp3
+│   │           ├── fail_sound_comedy.mp3
 │   │           ├── heartbeat.ogg
-│   │           ├── lose_sound.ogg
-│   │           └── win_sound.ogg
+│   │           └── victory_trumpet.mp3
 │   └── build.gradle.kts
 ├── img/
 ├── README.md

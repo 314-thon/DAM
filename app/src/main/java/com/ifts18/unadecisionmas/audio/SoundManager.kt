@@ -14,11 +14,11 @@ object SoundManager {
     private var appContext: Context? = null
     private var bgMusicPlayer: MediaPlayer? = null
     private var heartbeatPlayer: MediaPlayer? = null
+    private var jinglePlayer: MediaPlayer? = null
+    private var endCreditsMusicPlayer: MediaPlayer? = null
     private var soundPool: SoundPool? = null
 
     private var clickSoundId: Int = 0
-    private var winSoundId: Int = 0
-    private var loseSoundId: Int = 0
 
     // Estado reactivo de mute observable por Jetpack Compose
     private val _isMutedState = mutableStateOf(false)
@@ -26,6 +26,7 @@ object SoundManager {
 
     private var currentSpeed: Float = 1.0f
     private var isMusicPausedByLifecycle = false
+    private var isGameOverActive = false
 
     fun init(context: Context) {
         if (appContext != null) return
@@ -46,8 +47,6 @@ object SoundManager {
                 .build()
 
             clickSoundId = soundPool?.load(ctx, R.raw.button_click, 1) ?: 0
-            winSoundId = soundPool?.load(ctx, R.raw.win_sound, 1) ?: 0
-            loseSoundId = soundPool?.load(ctx, R.raw.lose_sound, 1) ?: 0
         } catch (_: Exception) {}
 
         // Inicializar MediaPlayer de música de fondo global
@@ -55,33 +54,39 @@ object SoundManager {
         initHeartbeat(ctx)
     }
 
-    private fun initBgMusic(context: Context) {
-        try {
-            bgMusicPlayer = MediaPlayer().apply {
+    private fun createMediaPlayer(context: Context, resId: Int, isMusic: Boolean): MediaPlayer? {
+        return try {
+            val player = MediaPlayer().apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_GAME)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .setContentType(if (isMusic) AudioAttributes.CONTENT_TYPE_MUSIC else AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .build()
                 )
-                val afd = context.resources.openRawResourceFd(R.raw.casino_vip_music)
+                val afd = context.resources.openRawResourceFd(resId)
                 setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
                 afd.close()
                 prepare()
+            }
+            player
+        } catch (_: Exception) {
+            try {
+                MediaPlayer.create(context, resId)
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+
+    private fun initBgMusic(context: Context) {
+        try {
+            bgMusicPlayer = createMediaPlayer(context, R.raw.casino_vip_music, isMusic = true)?.apply {
                 isLooping = true
                 val vol = if (_isMutedState.value) 0f else 0.40f
                 setVolume(vol, vol)
             }
         } catch (_: Exception) {
-            try {
-                bgMusicPlayer = MediaPlayer.create(context, R.raw.casino_vip_music)?.apply {
-                    isLooping = true
-                    val vol = if (_isMutedState.value) 0f else 0.40f
-                    setVolume(vol, vol)
-                }
-            } catch (_: Exception) {
-                bgMusicPlayer = null
-            }
+            bgMusicPlayer = null
         }
     }
 
@@ -126,12 +131,16 @@ object SoundManager {
             try {
                 bgMusicPlayer?.setVolume(0f, 0f)
                 heartbeatPlayer?.setVolume(0f, 0f)
+                jinglePlayer?.setVolume(0f, 0f)
+                endCreditsMusicPlayer?.setVolume(0f, 0f)
             } catch (_: Exception) {}
         } else {
             try {
                 bgMusicPlayer?.setVolume(0.40f, 0.40f)
                 heartbeatPlayer?.setVolume(0.30f, 0.30f)
-                if (bgMusicPlayer?.isPlaying == false && !isMusicPausedByLifecycle) {
+                jinglePlayer?.setVolume(0.70f, 0.70f)
+                endCreditsMusicPlayer?.setVolume(0.40f, 0.40f)
+                if (!isGameOverActive && bgMusicPlayer?.isPlaying == false && !isMusicPausedByLifecycle) {
                     bgMusicPlayer?.start()
                 }
             } catch (_: Exception) {}
@@ -140,6 +149,9 @@ object SoundManager {
 
     fun startBgMusic() {
         try {
+            if (isGameOverActive) {
+                stopGameOverSequence()
+            }
             if (bgMusicPlayer == null && appContext != null) {
                 initBgMusic(appContext!!)
             }
@@ -158,17 +170,41 @@ object SoundManager {
                 bgMusicPlayer?.pause()
                 isMusicPausedByLifecycle = true
             }
+            if (endCreditsMusicPlayer?.isPlaying == true) {
+                endCreditsMusicPlayer?.pause()
+                isMusicPausedByLifecycle = true
+            }
+            if (jinglePlayer?.isPlaying == true) {
+                jinglePlayer?.pause()
+                isMusicPausedByLifecycle = true
+            }
             stopHeartbeat()
         } catch (_: Exception) {}
     }
 
     fun resumeBgMusic() {
         try {
-            if (isMusicPausedByLifecycle && bgMusicPlayer != null && !bgMusicPlayer!!.isPlaying) {
-                val vol = if (_isMutedState.value) 0f else 0.40f
-                bgMusicPlayer?.setVolume(vol, vol)
-                bgMusicPlayer?.start()
-                isMusicPausedByLifecycle = false
+            if (isMusicPausedByLifecycle) {
+                if (isGameOverActive) {
+                    if (endCreditsMusicPlayer != null && !endCreditsMusicPlayer!!.isPlaying) {
+                        val vol = if (_isMutedState.value) 0f else 0.40f
+                        endCreditsMusicPlayer?.setVolume(vol, vol)
+                        endCreditsMusicPlayer?.start()
+                        isMusicPausedByLifecycle = false
+                    } else if (jinglePlayer != null && !jinglePlayer!!.isPlaying) {
+                        val vol = if (_isMutedState.value) 0f else 0.70f
+                        jinglePlayer?.setVolume(vol, vol)
+                        jinglePlayer?.start()
+                        isMusicPausedByLifecycle = false
+                    }
+                } else {
+                    if (bgMusicPlayer != null && !bgMusicPlayer!!.isPlaying) {
+                        val vol = if (_isMutedState.value) 0f else 0.40f
+                        bgMusicPlayer?.setVolume(vol, vol)
+                        bgMusicPlayer?.start()
+                        isMusicPausedByLifecycle = false
+                    }
+                }
             }
         } catch (_: Exception) {}
     }
@@ -177,8 +213,8 @@ object SoundManager {
         try {
             if (bgMusicPlayer?.isPlaying == true) {
                 bgMusicPlayer?.pause()
-                bgMusicPlayer?.seekTo(0)
             }
+            bgMusicPlayer?.seekTo(0)
             stopHeartbeat()
         } catch (_: Exception) {}
     }
@@ -231,26 +267,116 @@ object SoundManager {
         } catch (_: Exception) {}
     }
 
-    fun playWin() {
-        if (_isMutedState.value) return
+    fun playGameOverSequence(isWon: Boolean) {
+        val ctx = appContext ?: return
+        isGameOverActive = true
+
+        // 1. Cortar música global y latidos inmediatamente
+        stopBgMusic()
+
+        // 2. Detener cualquier jingle o créditos anteriores
         try {
-            if (winSoundId != 0) {
-                soundPool?.play(winSoundId, 0.7f, 0.7f, 2, 0, 1.0f)
+            jinglePlayer?.stop()
+            jinglePlayer?.release()
+        } catch (_: Exception) {}
+        jinglePlayer = null
+
+        try {
+            endCreditsMusicPlayer?.stop()
+            endCreditsMusicPlayer?.release()
+        } catch (_: Exception) {}
+        endCreditsMusicPlayer = null
+
+        // 3. Jingle de victoria o fail comedia
+        val jingleResId = if (isWon) R.raw.victory_trumpet else R.raw.fail_sound_comedy
+
+        try {
+            val player = createMediaPlayer(ctx, jingleResId, isMusic = false)
+            if (player != null) {
+                val vol = if (_isMutedState.value) 0f else 0.70f
+                player.setVolume(vol, vol)
+                player.setOnCompletionListener { mp ->
+                    try {
+                        mp.release()
+                    } catch (_: Exception) {}
+                    jinglePlayer = null
+                    if (isGameOverActive) {
+                        startEndCreditsMusic()
+                    }
+                }
+                player.setOnErrorListener { mp, _, _ ->
+                    try {
+                        mp.release()
+                    } catch (_: Exception) {}
+                    jinglePlayer = null
+                    if (isGameOverActive) {
+                        startEndCreditsMusic()
+                    }
+                    true
+                }
+                jinglePlayer = player
+                player.start()
+            } else {
+                if (isGameOverActive) {
+                    startEndCreditsMusic()
+                }
             }
+        } catch (_: Exception) {
+            if (isGameOverActive) {
+                startEndCreditsMusic()
+            }
+        }
+    }
+
+    fun startEndCreditsMusic() {
+        val ctx = appContext ?: return
+        if (!isGameOverActive) return
+
+        try {
+            val player = createMediaPlayer(ctx, R.raw.end_credits_music, isMusic = true)
+            if (player != null) {
+                player.isLooping = true
+                val vol = if (_isMutedState.value) 0f else 0.40f
+                player.setVolume(vol, vol)
+                endCreditsMusicPlayer = player
+                player.start()
+            }
+        } catch (_: Exception) {
+            endCreditsMusicPlayer = null
+        }
+    }
+
+    fun stopGameOverSequence() {
+        isGameOverActive = false
+        try {
+            if (jinglePlayer?.isPlaying == true) {
+                jinglePlayer?.stop()
+            }
+            jinglePlayer?.release()
+            jinglePlayer = null
+        } catch (_: Exception) {}
+
+        try {
+            if (endCreditsMusicPlayer?.isPlaying == true) {
+                endCreditsMusicPlayer?.stop()
+            }
+            endCreditsMusicPlayer?.release()
+            endCreditsMusicPlayer = null
         } catch (_: Exception) {}
     }
 
+    fun playWin() {
+        playGameOverSequence(isWon = true)
+    }
+
     fun playLose() {
-        if (_isMutedState.value) return
-        try {
-            if (loseSoundId != 0) {
-                soundPool?.play(loseSoundId, 0.7f, 0.7f, 2, 0, 1.0f)
-            }
-        } catch (_: Exception) {}
+        playGameOverSequence(isWon = false)
     }
 
     fun release() {
         try {
+            stopGameOverSequence()
+
             bgMusicPlayer?.stop()
             bgMusicPlayer?.release()
             bgMusicPlayer = null
