@@ -6,7 +6,7 @@
   <style>
     @page {
       size: A4 portrait;
-      margin: 15mm 16mm;
+      margin: 14mm 16mm;
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
@@ -18,8 +18,19 @@
     }
     header {
       border-bottom: 2px solid #00E5FF;
-      padding-bottom: 10px;
+      padding-bottom: 12px;
       margin-bottom: 16px;
+    }
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .logo-ifts {
+      height: 52px;
+      width: auto;
+      object-fit: contain;
     }
     .inst {
       font-size: 11px;
@@ -102,9 +113,14 @@
 <body>
 
   <header>
-    <p class="inst">Instituto de Formación Técnica Superior N.º 18 (IFTS 18) | Tecnicatura Superior en Desarrollo de Software</p>
-    <h1>Desarrollo de Aplicaciones para Dispositivos Móviles</h1>
-    <p class="sub">Actividad: Primera versión funcional de la app-juego | Fecha de entrega: 16-10-2026</p>
+    <div class="header-row">
+      <div style="flex: 1;">
+        <p class="inst">Instituto de Formación Técnica Superior N.º 18 (IFTS 18) | Tecnicatura Superior en Desarrollo de Software</p>
+        <h1>Desarrollo de Aplicaciones para Dispositivos Móviles</h1>
+        <p class="sub">Actividad: Primera versión funcional de la app-juego | Fecha de entrega: 16-10-2026</p>
+      </div>
+      <img alt="IFTS 18 Logo" class="logo-ifts" src="img/ifts18_logo.png">
+    </div>
   </header>
 
   <div class="meta-box">
