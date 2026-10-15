@@ -5,7 +5,7 @@
 * **Protagonista:** Mateo R. (15 años), estudiante de 3er año de secundaria.
 * **Formato:** Novela gráfica interactiva combinada con trivia dinámica contrarreloj.
 * **Duración:** Una semana escolar (de lunes a domingo).
-* **Métrica Central:** `DEUDA: $0` (comienza en $0 y se mantiene fija en el margen superior de la pantalla; aumenta ante respuestas incorrectas o vencimiento del tiempo).
+* **Métrica Central:** `DEUDA: $0` (comienza en $0 y se mantiene fija en el margen superior de la pantalla, aumentando ante respuestas incorrectas o vencimiento del tiempo).
 * **Límite de tiempo por decisión:** 10 segundos con barra visual de cuenta regresiva.
 * **Plataforma objetivo:** Mobile (orientado a uso ágil con una sola mano / ergonomía de pulgar).
 

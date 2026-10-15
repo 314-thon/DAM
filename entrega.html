@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Entrega - Primera Versión Funcional - Grupo 1</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #1a1a1a;
+      line-height: 1.5;
+      font-size: 13px;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      border-bottom: 2px solid #00E5FF;
+      padding-bottom: 12px;
+      margin-bottom: 18px;
+    }
+    .inst-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #666;
+      margin: 0 0 4px 0;
+    }
+    h1 {
+      font-size: 22px;
+      margin: 0 0 6px 0;
+      color: #0D1117;
+    }
+    .meta-box {
+      background: #F4F6F8;
+      border-left: 4px solid #E91E63;
+      padding: 8px 12px;
+      font-size: 12px;
+      margin-bottom: 16px;
+      border-radius: 0 4px 4px 0;
+    }
+    .meta-box p {
+      margin: 3px 0;
+    }
+    h2 {
+      font-size: 15px;
+      color: #0D1117;
+      border-bottom: 1px solid #E1E4E8;
+      padding-bottom: 4px;
+      margin-top: 18px;
+      margin-bottom: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 16px 0;
+      font-size: 12px;
+    }
+    th, td {
+      border: 1px solid #D0D7DE;
+      padding: 7px 10px;
+      text-align: left;
+    }
+    th {
+      background: #F6F8FA;
+      font-weight: 600;
+    }
+    .badge {
+      display: inline-block;
+      background: #0D1117;
+      color: #00E5FF;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-family: monospace;
+    }
+    ul {
+      margin: 4px 0 12px 18px;
+      padding: 0;
+    }
+    li {
+      margin-bottom: 4px;
+    }
+    a {
+      color: #0969DA;
+      text-decoration: none;
+      word-break: break-all;
+    }
+    .links-card {
+      background: #F0F9FF;
+      border: 1px solid #B9E6FE;
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin: 12px 0 18px 0;
+    }
+    .links-card p {
+      margin: 4px 0;
+      font-size: 12.5px;
+    }
+    .page-break {
+      page-break-before: always;
+    }
+    .highlight {
+      font-weight: 600;
+      color: #0D1117;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <p class="inst-title">Instituto de Formación Técnica Superior N.º 18 (IFTS 18) | Tecnicatura Superior en Desarrollo de Software</p>
+    <h1>Desarrollo de Aplicaciones para Dispositivos Móviles</h1>
+    <p style="margin: 0; font-size: 14px; color: #444;">Actividad: Primera versión funcional de la app-juego (MVP) | Fecha: 16-10-2026</p>
+  </header>
+
+  <div class="meta-box">
+    <p><span class="highlight">Juego:</span> Juego Limpio (Concientización sobre ciberapuestas y presión de pares en adolescentes)</p>
+    <p><span class="highlight">Grupo:</span> Grupo 1</p>
+    <p><span class="highlight">Estado:</span> Primera versión funcional implementada y lista para su ejecución en Android Studio</p>
+  </div>
+
+  <h2>1. Enlaces Principales del Proyecto</h2>
+  <div class="links-card">
+    <p><strong>Repositorio Público en GitHub:</strong> <a href="https://github.com/314-thon/DAM">https://github.com/314-thon/DAM</a></p>
+    <p><strong>Prototipo Interactivo en Figma:</strong> <a href="https://www.figma.com/design/bzjU3l80OI4mZELeOXOe39/Neon-App-UI--Community-?node-id=0-1">https://www.figma.com/design/bzjU3l80OI4mZELeOXOe39/Neon-App-UI--Community-?node-id=0-1</a></p>
+    <p><strong>Planificación y Seguimiento Grupal:</strong> <a href="https://docs.google.com/spreadsheets/d/1dQfBnHYNf5ZDdArd4o_fG_jp4r-J3kOh6mL_5OXK1Io/edit">Planilla de Organización en Google Sheets</a></p>
+  </div>
+
+  <h2>2. Integrantes del Equipo y Tareas Realizadas</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 25%;">Integrante</th>
+        <th style="width: 25%;">Rol</th>
+        <th style="width: 50%;">Tareas Realizadas</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Martín Jonas Avilas</strong></td>
+        <td>Líder IT & Desarrollador Android</td>
+        <td>Coordinación técnica, configuración de Gradle y SDK 34, desarrollo de arquitectura MVVM (GameViewModel, StateFlow), navegación con Compose, control del ciclo de vida en MainActivity y repositorio GitHub.</td>
+      </tr>
+      <tr>
+        <td><strong>Roberto Araujo</strong></td>
+        <td>Diseñador UX / Fundamentación</td>
+        <td>Fundamentación teórica sobre ciberapuestas, definición de tokens de color (Dark Slate, Magenta y Cyan Neón), contraste accesible WCAG AAA y ergonomía táctil en zona del pulgar.</td>
+      </tr>
+      <tr>
+        <td><strong>Evelyn Gaitán</strong></td>
+        <td>Narrative Designer & Multimedia</td>
+        <td>Redacción de diálogos y situaciones de Lunes a Domingo en relato.md, selección de audios (música VIP, latido, jingles) e integración de animaciones Lottie para Boti y el título del juego.</td>
+      </tr>
+      <tr>
+        <td><strong>Juan Chaile</strong></td>
+        <td>Game Designer & Prototipado</td>
+        <td>Diseño de la mecánica contrarreloj de 10s, prototipo interactivo en Figma, diseño de botones píldora y estructura modular de la pantalla final de resultados.</td>
+      </tr>
+      <tr>
+        <td><strong>Lucía Marisol Pobeda</strong></td>
+        <td>Investigadora UX / User Persona</td>
+        <td>Investigación de campo sobre hábitos de apuestas en escuelas secundarias, elaboración del User Persona (Mateo R., 15 años) e integración de canales de ayuda pública (Línea 141, Boti y Orientación).</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>3. Resumen de la Aplicación y Mecánica Principal</h2>
+  <p><strong>Propósito:</strong> Simular el recorrido cotidiano de una semana escolar donde un adolescente recibe estímulos para apostar dinero virtual mediante billeteras digitales y chats de compañeros. La aplicación evidencia que las probabilidades matemáticas favorecen a la casa y que la supuesta urgencia es un mecanismo de manipulación.</p>
+  <ul>
+    <li><strong>Inicio y Perfil:</strong> El jugador ingresa su apodo y elige entre 5 avatares disponibles.</li>
+    <li><strong>Dinámica de Partida:</strong> Recorrido interactivo de 7 días (Lunes a Domingo). Los mensajes llegan de manera progresiva con sonido de notificación.</li>
+    <li><strong>Toma de Decisiones Contrarreloj:</strong> Al terminar de leer los mensajes, se activa un temporizador de 10 segundos en Canvas. Si se vence el tiempo o se elige la opción riesgosa, se suma deuda.</li>
+    <li><strong>Presión Sonora:</strong> En los últimos 4 segundos la música acelera a 1.35x de velocidad y se activa un efecto de latido cardíaco.</li>
+    <li><strong>Resultado Final:</strong> Si el jugador finaliza el Domingo con $0 de deuda gana la partida (con confeti animado). Si acumuló deuda, se muestra un desglose detallado de sus decisiones y accesos directos a la Línea 141, Chat Boti y Orientación al Jugador.</li>
+  </ul>
+
+  <div class="page-break"></div>
+
+  <h2>4. Implementación Técnica (MVVM y Ciclo de Vida)</h2>
+  <ul>
+    <li><strong>Model:</strong> Clases de datos inmutables (PlayerProfile, ChatMessage, DecisionOption, GameScenario, GameState) y repositorio desacoplado GameScenariosRepository con los 7 escenarios.</li>
+    <li><strong>ViewModel:</strong> GameViewModel expone un StateFlow inmutable observado por Jetpack Compose. Maneja el estado de la partida, el cálculo de deuda, el avance de días y la lógica de sonido sin acoplarse a las pantallas.</li>
+    <li><strong>View:</strong> Pantallas declarativas en Jetpack Compose (WelcomeScreen, GameDecisionScreen, GameResultScreen) con componentes reutilizables (GameTopBar, ConfettiEffect, SoundToggleButton).</li>
+    <li><strong>Ciclo de Vida de Activities:</strong> MainActivity gestiona onResume, onPause y onDestroy a través de SoundManager. Cuando la app pasa a segundo plano, la música y los efectos se pausan para cuidar la batería. Al volver, se reanudan sin perder el estado del juego. Al destruirse la Activity, todos los reproductores nativos se liberan.</li>
+    <li><strong>Multimedia Integrada:</strong> Música de fondo con aceleración dinámica, latido bajo presión, sonido de clic con SoundPool, jingles de desenlace, música de créditos finales, partículas vectoriales de confeti y animaciones Lottie (Boti y título animado).</li>
+  </ul>
+
+  <h2>5. Coherencia con el Prototipo y Design System</h2>
+  <p>La implementación respeta la paleta cromática (Fondo #0D1117, Burbujas #24142D, Acentos #00E5FF y #E91E63), la tipografía Space Grotesk y la regla del pulgar. Se realizaron las siguientes adaptaciones justificadas para el MVP:</p>
+  <ul>
+    <li><strong>Unificación del Onboarding:</strong> Se agruparon el ingreso de nombre y la selección de avatar en una única pantalla de bienvenida para agilizar el arranque.</li>
+    <li><strong>Mensajes Secuenciales:</strong> En lugar de mostrar todo el texto fijo, los mensajes se despliegan uno a uno con pausas y avisos sonoros para generar inmersión.</li>
+    <li><strong>Botones de Decisión Condicionados:</strong> Aparecen únicamente cuando finaliza la lectura y arranca el contador de 10 segundos, evitando pulsaciones accidentales.</li>
+    <li><strong>Visualizador de Capturas:</strong> Se agregó un visor con ampliación a pantalla completa para el desafío del sábado.</li>
+  </ul>
+
+  <h2>6. Recursos Incluidos en el Repositorio</h2>
+  <ul>
+    <li>Código fuente completo en Kotlin y Jetpack Compose listo para compilar con Gradle y Android Studio.</li>
+    <li>APK listo para instalar en dispositivos físicos o emuladores en <code>app/build/outputs/apk/debug/app-debug.apk</code>.</li>
+    <li>Láminas del Design System, flujo de pantallas y User Persona en la carpeta <code>img/</code>.</li>
+    <li>Documentación completa detallada en <code>README.md</code> y guion pedagógico en <code>relato.md</code>.</li>
+  </ul>
+
+</body>
+</html>

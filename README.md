@@ -13,9 +13,11 @@
 * **Nombre del Juego:** *Juego Limpio*
 * **Objetivo:** Concientizar y prevenir a los adolescentes sobre los riesgos psicosociales y económicos de las apuestas online ilegales, billeteras virtuales y la presión de pares, demostrando mediante la simulación interactiva que las probabilidades matemáticas siempre favorecen a las casas de apuestas (*la casa siempre gana*).
 * **Público Destinatario:** Estudiantes de nivel secundario (13 a 18 años), comunidad educativa y familias.
-* **Mecánica Principal:** Novela gráfica interactiva en formato de mensajería digital combinada con **trivia contrarreloj de 10 segundos** por decisión. Se inicia con un marcador de **`DEUDA: $0`**. Si el jugador elige la respuesta preventiva adecuada a tiempo, el saldo se conserva intacto; si elige la opción impulsiva o se agota el tiempo, el sistema suma penalizaciones financieras acumulativas. El objetivo es completar la semana con **$0 de deuda**.
+* **Mecánica Principal:** Novela gráfica interactiva en formato de mensajería digital combinada con **trivia contrarreloj de 10 segundos** por decisión. Se inicia con un marcador de **`DEUDA: $0`**. Si el jugador elige la respuesta preventiva adecuada a tiempo, el saldo se conserva intacto. Si elige la opción impulsiva o se agota el tiempo, el sistema suma penalizaciones financieras acumulativas. El objetivo es completar la semana con **$0 de deuda**.
 * **Forma de Interacción del Jugador:** Ergonomía adaptada a una sola mano en dispositivos móviles (zona de pulgar). El usuario visualiza mensajes secuenciales, escucha estímulos sonoros de urgencia y selecciona entre dos opciones táctiles ubicadas en el tercio inferior de la pantalla.
 * **Recorrido General de la Partida:** La experiencia abarca una semana completa escolar de **Lunes a Domingo** (7 escenarios cotidianos), simulando ofertas de bonos, apuestas deportivas con dinero prestado, falacia de la racha, invisibilización del gasto virtual, persecución de pérdidas (*chasing losses*), FOMO en redes sociales y falsas extorsiones de cajeros virtuales.
+
+![User Persona - Mateo R.](img/persona_usuaria.png)
 
 ---
 
@@ -33,15 +35,17 @@ flowchart LR
     E -->|Volver a empezar| A
 ```
 
+![Flujo de Pantallas de la Aplicación](img/flujo_pantallas.png)
+
 ### Pantallas Principales:
 1. **Inicio y Creación de Perfil (`WelcomeScreen`):** Ingreso de apodo del jugador y selección interactiva entre 5 avatares estilizados con anillos de selección neón.
 2. **Pantalla de Juego y Decisión (`GameDecisionScreen`):**
    * **TopBar de Estado:** Avatar, apodo, indicador de día (1 a 7), registro visual de decisiones (puntos de acierto/riesgo) y marcador dinámico de **`DEUDA: $XXXX`**.
    * **Área Narrativa:** Flujo conversacional con animaciones de entrada y tipografía uniforme *Space Grotesk*.
-   * **Área de Acción:** Temporizador horizontal en Canvas de 10s (con pulso y aceleración en los últimos 4s) y 2 botones pildora de decisión.
+   * **Área de Acción:** Temporizador horizontal en Canvas de 10s (con pulso y aceleración en los últimos 4s) y 2 botones píldora de decisión.
 3. **Pantalla de Cierre y Resultados (`GameResultScreen`):**
    * **Bloque 1 (Aviso / Resultado):** Título de gran impacto visual (*¡Felicitaciones!* o *¡Atención!*), confeti animado para victoria y reflexión educativa sin juzgar moralmente.
-   * **Bloque 2 (Métricas del Jugador):** Cantidad de aciertos vs. desaciertos (sobre 7), saldo final de deuda y desglose paso a paso de cada día.
+   * **Bloque 2 (Métricas del Jugador):** Cantidad de aciertos vs. desaciertos (sobre 7), saldo final de deuda y desglose paso a paso de cada día en dos columnas.
    * **Bloque 3 (Asistencia y Reinicio):** Botones directos a canales oficiales de orientación (Orientación al Jugador 0800, Chat Boti WhatsApp con animación Lottie, y Línea 141 de consumos problemáticos) y botón principal para volver a empezar.
 
 ---
@@ -52,10 +56,14 @@ flowchart LR
 * **Planificación grupal:** [Organización TP en Google Sheets](https://docs.google.com/spreadsheets/d/1dQfBnHYNf5ZDdArd4o_fG_jp4r-J3kOh6mL_5OXK1Io/edit?gid=0#gid=0)
 * **Relato pedagógico detallado:** [relato.md](relato.md)
 
+![Design System en Figma](img/design_system.png)
+
 ### Justificación de las Decisiones Visuales:
 Se eligió una estética en **modo oscuro (*Dark Slate*) con acentos neón magenta y cian**, imitando las interfaces de las plataformas gamers y billeteras virtuales que utilizan habitualmente los jóvenes. Esto evita el tono escolarizado tradicional y genera empatía inmediata.
 
 #### 1. Paleta de Colores y Tokens RGB
+![Paleta de Colores y Códigos RGB](img/colores_rgb.png)
+
 | Token | Hex | RGB | Propósito en la UI |
 | :--- | :--- | :--- | :--- |
 | **Fondo General** | `#0D1117` | `RGB(13, 17, 23)` | Fondo principal en modo oscuro para evitar fatiga visual. |
@@ -68,9 +76,21 @@ Se eligió una estética en **modo oscuro (*Dark Slate*) con acentos neón magen
 | **Texto Secundario** | `#A0AEC0` | `RGB(160, 174, 192)` | Metadatos y subtítulos informativos. |
 
 #### 2. Tipografía y Ergonomía
+![Jerarquía Tipográfica](img/tipografias.png)
+
 * **Familia:** *Space Grotesk* (Bold, Medium, Regular).
 * **Escala:** Display en 64sp, encabezados en 26sp, mensajes de chat en 18.5sp y botones en 15sp.
 * **Ergonomía:** Botones de 52dp ubicados en el tercio inferior (*Thumb Zone*) con separación vertical suficiente para prevenir pulsaciones involuntarias en situaciones de cuenta regresiva.
+
+![Componentes de Botones y Ergonomía](img/botones.png)
+
+#### 3. Justificación de Modificaciones respecto al Prototipo Original
+Durante el paso del prototipo de Figma a la app funcional en Android Studio se hicieron estas adaptaciones técnicas y de UX:
+1. **Unificación del Onboarding en una sola pantalla:** En el prototipo original había tres pantallas separadas (Splash, Ingreso de Apodo y Selección de Avatar). Para agilizar la experiencia y evitar pasos vacíos, se integraron en `WelcomeScreen`, donde el usuario elige su avatar, escribe su apodo y arranca directo a jugar.
+2. **Entrega secuencial de mensajes:** En Figma la conversación aparecía estática. En la aplicación se programó la llegada progresiva de cada mensaje con delay y tono de notificación, logrando el ritmo de un chat real de WhatsApp.
+3. **Aparición condicionada de botones de decisión:** Para que el jugador no toque antes de tiempo por ansiedad, los botones se muestran recién cuando termina de cargarse el último mensaje y se activa el contador de 10 segundos.
+4. **Visualizador emergente de capturas:** En el escenario del sábado se incorporó un diálogo a pantalla completa para poder examinar la captura de pantalla ampliada antes de responder.
+5. **Estímulos sonoros y aceleración:** Se incorporó música continua que acelera a 1.35x y suma un latido cardíaco en los últimos 4 segundos del temporizador para transmitir la presión real que sufren los adolescentes ante una apuesta contrarreloj.
 
 ---
 
