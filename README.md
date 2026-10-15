@@ -200,6 +200,7 @@ En cumplimiento de la consigna 4:
 │   │           ├── end_credits_music.mp3
 │   │           ├── fail_sound_comedy.mp3
 │   │           ├── heartbeat.ogg
+│   │           ├── juego_limpio_jackpot.json
 │   │           └── victory_trumpet.mp3
 │   └── build.gradle.kts
 ├── img/

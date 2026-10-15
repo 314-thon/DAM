@@ -26,3 +26,10 @@ captures/
 scratch/
 *.tmp
 *.temp
+
+# Archivos de entrega local (PDF y plantilla HTML)
+*.pdf
+entrega.html
+
+# Banco de pruebas y herramientas auxiliares
+lottie-studio/
