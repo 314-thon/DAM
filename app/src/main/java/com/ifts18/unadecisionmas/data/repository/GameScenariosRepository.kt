@@ -1,5 +1,6 @@
 package com.ifts18.unadecisionmas.data.repository
 
+import com.ifts18.unadecisionmas.R
 import com.ifts18.unadecisionmas.data.model.ChatMessage
 import com.ifts18.unadecisionmas.data.model.DecisionOption
 import com.ifts18.unadecisionmas.data.model.GameScenario
@@ -206,9 +207,11 @@ object GameScenariosRepository {
                 title = "Presión de redes y desinformación",
                 messages = listOf(
                     ChatMessage(
-                        sender = "Historias / Estados",
-                        message = "Captura de pantalla: '¡Gané $10.000 acostado desde mi cama! 🤑💸'",
-                        delayAfterMillis = 2000L
+                        sender = "Mati",
+                        message = "",
+                        delayAfterMillis = 2000L,
+                        imageResId = R.drawable.captura,
+                        isForwarded = true
                     ),
                     ChatMessage(
                         sender = "Mati",

@@ -1,6 +1,9 @@
 package com.ifts18.unadecisionmas.ui.screens
 
 import android.view.SoundEffectConstants
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -40,6 +43,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieClipSpec
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -105,7 +114,8 @@ fun WelcomeScreen(
             R.drawable.avatar_1,
             R.drawable.avatar_2,
             R.drawable.avatar_3,
-            R.drawable.avatar_4
+            R.drawable.avatar_4,
+            R.drawable.avatar_5
         )
     }
 
@@ -183,53 +193,30 @@ fun WelcomeScreen(
                     SoundToggleButton()
                 }
 
-                // 1. Título principal "Juego Limpio"
+                // 1. Título animado "Juego Limpio" (Entrada -> Pausa -> Salida suave en Loop continuo)
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = "Juego",
-                        textAlign = TextAlign.Center,
-                        style = TextStyle(
-                            fontFamily = SpaceGrotesk,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 64.sp,
-                            lineHeight = 66.sp,
-                            letterSpacing = (-1.5).sp,
-                            brush = Brush.horizontalGradient(
-                                colors = listOf(
-                                    GradienteJuegoInicio,
-                                    GradienteJuegoMedio,
-                                    GradienteJuegoFin
-                                )
-                            )
-                        ),
-                        modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally)
+                    val composition by rememberLottieComposition(
+                        LottieCompositionSpec.RawRes(R.raw.juego_limpio_jackpot)
+                    )
+                    val progress by animateLottieCompositionAsState(
+                        composition = composition,
+                        iterations = LottieConstants.IterateForever,
+                        speed = 0.5f
                     )
 
-                    Text(
-                        text = "Limpio",
-                        textAlign = TextAlign.Center,
-                        style = TextStyle(
-                            fontFamily = SpaceGrotesk,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 64.sp,
-                            lineHeight = 66.sp,
-                            letterSpacing = (-1.5).sp,
-                            brush = Brush.horizontalGradient(
-                                colors = listOf(
-                                    GradienteLimpioInicio,
-                                    GradienteLimpioMedio,
-                                    GradienteLimpioFin
-                                )
-                            )
-                        ),
-                        modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally)
+                    LottieAnimation(
+                        composition = composition,
+                        progress = { progress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(345.dp)
                     )
                 }
 
-                // 2. Selector de Avatar (Las 4 fotos de perfil)
+                // 2. Selector de Avatar (Las 5 fotos de perfil)
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -245,15 +232,36 @@ fun WelcomeScreen(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(68.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         avatarsList.forEach { avatarRes ->
                             val isSelected = selectedAvatarResId == avatarRes
+
+                            // El avatar preseleccionado/seleccionado es un 15% más grande (52.dp * 1.15 = 59.8.dp)
+                            val avatarSize by animateDpAsState(
+                                targetValue = if (isSelected) 59.8.dp else 52.dp,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                ),
+                                label = "avatarSize"
+                            )
+                            val imageSize by animateDpAsState(
+                                targetValue = if (isSelected) 52.9.dp else 46.dp,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                ),
+                                label = "imageSize"
+                            )
+
                             Box(
                                 modifier = Modifier
-                                    .size(64.dp)
+                                    .size(avatarSize)
                                     .clip(CircleShape)
                                     .border(
                                         width = if (isSelected) 3.dp else 1.5.dp,
@@ -275,14 +283,16 @@ fun WelcomeScreen(
                                     painter = painterResource(id = avatarRes),
                                     contentDescription = "Avatar",
                                     contentScale = ContentScale.Crop,
-                                    modifier = Modifier.size(if (isSelected) 58.dp else 52.dp).clip(CircleShape)
+                                    modifier = Modifier
+                                        .size(imageSize)
+                                        .clip(CircleShape)
                                 )
 
                                 if (isSelected) {
                                     Box(
                                         modifier = Modifier
                                             .align(Alignment.BottomEnd)
-                                            .size(20.dp)
+                                            .size(18.dp)
                                             .clip(CircleShape)
                                             .background(VerdeExito),
                                         contentAlignment = Alignment.Center
@@ -291,7 +301,7 @@ fun WelcomeScreen(
                                             imageVector = Icons.Default.Check,
                                             contentDescription = "Seleccionado",
                                             tint = Color.White,
-                                            modifier = Modifier.size(14.dp)
+                                            modifier = Modifier.size(12.dp)
                                         )
                                     }
                                 }

@@ -15,6 +15,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,8 +36,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -54,12 +57,17 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.ifts18.unadecisionmas.audio.SoundManager
 import com.ifts18.unadecisionmas.data.model.DecisionOption
 import com.ifts18.unadecisionmas.data.model.GameState
@@ -84,6 +92,7 @@ fun GameDecisionScreen(
     val context = LocalContext.current
     val currentScenario = viewModel.getCurrentScenario()
     val scrollState = rememberScrollState()
+    var previewImageResId by remember(gameState.currentDayIndex) { mutableStateOf<Int?>(null) }
 
     // Control de carga secuencial de mensajes del escenario actual
     var loadedMessagesCount by remember(gameState.currentDayIndex) { mutableIntStateOf(0) }
@@ -128,6 +137,7 @@ fun GameDecisionScreen(
 
     // Secuencia de mensajes y temporizador por cada día
     LaunchedEffect(gameState.currentDayIndex) {
+        previewImageResId = null
         SoundManager.startBgMusic()
         loadedMessagesCount = 0
         isTimerActive = false
@@ -147,24 +157,39 @@ fun GameDecisionScreen(
             delay(if (index == 0) 500L else chatMsg.delayAfterMillis)
             playNotification()
             loadedMessagesCount = index + 1
-            scrollState.animateScrollTo(scrollState.maxValue)
+            try {
+                scrollState.animateScrollTo(scrollState.maxValue)
+            } catch (_: Throwable) {}
+        }
+
+        // Si el usuario abrió la foto antes de que terminen los mensajes, esperar a que la cierre
+        while (previewImageResId != null) {
+            delay(100L)
         }
 
         // Breve pausa para leer el último mensaje antes de arrancar los 10 segundos
         delay(1200L)
         isTimerActive = true
 
-        // Animación estricta de 10 segundos (10_000 ms)
-        timerProgress.animateTo(
-            targetValue = 0f,
-            animationSpec = tween(
-                durationMillis = 10_000,
-                easing = LinearEasing
-            )
-        )
+        // Temporizador de 10 segundos con pausa mientras se examina la imagen ampliada
+        var remainingTimeMillis = 10_000L
+        val tickStep = 50L
+
+        while (remainingTimeMillis > 0L && isTimerActive) {
+            if (previewImageResId != null) {
+                // Pausar cuenta regresiva mientras se visualiza la imagen en grande
+                delay(100L)
+                continue
+            }
+            delay(tickStep)
+            if (previewImageResId == null && isTimerActive) {
+                remainingTimeMillis -= tickStep
+                timerProgress.snapTo((remainingTimeMillis.toFloat() / 10_000f).coerceIn(0f, 1f))
+            }
+        }
 
         // Si expiró el tiempo sin respuesta
-        if (isTimerActive && timerProgress.value <= 0.005f) {
+        if (isTimerActive && remainingTimeMillis <= 0L) {
             isTimerActive = false
             viewModel.onTimeout()
         }
@@ -247,13 +272,27 @@ fun GameDecisionScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = msg.sender,
-                                        fontFamily = SpaceGrotesk,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.5.sp,
-                                        color = Color.White
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = msg.sender,
+                                            fontFamily = SpaceGrotesk,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.5.sp,
+                                            color = Color.White
+                                        )
+                                        if (msg.isForwarded) {
+                                            Text(
+                                                text = "• ↪ Reenviado",
+                                                fontFamily = SpaceGrotesk,
+                                                fontStyle = FontStyle.Italic,
+                                                fontSize = 12.sp,
+                                                color = Color.White.copy(alpha = 0.65f)
+                                            )
+                                        }
+                                    }
                                     Icon(
                                         imageVector = Icons.Default.Done,
                                         contentDescription = "Entregado",
@@ -262,16 +301,54 @@ fun GameDecisionScreen(
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.height(6.dp))
+                                if (msg.imageResId != null) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Color.Black.copy(alpha = 0.35f))
+                                            .clickable { previewImageResId = msg.imageResId }
+                                    ) {
+                                        Image(
+                                            painter = painterResource(id = msg.imageResId),
+                                            contentDescription = "Captura reenviada",
+                                            contentScale = ContentScale.Crop,
+                                            alignment = Alignment.TopCenter,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(210.dp)
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.BottomEnd)
+                                                .padding(6.dp)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(Color.Black.copy(alpha = 0.65f))
+                                                .padding(horizontal = 7.dp, vertical = 3.dp)
+                                        ) {
+                                            Text(
+                                                text = "Tocar para ampliar",
+                                                fontFamily = SpaceGrotesk,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = Color.White.copy(alpha = 0.9f)
+                                            )
+                                        }
+                                    }
+                                }
 
-                                Text(
-                                    text = msg.message,
-                                    fontFamily = SpaceGrotesk,
-                                    fontSize = 18.5.sp,
-                                    fontWeight = FontWeight.Normal,
-                                    lineHeight = 24.sp,
-                                    color = Color.White
-                                )
+                                if (msg.message.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = msg.message,
+                                        fontFamily = SpaceGrotesk,
+                                        fontSize = 18.5.sp,
+                                        fontWeight = FontWeight.Normal,
+                                        lineHeight = 24.sp,
+                                        color = Color.White
+                                    )
+                                }
                             }
                         }
                     }
@@ -360,6 +437,46 @@ fun GameDecisionScreen(
                             modifier = Modifier.weight(1f)
                         )
                     }
+                }
+            }
+        }
+    }
+
+    // Diálogo emergente para ver la captura ampliada en pantalla completa
+    previewImageResId?.let { imgRes ->
+        Dialog(
+            onDismissRequest = { previewImageResId = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.94f))
+                    .clickable { previewImageResId = null },
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = imgRes),
+                    contentDescription = "Captura ampliada",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 40.dp)
+                )
+                IconButton(
+                    onClick = { previewImageResId = null },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .statusBarsPadding()
+                        .padding(16.dp)
+                        .size(40.dp)
+                        .background(Color.White.copy(alpha = 0.2f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Cerrar",
+                        tint = Color.White
+                    )
                 }
             }
         }

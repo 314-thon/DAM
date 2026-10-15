@@ -16,8 +16,10 @@ data class PlayerProfile(
  */
 data class ChatMessage(
     val sender: String,
-    val message: String,
-    val delayAfterMillis: Long = 2000L
+    val message: String = "",
+    val delayAfterMillis: Long = 2000L,
+    @DrawableRes val imageResId: Int? = null,
+    val isForwarded: Boolean = false
 )
 
 /**

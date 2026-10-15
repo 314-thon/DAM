@@ -34,7 +34,7 @@ flowchart LR
 ```
 
 ### Pantallas Principales:
-1. **Inicio y Creación de Perfil (`WelcomeScreen`):** Ingreso de apodo del jugador y selección interactiva entre 4 avatares estilizados con anillos de selección neón.
+1. **Inicio y Creación de Perfil (`WelcomeScreen`):** Ingreso de apodo del jugador y selección interactiva entre 5 avatares estilizados con anillos de selección neón.
 2. **Pantalla de Juego y Decisión (`GameDecisionScreen`):**
    * **TopBar de Estado:** Avatar, apodo, indicador de día (1 a 7), registro visual de decisiones (puntos de acierto/riesgo) y marcador dinámico de **`DEUDA: $XXXX`**.
    * **Área Narrativa:** Flujo conversacional con animaciones de entrada y tipografía uniforme *Space Grotesk*.
@@ -166,6 +166,8 @@ En cumplimiento de la consigna 4:
 │   │       │   ├── avatar_2.png
 │   │       │   ├── avatar_3.png
 │   │       │   ├── avatar_4.png
+│   │       │   ├── avatar_5.png
+│   │       │   ├── captura.jpg
 │   │       │   └── ic_boti.png
 │   │       ├── font/
 │   │       │   ├── space_grotesk_bold.ttf
