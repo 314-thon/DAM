@@ -4,7 +4,6 @@ import android.media.RingtoneManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -31,6 +30,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,14 +38,18 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -69,8 +73,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.ifts18.unadecisionmas.audio.SoundManager
-import com.ifts18.unadecisionmas.data.model.DecisionOption
+import com.ifts18.unadecisionmas.data.model.AchievementsCatalog
 import com.ifts18.unadecisionmas.data.model.GameState
+import com.ifts18.unadecisionmas.sensor.HapticFeedbackHelper
+import com.ifts18.unadecisionmas.sensor.rememberAccelerometerMonitor
 import com.ifts18.unadecisionmas.ui.components.GameTopBar
 import com.ifts18.unadecisionmas.ui.theme.BordeCyan
 import com.ifts18.unadecisionmas.ui.theme.BordeMagenta
@@ -94,22 +100,47 @@ fun GameDecisionScreen(
     val scrollState = rememberScrollState()
     var previewImageResId by remember(gameState.currentDayIndex) { mutableStateOf<Int?>(null) }
 
+    val totalTimeMillis = currentScenario.decisionTimeSeconds * 1000L
+
     // Control de carga secuencial de mensajes del escenario actual
     var loadedMessagesCount by remember(gameState.currentDayIndex) { mutableIntStateOf(0) }
     var isTimerActive by remember(gameState.currentDayIndex) { mutableStateOf(false) }
+    var elapsedDecisionMillis by remember(gameState.currentDayIndex) { mutableLongStateOf(0L) }
     val timerProgress = remember(gameState.currentDayIndex) { Animatable(1f) }
 
-    // En los últimos 4 segundos de 10s: se activa latido y pulso
+    // Evento de sensor en el Jueves: sacudir el teléfono para bloquear el pop-up de préstamo
+    var isShakeChallengeActive by remember(gameState.currentDayIndex) {
+        mutableStateOf(false)
+    }
+    var shakeProgress by remember(gameState.currentDayIndex) { mutableFloatStateOf(0f) }
+
+    rememberAccelerometerMonitor(
+        enabled = isShakeChallengeActive,
+        shakeThresholdG = 1.38f,
+        minIntervalMs = 100L
+    ) {
+        if (isShakeChallengeActive) {
+            HapticFeedbackHelper.vibrateShort(context, 35L)
+            SoundManager.playClick()
+            shakeProgress = (shakeProgress + 0.34f).coerceAtMost(1f)
+            if (shakeProgress >= 1f) {
+                isShakeChallengeActive = false
+                viewModel.unlockAchievement(AchievementsCatalog.ID_EVITANDO_TENTACION)
+            }
+        }
+    }
+
+    // En el último 28% del tiempo: se activa latido y pulso
     val isUrgent by remember(gameState.currentDayIndex) {
         derivedStateOf {
-            isTimerActive && timerProgress.value <= 0.40f
+            isTimerActive && timerProgress.value <= 0.28f
         }
     }
 
     val pulseTransition = rememberInfiniteTransition(label = "pulse")
     val pulseScale by pulseTransition.animateFloat(
         initialValue = 1.0f,
-        targetValue = 1.07f,
+        targetValue = 1.05f,
         animationSpec = infiniteRepeatable(
             animation = tween(durationMillis = 350, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
@@ -135,15 +166,15 @@ fun GameDecisionScreen(
         }
     }
 
-    // Secuencia de mensajes y temporizador por cada día
+    // Secuencia de mensajes y temporizador de 25 segundos por cada día
     LaunchedEffect(gameState.currentDayIndex) {
         previewImageResId = null
         SoundManager.startBgMusic()
         loadedMessagesCount = 0
         isTimerActive = false
+        elapsedDecisionMillis = 0L
         timerProgress.snapTo(1f)
 
-        // Reproducir sonido sutil de notificación
         fun playNotification() {
             try {
                 val notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
@@ -152,9 +183,8 @@ fun GameDecisionScreen(
             } catch (_: Exception) {}
         }
 
-        // Desplegar cada mensaje con su delay
         currentScenario.messages.forEachIndexed { index, chatMsg ->
-            delay(if (index == 0) 500L else chatMsg.delayAfterMillis)
+            delay(if (index == 0) 450L else chatMsg.delayAfterMillis)
             playNotification()
             loadedMessagesCount = index + 1
             try {
@@ -162,33 +192,36 @@ fun GameDecisionScreen(
             } catch (_: Throwable) {}
         }
 
-        // Si el usuario abrió la foto antes de que terminen los mensajes, esperar a que la cierre
         while (previewImageResId != null) {
             delay(100L)
         }
 
-        // Breve pausa para leer el último mensaje antes de arrancar los 10 segundos
-        delay(1200L)
+        delay(900L)
+
+        // Si el escenario tiene alerta invasiva de préstamo/influencer, activar desafío de sensor
+        if (currentScenario.triggersSpamShakeAlert) {
+            HapticFeedbackHelper.vibrateAlertPattern(context)
+            isShakeChallengeActive = true
+        }
+
         isTimerActive = true
 
-        // Temporizador de 10 segundos con pausa mientras se examina la imagen ampliada
-        var remainingTimeMillis = 10_000L
+        var remainingTimeMillis = totalTimeMillis
         val tickStep = 50L
 
         while (remainingTimeMillis > 0L && isTimerActive) {
             if (previewImageResId != null) {
-                // Pausar cuenta regresiva mientras se visualiza la imagen en grande
                 delay(100L)
                 continue
             }
             delay(tickStep)
             if (previewImageResId == null && isTimerActive) {
                 remainingTimeMillis -= tickStep
-                timerProgress.snapTo((remainingTimeMillis.toFloat() / 10_000f).coerceIn(0f, 1f))
+                elapsedDecisionMillis = totalTimeMillis - remainingTimeMillis
+                timerProgress.snapTo((remainingTimeMillis.toFloat() / totalTimeMillis.toFloat()).coerceIn(0f, 1f))
             }
         }
 
-        // Si expiró el tiempo sin respuesta
         if (isTimerActive && remainingTimeMillis <= 0L) {
             isTimerActive = false
             viewModel.onTimeout()
@@ -213,33 +246,33 @@ fun GameDecisionScreen(
             .background(backgroundBrush)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(horizontal = 18.dp, vertical = 10.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 1. TOP BAR FIJA CON SALDO, AVATAR Y HISTORIAL DE DECISIONES
+            // 1. TOP BAR FIJA CON AHORRO, DEUDA, BIENESTAR Y DÍA
             GameTopBar(
                 gameState = gameState,
                 currentDayName = currentScenario.dayName
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // 2. CHAT DE MENSAJES SECUENCIALES (OCUPA EL CUERPO PRINCIPAL)
+            // 2. CHAT DE MENSAJES SECUENCIALES
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 currentScenario.messages.forEachIndexed { index, msg ->
                     val isVisible = index < loadedMessagesCount
                     AnimatedVisibility(
                         visible = isVisible,
-                        enter = fadeIn(animationSpec = tween(350)) +
+                        enter = fadeIn(animationSpec = tween(300)) +
                                 slideInVertically(
                                     animationSpec = spring(
                                         dampingRatio = 0.75f,
@@ -264,7 +297,7 @@ fun GameDecisionScreen(
                                 )
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(BurbujaChat.copy(alpha = 0.85f))
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 Row(
@@ -280,16 +313,16 @@ fun GameDecisionScreen(
                                             text = msg.sender,
                                             fontFamily = SpaceGrotesk,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 13.5.sp,
+                                            fontSize = 13.sp,
                                             color = Color.White
                                         )
                                         if (msg.isForwarded) {
                                             Text(
-                                                text = "• ↪ Reenviado",
+                                                text = "• ↪ Publicidad / Reenviado",
                                                 fontFamily = SpaceGrotesk,
                                                 fontStyle = FontStyle.Italic,
-                                                fontSize = 12.sp,
-                                                color = Color.White.copy(alpha = 0.65f)
+                                                fontSize = 11.5.sp,
+                                                color = BordeCyan
                                             )
                                         }
                                     }
@@ -297,12 +330,12 @@ fun GameDecisionScreen(
                                         imageVector = Icons.Default.Done,
                                         contentDescription = "Entregado",
                                         tint = VerdeExito,
-                                        modifier = Modifier.size(15.dp)
+                                        modifier = Modifier.size(14.dp)
                                     )
                                 }
 
                                 if (msg.imageResId != null) {
-                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Spacer(modifier = Modifier.height(6.dp))
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -317,7 +350,7 @@ fun GameDecisionScreen(
                                             alignment = Alignment.TopCenter,
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .height(210.dp)
+                                                .height(175.dp)
                                         )
                                         Box(
                                             modifier = Modifier
@@ -339,13 +372,13 @@ fun GameDecisionScreen(
                                 }
 
                                 if (msg.message.isNotBlank()) {
-                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = msg.message,
                                         fontFamily = SpaceGrotesk,
-                                        fontSize = 18.5.sp,
+                                        fontSize = 16.5.sp,
                                         fontWeight = FontWeight.Normal,
-                                        lineHeight = 24.sp,
+                                        lineHeight = 22.sp,
                                         color = Color.White
                                     )
                                 }
@@ -354,7 +387,6 @@ fun GameDecisionScreen(
                     }
                 }
 
-                // Indicador de escritura si aún faltan mensajes por llegar
                 if (loadedMessagesCount < currentScenario.messages.size) {
                     Box(
                         modifier = Modifier
@@ -362,26 +394,25 @@ fun GameDecisionScreen(
                             .border(width = 1.dp, color = BordeCyan.copy(alpha = 0.3f), shape = RoundedCornerShape(14.dp))
                             .clip(RoundedCornerShape(14.dp))
                             .background(BurbujaChat.copy(alpha = 0.6f))
-                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         Text(
                             text = "Escribiendo...",
                             fontFamily = SpaceGrotesk,
                             color = BordeCyan,
-                            fontSize = 13.5.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Medium
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // 3. ZONA CALIENTE DEL PULGAR: TEMPORIZADOR DE 10s Y BOTONES
-            // Aparecen únicamente cuando se activa el temporizador
+            // 3. ZONA CALIENTE DEL PULGAR: TEMPORIZADOR DE 25s Y LAS 3 OPCIONES DE DECISIÓN
             AnimatedVisibility(
                 visible = isTimerActive,
-                enter = fadeIn(animationSpec = tween(300)) +
+                enter = fadeIn(animationSpec = tween(260)) +
                         slideInVertically(
                             animationSpec = spring(
                                 dampingRatio = 0.8f,
@@ -392,49 +423,103 @@ fun GameDecisionScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                        .padding(bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(7.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Barra de temporizador en Canvas de 10s
-                    SplitProgressBar(
-                        progressProvider = { timerProgress.value },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    // Si está activo el desafío de sensor del Jueves, pedir sacudir el teléfono
+                    if (isShakeChallengeActive) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF1E132B))
+                                .border(1.5.dp, BordeCyan, RoundedCornerShape(14.dp))
+                                .padding(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Vibration,
+                                    contentDescription = null,
+                                    tint = BordeCyan,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "¡POP-UP DE PRÉSTAMO! AGITÁ EL CELU PARA DESBLOQUEAR",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.5.sp,
+                                    color = BordeCyan
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            LinearProgressIndicator(
+                                progress = { shakeProgress },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp)),
+                                color = VerdeExito,
+                                trackColor = Color.White.copy(alpha = 0.15f)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "O tocá acá si estás en emulador (${(shakeProgress * 100).toInt()}%)",
+                                fontFamily = SpaceGrotesk,
+                                fontSize = 10.5.sp,
+                                color = VerdeExito,
+                                modifier = Modifier.clickable {
+                                    shakeProgress = (shakeProgress + 0.5f).coerceAtMost(1f)
+                                    if (shakeProgress >= 1f) {
+                                        isShakeChallengeActive = false
+                                        viewModel.unlockAchievement(AchievementsCatalog.ID_EVITANDO_TENTACION)
+                                    }
+                                }
+                            )
+                        }
+                    }
 
-                    // Botones de acción: No apostar vs Apostar
+                    // Barra de temporizador en Canvas de 25s
+                    val remainingSecs = ((totalTimeMillis - elapsedDecisionMillis) / 1000L).coerceAtLeast(0L)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Botón 1: No apostar
-                        DecisionButton(
-                            text = "No apostar",
-                            isPrimary = false,
-                            onClick = {
-                                if (isTimerActive) {
-                                    isTimerActive = false
-                                    viewModel.selectOption(currentScenario.safeOption)
-                                }
-                            },
-                            isPulsing = isUrgent,
-                            pulseScale = { pulseScale },
+                        SplitProgressBar(
+                            progressProvider = { timerProgress.value },
                             modifier = Modifier.weight(1f)
                         )
+                        Text(
+                            text = "${remainingSecs}s",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = if (isUrgent) RojoAlerta else Color.White
+                        )
+                    }
 
-                        // Botón 2: Apostar
+                    // Las 3 alternativas de decisión del escenario
+                    val options = currentScenario.getAllOptions()
+                    options.forEach { option ->
                         DecisionButton(
-                            text = "Apostar",
-                            isPrimary = true,
+                            text = option.text,
+                            isRisky = !option.isSafe,
+                            enabled = !isShakeChallengeActive,
                             onClick = {
-                                if (isTimerActive) {
+                                if (isTimerActive && !isShakeChallengeActive) {
                                     isTimerActive = false
-                                    viewModel.selectOption(currentScenario.riskyOption)
+                                    viewModel.selectOption(
+                                        option = option,
+                                        responseTimeMillis = elapsedDecisionMillis
+                                    )
                                 }
                             },
                             isPulsing = isUrgent,
                             pulseScale = { pulseScale },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
@@ -493,7 +578,7 @@ private fun SplitProgressBar(
 
     Canvas(
         modifier = modifier
-            .height(13.dp)
+            .height(11.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(Color(0xFF161922))
     ) {
@@ -529,20 +614,21 @@ private fun SplitProgressBar(
 @Composable
 private fun DecisionButton(
     text: String,
-    isPrimary: Boolean,
+    isRisky: Boolean,
+    enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isPulsing: Boolean = false,
     pulseScale: () -> Float = { 1.0f }
 ) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(13.dp)
     val borderBrush = if (isPulsing) {
         Brush.horizontalGradient(listOf(RojoAlerta, BordeMagenta, BordeCyan))
     } else {
-        if (isPrimary) {
-            Brush.horizontalGradient(listOf(BordeMagenta, BordeCyan))
+        if (isRisky) {
+            Brush.horizontalGradient(listOf(BordeMagenta, RojoAlerta))
         } else {
-            Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.35f), Color.White.copy(alpha = 0.20f)))
+            Brush.horizontalGradient(listOf(BordeCyan, VerdeExito.copy(alpha = 0.85f)))
         }
     }
 
@@ -552,26 +638,29 @@ private fun DecisionButton(
                 val scale = if (isPulsing) pulseScale() else 1f
                 scaleX = scale
                 scaleY = scale
+                alpha = if (enabled) 1f else 0.45f
             }
-            .height(52.dp)
+            .height(46.dp)
             .border(
-                width = if (isPulsing) 2.2.dp else 1.4.dp,
+                width = if (isPulsing) 2.dp else 1.3.dp,
                 brush = borderBrush,
                 shape = shape
             )
             .clip(shape)
-            .background(if (isPrimary) Color(0x33121212) else Color(0x22FFFFFF))
-            .clickable(onClick = onClick),
+            .background(if (isRisky) Color(0x38281018) else Color(0x28102428))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
             color = Color.White,
             fontFamily = SpaceGrotesk,
-            fontSize = 15.sp,
+            fontSize = 13.5.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 6.dp)
+            maxLines = 2,
+            lineHeight = 16.sp
         )
     }
 }

@@ -3,6 +3,8 @@ package com.ifts18.unadecisionmas.ui.screens
 import android.content.Intent
 import android.net.Uri
 import android.view.SoundEffectConstants
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -29,10 +31,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -61,6 +64,7 @@ import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.ifts18.unadecisionmas.R
 import com.ifts18.unadecisionmas.audio.SoundManager
+import com.ifts18.unadecisionmas.data.model.AchievementsCatalog
 import com.ifts18.unadecisionmas.data.model.DecisionRecord
 import com.ifts18.unadecisionmas.data.model.GameState
 import com.ifts18.unadecisionmas.ui.components.ConfettiEffect
@@ -71,12 +75,17 @@ import com.ifts18.unadecisionmas.ui.theme.BurbujaChat
 import com.ifts18.unadecisionmas.ui.theme.FondoGeneral
 import com.ifts18.unadecisionmas.ui.theme.RojoAlerta
 import com.ifts18.unadecisionmas.ui.theme.SpaceGrotesk
+import com.ifts18.unadecisionmas.ui.theme.TextoSecundario
 import com.ifts18.unadecisionmas.ui.theme.VerdeExito
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.delay
 
 @Composable
 fun GameResultScreen(
     gameState: GameState,
+    onOpenLeaderboard: () -> Unit,
+    onQrCodeScanned: (String) -> Boolean,
     onRestartGame: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -86,9 +95,26 @@ fun GameResultScreen(
 
     val isWon = gameState.currentDebt == 0
     var isContentVisible by remember { mutableStateOf(false) }
+    var showQrModal by remember { mutableStateOf(false) }
+
+    val qrScannerLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        val contents = result.contents
+        if (!contents.isNullOrBlank()) {
+            val unlocked = onQrCodeScanned(contents)
+            if (unlocked) {
+                Toast.makeText(
+                    context,
+                    "👾 ¡MEDALLA SECRETA 'SIXSEVEN (#67)' DESBLOQUEADA!",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else {
+                Toast.makeText(context, "QR escaneado: $contents", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
-        delay(150L)
+        delay(120L)
         isContentVisible = true
     }
 
@@ -139,6 +165,13 @@ fun GameResultScreen(
         )
     }
 
+    val displayedScore = if (gameState.lastEarnedScore > 0) {
+        gameState.lastEarnedScore
+    } else {
+        gameState.calculateCompetitiveScore()
+    }
+    val hasSixSeven = gameState.unlockedAchievementIds.contains(AchievementsCatalog.ID_SIXSEVEN)
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -151,33 +184,29 @@ fun GameResultScreen(
             ConfettiEffect(modifier = Modifier.fillMaxSize())
         }
 
-        Column(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // =========================================================================
-            // ÁREA SUPERIOR Y MEDIA (Scrollable si la pantalla es reducida)
-            // =========================================================================
+        Column(modifier = Modifier.fillMaxSize()) {
+            // ÁREA SUPERIOR Y MEDIA (Scrollable)
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(9.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // BLOQUE 1: AVISO / RESULTADO (Compacto y equilibrado)
+                // BLOQUE 1: AVISO / RESULTADO Y PUNTAJE RANKING
                 AnimatedVisibility(
                     visible = isContentVisible,
-                    enter = fadeIn(tween(350)) + slideInVertically(tween(350)) { -it / 2 }
+                    enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { -it / 2 }
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFF161922).copy(alpha = 0.90f))
+                            .background(Color(0xFF161922).copy(alpha = 0.92f))
                             .border(
                                 width = 1.dp,
-                                color = if (isWon) VerdeExito.copy(alpha = 0.5f) else RojoAlerta.copy(alpha = 0.5f),
+                                color = if (isWon) VerdeExito.copy(alpha = 0.6f) else RojoAlerta.copy(alpha = 0.6f),
                                 shape = RoundedCornerShape(16.dp)
                             )
                             .padding(horizontal = 14.dp, vertical = 10.dp),
@@ -185,42 +214,40 @@ fun GameResultScreen(
                     ) {
                         Text(
                             text = if (isWon) "🎉" else "⚠️",
-                            fontSize = 30.sp,
-                            modifier = Modifier.padding(end = 12.dp)
+                            fontSize = 28.sp,
+                            modifier = Modifier.padding(end = 10.dp)
                         )
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = if (isWon) "¡Felicitaciones! Deuda $0" else "¡Atención! Deuda contraída",
+                                text = "${gameState.lastCompletedMode}: $displayedScore pts",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp,
+                                fontSize = 17.sp,
                                 color = if (isWon) VerdeExito else RojoAlerta
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = if (isWon) {
-                                    "Superaste la semana sin deudas. Demostraste autocontrol ante las ofertas."
-                                } else {
-                                    "En ciberapuestas la casa siempre gana: el 95% de los jugadores pierde dinero a largo plazo."
+                                text = gameState.lastModeSummary.ifBlank {
+                                    if (isWon) "Superaste la experiencia sin deudas y cuidaste tus ahorros."
+                                    else "En ciberapuestas la casa siempre gana: el 95% pierde dinero a largo plazo."
                                 },
                                 fontFamily = SpaceGrotesk,
-                                fontSize = 12.sp,
-                                lineHeight = 16.sp,
+                                fontSize = 11.5.sp,
+                                lineHeight = 15.sp,
                                 color = Color.White
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(8.dp))
-
+                        Spacer(modifier = Modifier.width(6.dp))
                         SoundToggleButton()
                     }
                 }
 
-                // BLOQUE 2: BALANCE DE DECISIONES, MÉTRICAS Y DESGLOSE EN 2 COLUMNAS
+                // BLOQUE 2: MÉTRICAS Y DESGLOSE
                 AnimatedVisibility(
                     visible = isContentVisible,
-                    enter = fadeIn(tween(450)) + slideInVertically(tween(450)) { it / 3 }
+                    enter = fadeIn(tween(400)) + slideInVertically(tween(400)) { it / 3 }
                 ) {
                     Column(
                         modifier = Modifier
@@ -232,124 +259,197 @@ fun GameResultScreen(
                                 color = Color.White.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(16.dp)
                             )
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
                     ) {
-                        Text(
-                            text = "Balance de Decisiones",
-                            fontFamily = SpaceGrotesk,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = Color.White
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Balance de ${gameState.profile.name}",
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "⏱ ${"%.1f".format(gameState.totalDecisionTimeMillis / 1000f)}s • 🏅 ${gameState.unlockedAchievementIds.size}/7",
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 11.5.sp,
+                                color = BordeCyan
+                            )
+                        }
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // 3 Tarjetas de métricas
+                        // 3 Tarjetas de métricas: Ahorros, Bienestar y Deuda Final
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Aciertos
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(Color(0xFF141F18))
-                                    .border(1.dp, VerdeExito.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-                                    .padding(vertical = 6.dp, horizontal = 4.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                            MetricMiniCard(
+                                label = "Ahorro Final",
+                                value = "$${gameState.currentSavings}",
+                                accentColor = BordeCyan,
+                                modifier = Modifier.weight(1f)
+                            )
+                            MetricMiniCard(
+                                label = "Bienestar",
+                                value = "★ ${gameState.wellbeingPoints}",
+                                accentColor = VerdeExito,
+                                modifier = Modifier.weight(1f)
+                            )
+                            MetricMiniCard(
+                                label = "Deuda Final",
+                                value = "$${gameState.currentDebt}",
+                                accentColor = if (isWon) VerdeExito else RojoAlerta,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        if (gameState.decisionHistory.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            val history = gameState.decisionHistory
+                            val firstCol = history.take(4)
+                            val secondCol = history.drop(4)
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Check, contentDescription = null, tint = VerdeExito, modifier = Modifier.size(13.dp))
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text("Aciertos", fontFamily = SpaceGrotesk, fontSize = 11.sp, color = VerdeExito)
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    firstCol.forEach { record ->
+                                        CompactDayRecordPill(record)
+                                    }
                                 }
+
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    secondCol.forEach { record ->
+                                        CompactDayRecordPill(record)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // BLOQUE QR EASTER EGG "SIXSEVEN" (#67) ENTRE DISPOSITIVOS
+                AnimatedVisibility(
+                    visible = isContentVisible,
+                    enter = fadeIn(tween(450)) + slideInVertically(tween(450)) { it / 3 }
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF171326))
+                            .border(
+                                width = 1.4.dp,
+                                brush = Brush.horizontalGradient(listOf(BordeMagenta, BordeCyan)),
+                                shape = RoundedCornerShape(16.dp)
+                            )
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "${gameState.correctDecisionsCount} / 7",
+                                    text = if (hasSixSeven) "👾 Medalla SIXSEVEN (#67) Activa" else "👾 Easter Egg QR: Medalla SIXSEVEN",
                                     fontFamily = SpaceGrotesk,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
-                                    color = Color.White
+                                    fontSize = 13.5.sp,
+                                    color = BordeCyan
                                 )
-                            }
-
-                            // Desaciertos / Riesgo
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(Color(0xFF261418))
-                                    .border(1.dp, RojoAlerta.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-                                    .padding(vertical = 6.dp, horizontal = 4.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Close, contentDescription = null, tint = RojoAlerta, modifier = Modifier.size(13.dp))
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text("Riesgo", fontFamily = SpaceGrotesk, fontSize = 11.sp, color = RojoAlerta)
-                                }
                                 Text(
-                                    text = "${gameState.incorrectDecisionsCount} / 7",
-                                    fontFamily = SpaceGrotesk,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
-                                    color = Color.White
-                                )
-                            }
-
-                            // Deuda Final
-                            Column(
-                                modifier = Modifier
-                                    .weight(1.15f)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(if (isWon) Color(0xFF141F18) else Color(0xFF261418))
-                                    .border(1.dp, if (isWon) VerdeExito else RojoAlerta, RoundedCornerShape(10.dp))
-                                    .padding(vertical = 6.dp, horizontal = 4.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "Deuda Final",
+                                    text = "Mostrá tu QR o escaneá el de otro compañero para destrabar 'SIXSEVEN'.",
                                     fontFamily = SpaceGrotesk,
                                     fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = if (isWon) VerdeExito else RojoAlerta
-                                )
-                                Text(
-                                    text = "$${gameState.currentDebt}",
-                                    fontFamily = SpaceGrotesk,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
-                                    color = Color.White
+                                    color = TextoSecundario
                                 )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Desglose optimizado en 2 columnas
-                        val history = gameState.decisionHistory
-                        val firstCol = history.take(4)
-                        val secondCol = history.drop(4)
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(40.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFF251A3A))
+                                    .border(1.dp, BordeCyan, RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        playClickFeedback()
+                                        showQrModal = true
+                                    },
+                                contentAlignment = Alignment.Center
                             ) {
-                                firstCol.forEach { record ->
-                                    CompactDayRecordPill(record)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.QrCode2,
+                                        contentDescription = null,
+                                        tint = BordeCyan,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Mostrar QR #67",
+                                        fontFamily = SpaceGrotesk,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = Color.White
+                                    )
                                 }
                             }
 
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(40.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Brush.horizontalGradient(listOf(BordeMagenta, BordeCyan)))
+                                    .clickable {
+                                        playClickFeedback()
+                                        val options = ScanOptions().apply {
+                                            setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                                            setPrompt("Escaneá el QR de otro compañero para desbloquear SIXSEVEN (#67)")
+                                            setBeepEnabled(true)
+                                            setOrientationLocked(false)
+                                        }
+                                        qrScannerLauncher.launch(options)
+                                    },
+                                contentAlignment = Alignment.Center
                             ) {
-                                secondCol.forEach { record ->
-                                    CompactDayRecordPill(record)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.QrCodeScanner,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Escanear QR",
+                                        fontFamily = SpaceGrotesk,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = Color.White
+                                    )
                                 }
                             }
                         }
@@ -357,16 +457,14 @@ fun GameResultScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // =========================================================================
-            // BLOQUE 3: ZONA DEL PULGAR (FIJA EN LA BASE, NUNCA SE CORTA)
-            // =========================================================================
+            // BLOQUE 3: ZONA DEL PULGAR FIJA EN LA BASE
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(7.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Fila horizontal de los 3 canales de ayuda
@@ -374,7 +472,6 @@ fun GameResultScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Botón 1: Orientación al Jugador
                     HelpButton(
                         title = "Orientación\nal Jugador",
                         icon = Icons.Default.Info,
@@ -382,7 +479,6 @@ fun GameResultScreen(
                         modifier = Modifier.weight(1f)
                     )
 
-                    // Botón 2: Chat Boti con animación Lottie
                     HelpButton(
                         title = "Chat\nBoti",
                         lottieRawRes = R.raw.boti_animacion,
@@ -390,7 +486,6 @@ fun GameResultScreen(
                         modifier = Modifier.weight(1f)
                     )
 
-                    // Botón 3: Línea 141
                     HelpButton(
                         title = "Línea\n141",
                         icon = Icons.Default.Phone,
@@ -399,32 +494,106 @@ fun GameResultScreen(
                     )
                 }
 
-                // Botón destacado: Volver a empezar
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(
-                            brush = Brush.horizontalGradient(listOf(BordeMagenta, BordeCyan))
-                        )
-                        .clickable(onClick = {
-                            playClickFeedback()
-                            onRestartGame()
-                        }),
-                    contentAlignment = Alignment.Center
+                // Fila de 2 botones principales: Ver Ranking en Vivo + Volver al Menú
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "Volver a empezar",
-                        color = Color.White,
-                        fontFamily = SpaceGrotesk,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFF1A2234))
+                            .border(1.5.dp, BordeCyan, RoundedCornerShape(14.dp))
+                            .clickable {
+                                playClickFeedback()
+                                onOpenLeaderboard()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.EmojiEvents,
+                                contentDescription = null,
+                                tint = BordeCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Ranking en Vivo",
+                                color = Color.White,
+                                fontFamily = SpaceGrotesk,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                brush = Brush.horizontalGradient(listOf(BordeMagenta, BordeCyan))
+                            )
+                            .clickable {
+                                playClickFeedback()
+                                onRestartGame()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Volver a jugar",
+                            color = Color.White,
+                            fontFamily = SpaceGrotesk,
+                            fontSize = 14.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         }
+    }
+
+    if (showQrModal) {
+        SixSevenQrDialog(
+            playerName = gameState.profile.name,
+            onDismiss = { showQrModal = false }
+        )
+    }
+}
+
+@Composable
+private fun MetricMiniCard(
+    label: String,
+    value: String,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color(0xFF141923))
+            .border(1.dp, accentColor.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+            .padding(vertical = 6.dp, horizontal = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = label,
+            fontFamily = SpaceGrotesk,
+            fontSize = 10.5.sp,
+            color = accentColor
+        )
+        Text(
+            text = value,
+            fontFamily = SpaceGrotesk,
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
+            color = Color.White
+        )
     }
 }
 
@@ -451,7 +620,7 @@ private fun CompactDayRecordPill(record: DecisionRecord) {
                 text = record.dayName,
                 fontFamily = SpaceGrotesk,
                 fontWeight = FontWeight.Medium,
-                fontSize = 11.5.sp,
+                fontSize = 11.sp,
                 color = Color.White
             )
         }
@@ -460,7 +629,7 @@ private fun CompactDayRecordPill(record: DecisionRecord) {
             text = if (record.isSafe) "+$0" else "+$${record.addedDebt}",
             fontFamily = SpaceGrotesk,
             fontWeight = FontWeight.Bold,
-            fontSize = 11.5.sp,
+            fontSize = 11.sp,
             color = if (record.isSafe) VerdeExito else RojoAlerta
         )
     }
@@ -475,11 +644,11 @@ private fun HelpButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(14.dp)
 
     Box(
         modifier = modifier
-            .height(102.dp)
+            .height(84.dp)
             .border(
                 width = 1.2.dp,
                 color = if (lottieRawRes != null) BordeCyan.copy(alpha = 0.40f) else Color.White.copy(alpha = 0.22f),
@@ -488,7 +657,7 @@ private fun HelpButton(
             .clip(shape)
             .background(Color(0xFF1D212C).copy(alpha = 0.95f))
             .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 6.dp),
+            .padding(horizontal = 4.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -500,33 +669,33 @@ private fun HelpButton(
                 LottieAnimation(
                     composition = composition,
                     iterations = LottieConstants.IterateForever,
-                    modifier = Modifier.size(56.dp)
+                    modifier = Modifier.size(44.dp)
                 )
             } else if (imageRes != null) {
                 Image(
                     painter = painterResource(id = imageRes),
                     contentDescription = title,
-                    modifier = Modifier.size(38.dp)
+                    modifier = Modifier.size(30.dp)
                 )
             } else if (icon != null) {
                 Icon(
                     imageVector = icon,
                     contentDescription = title,
                     tint = Color.White,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(28.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
 
             Text(
                 text = title,
                 fontFamily = SpaceGrotesk,
-                fontSize = 12.5.sp,
+                fontSize = 11.5.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
                 textAlign = TextAlign.Center,
-                lineHeight = 15.sp
+                lineHeight = 13.5.sp
             )
         }
     }

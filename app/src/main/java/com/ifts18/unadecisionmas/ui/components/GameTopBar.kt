@@ -54,9 +54,9 @@ fun GameTopBar(
                 color = Color.White.copy(alpha = 0.12f),
                 shape = RoundedCornerShape(16.dp)
             )
-            .padding(horizontal = 14.dp, vertical = 10.dp)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
-        // Fila 1: Avatar + Nombre | Saldo / Deuda
+        // Fila 1: Avatar + Nombre | Ahorro + Deuda + Sonido
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -64,11 +64,12 @@ fun GameTopBar(
         ) {
             // Perfil del jugador
             Row(
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(42.dp)
                         .border(
                             width = 2.dp,
                             brush = Brush.linearGradient(listOf(BordeCyan, BordeMagenta)),
@@ -82,37 +83,67 @@ fun GameTopBar(
                         painter = painterResource(id = gameState.profile.avatarResId),
                         contentDescription = "Avatar de ${gameState.profile.name}",
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(44.dp)
+                        modifier = Modifier.size(42.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
 
                 Column {
                     Text(
                         text = gameState.profile.name,
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp,
+                        fontSize = 15.5.sp,
                         color = Color.White
                     )
                     Text(
-                        text = "$currentDayName (${gameState.currentDayIndex + 1}/$totalDays)",
+                        text = "$currentDayName (${gameState.currentDayIndex + 1}/$totalDays) • ★${gameState.wellbeingPoints}",
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 13.sp,
+                        fontSize = 11.5.sp,
                         color = BordeCyan
                     )
                 }
             }
 
-            // Controles derechos: Botón de Mute + Indicador de Deuda
+            // Controles derechos: Ahorros + Deuda + Mute
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                SoundToggleButton()
+                // Indicador de Ahorro
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(BordeCyan.copy(alpha = 0.14f))
+                        .border(
+                            width = 1.dp,
+                            color = BordeCyan.copy(alpha = 0.7f),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 5.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "AHORRO",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 9.sp,
+                            color = BordeCyan
+                        )
+                        Text(
+                            text = "$${gameState.currentSavings}",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp,
+                            color = Color.White
+                        )
+                    }
+                }
 
+                // Indicador de Deuda
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
@@ -125,7 +156,7 @@ fun GameTopBar(
                             color = if (isDebtZero) VerdeExito else RojoAlerta,
                             shape = RoundedCornerShape(10.dp)
                         )
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 8.dp, vertical = 5.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.End) {
@@ -133,22 +164,24 @@ fun GameTopBar(
                             text = "DEUDA",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 10.sp,
+                            fontSize = 9.sp,
                             color = if (isDebtZero) VerdeExito else RojoAlerta
                         )
                         Text(
                             text = "$${gameState.currentDebt}",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp,
+                            fontSize = 13.5.sp,
                             color = Color.White
                         )
                     }
                 }
+
+                SoundToggleButton()
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         // Fila 2: Barra visual de registro de decisiones tomadas (Lunes a Domingo)
         Row(
@@ -184,12 +217,12 @@ fun GameTopBar(
                             )
                     )
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
 
                     Text(
                         text = label,
                         fontFamily = SpaceGrotesk,
-                        fontSize = 10.5.sp,
+                        fontSize = 10.sp,
                         fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
                         color = if (isCurrent) Color.White else TextoSecundario.copy(alpha = 0.7f)
                     )

@@ -1,210 +1,120 @@
-# Juego Limpio - Concientización sobre Ciberapuestas en Adolescentes
+# Juego Limpio 2.0 - Concientización sobre Ciberapuestas en Adolescentes
 
 **Instituto de Formación Técnica Superior N.° 18 (IFTS 18)**  
 **Tecnicatura Superior en Desarrollo de Software**  
-**Materia:** Desarrollo para Aplicaciones Móviles (DAM)  
-**Trabajo Grupal:** Grupo 1  
-**Fecha de Entrega:** 16-10-2026  
+**Materia:** Desarrollo de Aplicaciones para Dispositivos Móviles (DAM)  
+**Trabajo Grupal:** Grupo 1 — Segunda Entrega (Evolución de la App-Juego)  
+**Presentación Final:** 18/11 — Presencial  
 
 ---
 
-## A. Descripción del Juego
+## A. Descripción de los Juegos y Experiencia del Jugador
 
-* **Nombre del Juego:** *Juego Limpio*
-* **Objetivo:** Concientizar y prevenir a los adolescentes sobre los riesgos psicosociales y económicos de las apuestas online ilegales, billeteras virtuales y la presión de pares, demostrando mediante la simulación interactiva que las probabilidades matemáticas siempre favorecen a las casas de apuestas (*la casa siempre gana*).
-* **Público Destinatario:** Estudiantes de nivel secundario (13 a 18 años), comunidad educativa y familias.
-* **Mecánica Principal:** Novela gráfica interactiva en formato de mensajería digital combinada con **trivia contrarreloj de 10 segundos** por decisión. Se inicia con un marcador de **`DEUDA: $0`**. Si el jugador elige la respuesta preventiva adecuada a tiempo, el saldo se conserva intacto. Si elige la opción impulsiva o se agota el tiempo, el sistema suma penalizaciones financieras acumulativas. El objetivo es completar la semana con **$0 de deuda**.
-* **Forma de Interacción del Jugador:** Ergonomía adaptada a una sola mano en dispositivos móviles (zona de pulgar). El usuario visualiza mensajes secuenciales, escucha estímulos sonoros de urgencia y selecciona entre dos opciones táctiles ubicadas en el tercio inferior de la pantalla.
-* **Recorrido General de la Partida:** La experiencia abarca una semana completa escolar de **Lunes a Domingo** (7 escenarios cotidianos), simulando ofertas de bonos, apuestas deportivas con dinero prestado, falacia de la racha, invisibilización del gasto virtual, persecución de pérdidas (*chasing losses*), FOMO en redes sociales y falsas extorsiones de cajeros virtuales.
+En esta segunda etapa evolucionamos *Juego Limpio* integrando **tres experiencias de juego completas y diferenciadas** dentro de una misma aplicación, conectadas a una base de datos local con **Room/SQLite**, un **Ranking en tiempo real con Firebase**, **sensores de movimiento (Acelerómetro)** y un sistema de **logros y Easter Egg por Código QR (`SIXSEVEN`)**.
+
+### 1. Juego 1 (Evolución): *"La Semana: Una Decisión Más"* (Modo Historia Contrarreloj)
+* **Objetivo:** Superar los 7 días de la semana escolar (Lunes a Domingo) protegiendo tus ahorros iniciales (`$15.000`), sumando **Puntos de Bienestar** y terminando con **`$0` de deuda**.
+* **Mejoras incorporadas en la 2.ª entrega:**
+  * Se pasó de 2 a **3 alternativas de decisión por día** con un temporizador ampliado a **25 segundos** (con aceleración musical a 1.35x y latido cardíaco en el tramo final).
+  * Incorporación de métricas de **Ahorro (`$`)**, **Bienestar (`★`)** y medición en milisegundos del tiempo de respuesta para desempatar en partidas simultáneas.
+  * Nuevos escenarios cotidianos diseñados por el equipo: *Canchita de fútbol 5 con amigos vs. Apuesta fija*, *El error de transferencia de mamá por `$80.000`* (que otorga el trofeo **100% Honrado**), *El saldo de la SUBE*, *Influencers fitness y préstamos instantáneos de `$20.000`* (con interrupción de sensor Acelerómetro), *Premio por aprobar exámenes* y *El Superclásico del fin de semana*.
+  * **Guardado automático de partida (Checkpoint en Room):** Si el jugador cierra la app a mitad de la semana, al volver a abrirla puede tocar **"Continuar Partida Guardada"** en el día exacto donde quedó.
+
+### 2. Juego 2 (Mecánica Diferenciada + Sensor): *"Scroll sin Caer: Spam Attack"*
+* **Objetivo:** Leer y scrollear de principio a fin un **apunte escolar vectorizado de 6 páginas** (con gráficos en Canvas sobre ventaja matemática de la casa, cuentas demo de influencers y sesgo de confirmación) antes de que se agote el reloj de 60 segundos.
+* **Mecánica con Acelerómetro:** A medida que el usuario avanza en el scroll del PDF, el teléfono vibra y saltan **publicidades invasivas de casinos ilegales, préstamos de `$20.000` e influencers** que bloquean el scroll y cuyo botón `[X]` está trabado. Para destruir cada anuncio sin caer en el botón trampa, el jugador debe **agitar físicamente el celular** hasta completar la barra de resistencia medida por el acelerómetro. Otorga la medalla **Evitando Tentación**.
+
+### 3. Juego 3 (Simulador Algorítmico + Sensor): *"La Trampa del Jackpot 🎰"*
+* **Objetivo:** Demostrar de forma experimental por qué *la casa siempre gana* en las ruletas y tragamonedas virtuales.
+* **Mecánica con Acelerómetro:** El jugador ingresa con un **"Bono de Bienvenida de 10 fichas"** (eligiendo su apuesta de ruleta como *29 Negro*, *Rojo x2* o *0 Verde*) y **agita o inclina el teléfono** para hacer girar los 3 rodillos de emojis (`💎`, `7️⃣`, `🍒`, `🔔`, `🍋`).
+* **Radiografía del Algoritmo en 3 Etapas:**
+  1. *Tiros 1 y 2 (El Gancho):* El algoritmo regala un acierto inicial pero bloquea el dinero bajo un *Rollover x40*.
+  2. *Tiros 3 a 6 (Efecto Near-Miss / Casi Ganás):* Salen dos símbolos iguales y el tercero pasa rozando (`7️⃣ 7️⃣ 🍋`) mientras en la ruleta sale el número contiguo, disparando la ilusión de control.
+  3. *Tiros 7 a 10 (Vaciado Estadístico):* El Retorno al Jugador (`RTP < 95%`) vacía las fichas e intenta tentar al usuario a cargar `$5.000` de sus ahorros. Si el jugador decide **"Plantarse a tiempo"**, suma un bonus de puntaje y desbloquea la medalla **Ojo Abierto**.
 
 ![User Persona - Mateo R.](img/persona_usuaria.png)
 
 ---
 
-## B. Estructura de la Aplicación
-
-La navegación sigue una secuencia interactiva y circular con soporte de reinicio:
+## B. Estructura de Navegación
 
 ```mermaid
 flowchart LR
-    A["1. Inicio & Perfil\n(Apodo + Selección de Avatar)"] --> B["2. Situación Cotidiana\n(Chat de Mensajería Lunes-Domingo)"]
-    B --> C["3. Decisión Contrarreloj\n(Temporizador 10s + Botones)"]
-    C --> D["4. Impacto en Estado\n(Actualización de Deuda y Saldo)"]
-    D -->|Día < 7| B
-    D -->|Fin de Domingo| E["5. Pantalla Final\n(Resultado + Métricas + Ayuda 141/Boti)"]
-    E -->|Volver a empezar| A
+    A["1. WelcomeScreen (Hub)\nPerfil + Continuar (Room) + 3 Juegos"] --> B1["Juego 1: La Semana\n(Chat + 3 Opciones + 25s)"]
+    A --> B2["Juego 2: Scroll sin Caer\n(PDF Vectorizado + Ads + Shake)"]
+    A --> B3["Juego 3: Trampa del Jackpot\n(Slots/Ruleta 10 tiros + Shake)"]
+    B1 --> C["GameResultScreen\nBalance + QR SIXSEVEN + Ayuda 141/Boti"]
+    B2 --> C
+    B3 --> C
+    C --> D["LeaderboardScreen\nRanking en Vivo Firebase + Escáner QR"]
+    A --> D
 ```
-
-![Flujo de Pantallas de la Aplicación](img/flujo_pantallas.png)
-
-### Pantallas Principales:
-1. **Inicio y Creación de Perfil (`WelcomeScreen`):** Ingreso de apodo del jugador y selección interactiva entre 5 avatares estilizados con anillos de selección neón.
-2. **Pantalla de Juego y Decisión (`GameDecisionScreen`):**
-   * **TopBar de Estado:** Avatar, apodo, indicador de día (1 a 7), registro visual de decisiones (puntos de acierto/riesgo) y marcador dinámico de **`DEUDA: $XXXX`**.
-   * **Área Narrativa:** Flujo conversacional con animaciones de entrada y tipografía uniforme *Space Grotesk*.
-   * **Área de Acción:** Temporizador horizontal en Canvas de 10s (con pulso y aceleración en los últimos 4s) y 2 botones píldora de decisión.
-3. **Pantalla de Cierre y Resultados (`GameResultScreen`):**
-   * **Bloque 1 (Aviso / Resultado):** Título de gran impacto visual (*¡Felicitaciones!* o *¡Atención!*), confeti animado para victoria y reflexión educativa sin juzgar moralmente.
-   * **Bloque 2 (Métricas del Jugador):** Cantidad de aciertos vs. desaciertos (sobre 7), saldo final de deuda y desglose paso a paso de cada día en dos columnas.
-   * **Bloque 3 (Asistencia y Reinicio):** Botones directos a canales oficiales de orientación (Orientación al Jugador 0800, Chat Boti WhatsApp con animación Lottie, y Línea 141 de consumos problemáticos) y botón principal para volver a empezar.
 
 ---
 
-## C. Prototipo y Design System
+## C. Almacenamiento Local (Room/SQLite) vs. Nube (Firebase)
+
+Para organizar los datos con criterio técnico y de privacidad, dividimos la persistencia en dos capas complementarias:
+
+### 1. ¿Qué guardamos localmente en el celular con Room y SQLite? (`com.ifts18.unadecisionmas.data.local`)
+Se implementó `AppDatabase` sobre Room con `GameDao` y tres entidades:
+* **`SavedGameEntity` (`saved_game`):** Almacena el estado completo de la partida en curso del Modo Historia (`playerName`, `avatarResId`, `currentDayIndex`, `currentDebt`, `currentSavings`, `wellbeingPoints`, `totalDecisionTimeMillis` e historial serializado). Permite cerrar la aplicación en cualquier día de la semana y retomar luego sin perder progreso.
+* **`AchievementEntity` (`achievements`):** Registra las 7 medallas desbloqueadas en el dispositivo (`INTOCABLE`, `HONRADO_100`, `EVITANDO_TENTACION`, `OJO_ABIERTO`, `VIDA_REAL`, `TODO_AL_ROJO` y el Easter Egg `SIXSEVEN`).
+* **`LocalScoreEntity` (`local_scores`):** Guarda el historial local de partidas y actúa como cola de sincronización offline (`isSynced = false`) cuando el dispositivo juega sin conexión a internet.
+
+### 2. ¿Qué guardamos en la nube con Firebase? (`com.ifts18.unadecisionmas.data.remote`)
+Se implementó `FirebaseRankingRepository` conectado a **Firebase Realtime Database**:
+* Al finalizar cualquiera de los juegos, se publica en el nodo `ranking_juego_limpio` el resumen competitivo: apodo, avatar, modo jugado, puntaje total (`score`), ahorro final, deuda, tiempo empleado en milisegundos (`totalTimeMillis`), cantidad de medallas e indicador del Easter Egg `SIXSEVEN`.
+* **Criterio de ordenamiento y desempate para partidas simultáneas:**
+  1. Mayor `score` competitivo (calculado según ahorro neto + puntos de bienestar + medallas + velocidad).
+  2. Menor `totalTimeMillis` (quien resolvió las decisiones en menos segundos gana el desempate).
+  3. Mayor cantidad de medallas desbloqueadas.
+* **Seguridad de credenciales:** Las claves de conexión se leen desde `local.properties` a través de `BuildConfig` (y no se suben credenciales privadas al repositorio público).
+
+---
+
+## D. Uso de Sensores, Ciclo de Vida y Easter Egg QR (`SIXSEVEN`)
+
+### 1. Sensor Acelerómetro (`Sensor.TYPE_ACCELEROMETER`)
+Implementado en `DeviceSensorManager.kt` mediante el hook reactivo `rememberAccelerometerMonitor`:
+* Calcula en tiempo real la fuerza G tridimensional:
+  $$G = \sqrt{\left(\frac{a_x}{g}\right)^2 + \left(\frac{a_y}{g}\right)^2 + \left(\frac{a_z}{g}\right)^2}$$
+* Cuando $G \ge 1.38\,g$, dispara retroalimentación háptica (`Vibrator` / `VibrationEffect`) y:
+  * En **Juego 1 (Jueves)** y **Juego 2 (*Scroll sin Caer*)**: Carga la barra de resistencia que rompe los pop-ups publicitarios de préstamos e influencers.
+  * En **Juego 3 (*Trampa del Jackpot*)**: Acciona la tirada de los rodillos del tragamonedas y la ruleta.
+* **Gestión del Ciclo de Vida:** Utiliza `LifecycleEventObserver` dentro de un `DisposableEffect` para ejecutar `registerListener` únicamente en `ON_RESUME` y liberar el sensor inmediatamente con `unregisterListener` en `ON_PAUSE`, `ON_STOP` y `onDispose`. Del mismo modo, `MainActivity` pausa y reanuda `SoundManager` en `onPause()` / `onResume()`.
+
+### 2. Easter Egg `"SIXSEVEN"` (#67) mediante Código QR entre Dispositivos
+* En `GameResultScreen` y `LeaderboardScreen`, el jugador puede tocar **"Mostrar QR #67"**, generando en el acto un código QR vectorial con `ZXing Core` (`QrCodeHelper.kt`) con el payload `JUEGOLIMPIO://ACHIEVEMENT/SIXSEVEN_67`.
+* Cuando un compañero escanea ese código desde su propio teléfono tocando **"Escanear QR"** (usando la cámara con permiso `android.permission.CAMERA`), se desbloquea en su base de datos Room la medalla oculta **`#67 SIXSEVEN`**, otorgando `+2.500 puntos` de bonus y la insignia `👾 67` en el ranking global.
+
+---
+
+## E. Prototipo y Design System
 
 * **Tablero de Figma:** [Neon App UI (Community) en Figma](https://www.figma.com/design/bzjU3l80OI4mZELeOXOe39/Neon-App-UI--Community-?node-id=0-1&p=f&t=gZUvsA5NlCMdfpsa-0)
-* **Planificación grupal:** [Organización TP en Google Sheets](https://docs.google.com/spreadsheets/d/1dQfBnHYNf5ZDdArd4o_fG_jp4r-J3kOh6mL_5OXK1Io/edit?gid=0#gid=0)
+* **Planificación e Ideas del Equipo:** [Ideas TP Final DAM en Google Sheets](https://docs.google.com/spreadsheets/d/1mHGR6sgE00ajy3xh7x63RE8tmT0FaXarh0_mcfX1OTg/edit?gid=1046150818#gid=1046150818)
 * **Relato pedagógico detallado:** [relato.md](relato.md)
 
 ![Design System en Figma](img/design_system.png)
 
-### Justificación de las Decisiones Visuales:
-Se eligió una estética en **modo oscuro (*Dark Slate*) con acentos neón magenta y cian**, imitando las interfaces de las plataformas gamers y billeteras virtuales que utilizan habitualmente los jóvenes. Esto evita el tono escolarizado tradicional y genera empatía inmediata.
-
-#### 1. Paleta de Colores y Tokens RGB
-![Paleta de Colores y Códigos RGB](img/colores_rgb.png)
-
-| Token | Hex | RGB | Propósito en la UI |
-| :--- | :--- | :--- | :--- |
-| **Fondo General** | `#0D1117` | `RGB(13, 17, 23)` | Fondo principal en modo oscuro para evitar fatiga visual. |
-| **Burbuja Chat** | `#24142D` | `RGB(36, 20, 45)` | Fondo de mensajes estilo chat con opacidad y contraste. |
-| **Borde Magenta** | `#E91E63` | `RGB(233, 30, 99)` | Gradiente de acento en botones principales y selector de avatar. |
-| **Borde Cyan** | `#00E5FF` | `RGB(0, 229, 255)` | Gradiente secundario neón para resaltados y confirmaciones. |
-| **Verde Éxito** | `#57B956` | `RGB(87, 185, 86)` | Indicador de deuda $0, aciertos y tramo seguro del tiempo. |
-| **Rojo Alerta** | `#FF3B30` | `RGB(255, 59, 48)` | Tramo final de los 10 segundos, botón de riesgo y deuda acumulada. |
-| **Texto Principal** | `#FFFFFF` | `RGB(255, 255, 255)` | Texto en blanco puro de alto contraste para máxima legibilidad. |
-| **Texto Secundario** | `#A0AEC0` | `RGB(160, 174, 192)` | Metadatos y subtítulos informativos. |
-
-#### 2. Tipografía y Ergonomía
-![Jerarquía Tipográfica](img/tipografias.png)
-
-* **Familia:** *Space Grotesk* (Bold, Medium, Regular).
-* **Escala:** Display en 64sp, encabezados en 26sp, mensajes de chat en 18.5sp y botones en 15sp.
-* **Ergonomía:** Botones de 52dp ubicados en el tercio inferior (*Thumb Zone*) con separación vertical suficiente para prevenir pulsaciones involuntarias en situaciones de cuenta regresiva.
-
-![Componentes de Botones y Ergonomía](img/botones.png)
-
-#### 3. Justificación de Modificaciones respecto al Prototipo Original
-Durante el paso del prototipo de Figma a la app funcional en Android Studio se hicieron estas adaptaciones técnicas y de UX:
-1. **Unificación del Onboarding en una sola pantalla:** En el prototipo original había tres pantallas separadas (Splash, Ingreso de Apodo y Selección de Avatar). Para agilizar la experiencia y evitar pasos vacíos, se integraron en `WelcomeScreen`, donde el usuario elige su avatar, escribe su apodo y arranca directo a jugar.
-2. **Entrega secuencial de mensajes:** En Figma la conversación aparecía estática. En la aplicación se programó la llegada progresiva de cada mensaje con delay y tono de notificación, logrando el ritmo de un chat real de WhatsApp.
-3. **Aparición condicionada de botones de decisión:** Para que el jugador no toque antes de tiempo por ansiedad, los botones se muestran recién cuando termina de cargarse el último mensaje y se activa el contador de 10 segundos.
-4. **Visualizador emergente de capturas:** En el escenario del sábado se incorporó un diálogo a pantalla completa para poder examinar la captura de pantalla ampliada antes de responder.
-5. **Estímulos sonoros y aceleración:** Se incorporó música continua que acelera a 1.35x y suma un latido cardíaco en los últimos 4 segundos del temporizador para transmitir la presión real que sufren los adolescentes ante una apuesta contrarreloj.
-
 ---
 
-## D. Implementación Técnica
-
-### 1. Aplicación del Patrón MVVM (Model-View-ViewModel)
-El proyecto desacopla estrictamente los datos, la lógica de presentación y las vistas:
-* **Model (`com.ifts18.unadecisionmas.data.model`):**
-  * `PlayerProfile`: Nombre y recurso del avatar seleccionado.
-  * `GameScenario` y `DecisionOption`: Encapsula los 7 escenarios de la semana (mensajes secuenciales, montos de penalización, enfoques pedagógicos y opciones preventivas/riesgosas).
-  * `GameState`: Estado inmutable con deuda, día actual, aciertos/desaciertos e historial.
-* **ViewModel (`com.ifts18.unadecisionmas.ui.viewmodel.GameViewModel`):**
-  * Expone un flujo reactivo inmutable `StateFlow<GameState>`.
-  * Centraliza las operaciones de negocio: `setPlayerProfile()`, `selectOption()`, `onTimeout()`, `restartGame()`.
-  * Evita que los Composables gestionen la lógica de puntuación o el avance de días.
-* **View (`com.ifts18.unadecisionmas.ui.screens`):**
-  * Vistas declarativas en Jetpack Compose observando `gameState` mediante `collectAsStateWithLifecycle()`.
-
-### 2. Administración del Ciclo de Vida (Activity Lifecycle)
-En cumplimiento de la consigna 4:
-* `MainActivity` implementa los callbacks del ciclo de vida (`onResume`, `onPause`, `onDestroy`).
-* **`SoundManager`** pausa automáticamente la música de fondo y los efectos cuando la aplicación pasa a segundo plano (`onPause`), evitando el consumo innecesario de batería o reproducciones fantasma.
-* Al reanudar la aplicación (`onResume`), el audio se restablece sin reiniciar la partida.
-* Al destruirse la Activity (`onDestroy`), todos los recursos nativos de `MediaPlayer` y `SoundPool` son liberados explícitamente (`release()`).
-* El temporizador de 10s se detiene inmediatamente al seleccionar una opción o cambiar de pantalla, previniendo fugas de corrutinas en segundo plano.
-
-### 3. Recursos Multimedia Incorporados
-* **Música ambiental global:** `casino_vip_music.mp3` administrada por `SoundManager` que acompaña el recorrido narrativo y acelera dinámicamente su velocidad de reproducción (1.35x) durante los últimos segundos del temporizador.
-* **Jingles de desenlace:** Al finalizar la semana, la música global se corta y se reproduce `victory_trumpet.mp3` (trompeta triunfal si la deuda es $0) o `fail_sound_comedy.mp3` (efecto cómico si se contrajo deuda).
-* **Música de créditos finales:** `end_credits_music.mp3` (chiptune épico) que inicia en bucle continuo en la pantalla de resultados inmediatamente después de que culmina el jingle correspondiente.
-* **Efectos sonoros inmediatos:** Gestionados con `SoundPool` para baja latencia: `button_click.wav` y `heartbeat.ogg` (latido cardíaco bajo presión del temporizador).
-* **Animaciones Lottie:** Integración de la biblioteca `lottie-compose` y el recurso `boti_animacion.json` para el botón oficial de asistencia ciudadana.
-* **Confeti en Canvas:** Motor de partículas vectoriales matemáticas renderizado con `Canvas` y `withFrameNanos` para la pantalla de victoria ($0 de deuda).
-
-### 4. Librerías y Dependencias Utilizadas
-* **Kotlin:** 1.9.10
-* **Jetpack Compose BOM:** 2024.02.02 (Material3, UI, Graphics, Tooling Preview)
-* **Navigation Compose:** `androidx.navigation:navigation-compose:2.7.7`
-* **Lifecycle ViewModel Compose:** `androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0`
-* **Lifecycle Runtime Compose:** `androidx.lifecycle:lifecycle-runtime-compose:2.7.0`
-* **Lottie Compose:** `com.airbnb.android:lottie-compose:6.4.0`
-
----
-
-## E. Participación de los Integrantes
+## F. Participación de los Integrantes (Segunda Entrega)
 
 | Integrante | Rol en el Equipo | Tareas Realizadas |
 | :--- | :--- | :--- |
-| **Martín Jonas Avilas** | Líder IT & Desarrollador Android | Coordinación técnica, configuración del entorno Gradle, implementación de arquitectura MVVM (`GameViewModel`, `StateFlow`), control de versiones en GitHub y gestión del ciclo de vida en `MainActivity`. |
-| **Roberto Araujo** | Diseñador UX / Fundamentación | Definición de la fundamentación teórica sobre ciberapuestas, diseño de la paleta cromática neón (tokens RGB/Hex), contraste accesible y ergonomía del pulgar en Compose. |
-| **Evelyn Gaitán** | Narrative Designer / UX Writer & Multimedia | Redacción de los diálogos de chat y escenarios de Lunes a Domingo en `relato.md`, selección de recursos multimedia e integración de la animación Lottie para Boti (`boti_animacion.json`). |
-| **Juan Chaile** | Game Designer & Prototipado | Diseño de las mecánicas de juego contrarreloj (10s), prototipo interactivo en Figma, componentes de botones y estructura de los 3 bloques de la pantalla final. |
-| **Lucía Marisol Pobeda** | Investigadora UX / User Persona | Investigación de campo sobre hábitos de ciberapuestas en colegios secundarios, elaboración de la User Persona (Mateo R., 15 años) y redacción del apartado de canales de ayuda pública (Línea 141, Boti y Orientación). |
+| **Martín Jonas Avilas** | Líder IT & Arquitectura Android | Implementación de persistencia local con Room/SQLite (`AppDatabase`, `GameDao`, checkpoint de partida y medallas), generador/escáner QR del Easter Egg `SIXSEVEN`, ampliación a 3 opciones con timer de 25s y coordinación MVVM. |
+| **Evelyn Gaitán** | Narrative Designer & Mecánicas de Sensor | Diseño de la mecánica de sacudida con Acelerómetro (*"Evitando tentación"*), guiones de *El Error de Transferencia ($80.000)* y *La plata de la SUBE*, co-diseño del simulador de Tragamonedas/Ruleta y recursos Lottie/Multimedia. |
+| **Roberto Araujo** | Diseñador UX / Sistemas de Puntaje | Diseño del sistema de Puntos de Bienestar y Ahorro, escenarios de planes saludables (*Fulbito y Cine con amigos*), maquetación del apunte vectorizado en Canvas y tokens visuales del Design System. |
+| **Juan Chaile** | Game Designer & Firebase Ranking | Integración del Ranking compartido en tiempo real con Firebase, fórmula de puntaje competitivo con desempate por tiempo, diseño del escenario del *Superclásico* y prototipado de pantallas. |
+| **Lucía Marisol Pobeda** | Investigadora UX & Simulador de Casino | Diseño de los anuncios invasivos de *Influencers* y *Préstamos instantáneos de $20.000* con vibración para *Scroll sin Caer*, co-diseño pedagógico de *La Trampa del Jackpot (10 tiros)* y validación de canales de ayuda (Línea 141 y Boti). |
 
 ---
 
-## Estructura del Repositorio
+## G. Instrucciones para Ejecutar la Aplicación
 
-```text
-├── app/
-│   ├── src/main/
-│   │   ├── AndroidManifest.xml
-│   │   ├── java/com/ifts18/unadecisionmas/
-│   │   │   ├── MainActivity.kt
-│   │   │   ├── audio/
-│   │   │   │   └── SoundManager.kt
-│   │   │   ├── data/
-│   │   │   │   ├── model/
-│   │   │   │   │   └── GameModels.kt
-│   │   │   │   └── repository/
-│   │   │   │       └── GameScenariosRepository.kt
-│   │   │   ├── navigation/
-│   │   │   │   ├── AppNavigation.kt
-│   │   │   │   └── Screen.kt
-│   │   │   ├── ui/
-│   │   │   │   ├── components/
-│   │   │   │   │   ├── ConfettiEffect.kt
-│   │   │   │   │   └── GameTopBar.kt
-│   │   │   │   ├── screens/
-│   │   │   │   │   ├── GameDecisionScreen.kt
-│   │   │   │   │   ├── GameResultScreen.kt
-│   │   │   │   │   ├── InfoResourcesScreen.kt
-│   │   │   │   │   └── WelcomeScreen.kt
-│   │   │   │   ├── theme/
-│   │   │   │   │   ├── Color.kt
-│   │   │   │   │   ├── Theme.kt
-│   │   │   │   │   └── Type.kt
-│   │   │   │   └── viewmodel/
-│   │   │   │       └── GameViewModel.kt
-│   │   └── res/
-│   │       ├── drawable/
-│   │       │   ├── avatar_1.jpg
-│   │       │   ├── avatar_2.png
-│   │       │   ├── avatar_3.png
-│   │       │   ├── avatar_4.png
-│   │       │   ├── avatar_5.png
-│   │       │   ├── captura.jpg
-│   │       │   └── ic_boti.png
-│   │       ├── font/
-│   │       │   ├── space_grotesk_bold.ttf
-│   │       │   ├── space_grotesk_medium.ttf
-│   │       │   └── space_grotesk_regular.ttf
-│   │       └── raw/
-│   │           ├── boti_animacion.json
-│   │           ├── button_click.wav
-│   │           ├── casino_vip_music.mp3
-│   │           ├── end_credits_music.mp3
-│   │           ├── fail_sound_comedy.mp3
-│   │           ├── heartbeat.ogg
-│   │           ├── juego_limpio_jackpot.json
-│   │           └── victory_trumpet.mp3
-│   └── build.gradle.kts
-├── img/
-├── README.md
-├── relato.md
-└── settings.gradle.kts
-```
+1. Clonar el repositorio y abrir la carpeta en **Android Studio ( Iguana / Jellyfish / Ladybug o superior)**.
+2. Asegurar que el JDK de Gradle esté configurado en **JDK 17** (*Settings -> Build, Execution, Deployment -> Build Tools -> Gradle -> Gradle JDK = 17*).
+3. *(Opcional para Firebase propio)* En el archivo local `local.properties` (no versionado en Git por seguridad), se pueden definir `FIREBASE_DB_URL`, `FIREBASE_PROJECT_ID`, `FIREBASE_API_KEY` y `FIREBASE_APP_ID`. Sin configuración adicional, la aplicación sincroniza contra el endpoint configurado por defecto y respalda todas las operaciones localmente en **Room/SQLite**.
+4. Ejecutar en un dispositivo físico Android (recomendado para experimentar el **Acelerómetro** al agitar el teléfono y la **Cámara** al escanear el código QR `SIXSEVEN` entre dos celulares) o en un emulador (incluye botones de simulación de sacudida para pruebas en PC).
