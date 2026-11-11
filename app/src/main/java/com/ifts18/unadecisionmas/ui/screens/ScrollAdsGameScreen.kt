@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -32,9 +33,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Vibration
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -62,11 +67,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ifts18.unadecisionmas.R
 import com.ifts18.unadecisionmas.audio.SoundManager
 import com.ifts18.unadecisionmas.sensor.HapticFeedbackHelper
 import com.ifts18.unadecisionmas.sensor.rememberAccelerometerMonitor
@@ -84,20 +92,25 @@ import kotlinx.coroutines.launch
 private data class InvasiveAdSpec(
     val id: Int,
     val triggerProgress: Float,
-    val badge: String,
-    val title: String,
-    val influencerOrSource: String,
+    val igUsername: String,
+    val igSponsoredLabel: String,
+    val avatarResId: Int,
+    val postImageResId: Int,
+    val imageBannerTag: String,
+    val imageOverlayHeadline: String,
+    val imageOverlaySubtext: String,
+    val likesCountText: String,
     val bodyText: String,
+    val hashtags: String,
     val trapButtonText: String,
-    val accentColor: Color,
-    val emoji: String
+    val accentColor: Color
 )
 
 /**
  * JUEGO 2: "Scroll sin Caer"
  * El jugador debe leer/scrollear un apunte escolar vectorizado de principio a fin.
- * A mitad del scroll saltan anuncios invasivos de casinos, préstamos de $20.000 e influencers
- * que bloquean la lectura. Para destruirlos debe AGITAR EL TELÉFONO usando el Acelerómetro.
+ * A mitad del scroll saltan posts patrocinados de Instagram con imágenes de influencers,
+ * préstamos de $20.000 y casinos que bloquean la lectura. Para destruirlos debe AGITAR EL TELÉFONO.
  */
 @Composable
 fun ScrollAdsGameScreen(
@@ -115,46 +128,66 @@ fun ScrollAdsGameScreen(
             InvasiveAdSpec(
                 id = 1,
                 triggerProgress = 0.16f,
-                badge = "PUBLICIDAD INVASIVA • INFLUENCER VIP",
-                title = "¡GANÁ CON $2.000 MIENTRAS ENTRENÁS!",
-                influencerOrSource = "@TomiFitness_Millionaire",
-                bodyText = "«Bro, dejá de estudiar. Yo generé mi riqueza desde el gimnasio apostando $2.000 en B-Play VIP. El primer tiro tiene ganancia 100% garantizada.»",
+                igUsername = "tomifitness.vip",
+                igSponsoredLabel = "Publicidad • B-Play VIP Casino",
+                avatarResId = R.drawable.avatar_5,
+                postImageResId = R.drawable.avatar_5,
+                imageBannerTag = "📲 RETIRO EN VIVO (CUENTA DEMO)",
+                imageOverlayHeadline = "+$450.000 EN 10 MINUTOS 💪",
+                imageOverlaySubtext = "«Empecé con $2.000 entre serie y serie en el gym»",
+                likesCountText = "Les gusta a lucas_09 y 18.420 personas más",
+                bodyText = "Bro, dejá de estudiar. Yo generé mi riqueza desde el gimnasio apostando $2.000. El primer tiro tiene ganancia asegurada.",
+                hashtags = "#FitnessMillionaire #CasinoVIP #GanarFacil #BonoGratis",
                 trapButtonText = "Instalar App y Apostar $4.000",
-                accentColor = BordeMagenta,
-                emoji = "💪"
+                accentColor = BordeMagenta
             ),
             InvasiveAdSpec(
                 id = 2,
                 triggerProgress = 0.42f,
-                badge = "ALERTA DE BILLETERA • CRÉDITO AL TOQUE",
-                title = "¡PRÉSTAMO INMEDIATO DE $20.000!",
-                influencerOrSource = "Cajero Express 24/7",
-                bodyText = "Te acreditamos $20.000 ahora mismo sin recibo ni firma de tus padres. Usalo en la ruleta en vivo y devolvelo cuando ganes.",
+                igUsername = "cajero.express24",
+                igSponsoredLabel = "Publicidad • Crédito al Toque",
+                avatarResId = R.drawable.avatar_2,
+                postImageResId = R.drawable.avatar_2,
+                imageBannerTag = "⚡ BILLETERA SIN RECIBO NI FIRMA",
+                imageOverlayHeadline = "¡PRÉSTAMO DE $20.000 AL INSTANTE! 💸",
+                imageOverlaySubtext = "Acreditación en 1 clic • Devolvelo cuando ganes",
+                likesCountText = "Les gusta a nico.apuestas y 9.150 personas más",
+                bodyText = "Te acreditamos $20.000 ahora mismo sin recibo ni firma de tus padres. Cargá fichas ya en la ruleta nocturna.",
+                hashtags = "#PrestamoAlToque #Cajero24hs #FichasFiadas #SinLimite",
                 trapButtonText = "Aceptar Préstamo de $20.000",
-                accentColor = Color(0xFFFFB300),
-                emoji = "💸"
+                accentColor = Color(0xFFFFB300)
             ),
             InvasiveAdSpec(
                 id = 3,
                 triggerProgress = 0.68f,
-                badge = "SPAM DE WHATSAPP • SUPERCLÁSICO",
-                title = "¡CUOTA X10 EN EL SUPERCLÁSICO!",
-                influencerOrSource = "Grupo Fijas del Colegio",
-                bodyText = "Todos tus compañeros ya cargaron fichas. Si no entrás en 5 segundos te quedás afuera del pozo acumulado.",
+                igUsername = "fijas.superclasico",
+                igSponsoredLabel = "Publicidad • Apuestas Deportivas",
+                avatarResId = R.drawable.avatar_4,
+                postImageResId = R.drawable.captura,
+                imageBannerTag = "⚽ COMBINADA VIP • CUOTA X10.5",
+                imageOverlayHeadline = "¡TODOS TUS AMIGOS YA ENTRARON!",
+                imageOverlaySubtext = "Pozo acumulado del Superclásico • Cierra en 5s",
+                likesCountText = "Les gusta a mati_futbol y 24.300 personas más",
+                bodyText = "Mirá el ticket ganador que acaban de pasar al grupo. Si no transferís ahora te quedás afuera de la combinada.",
+                hashtags = "#Superclasico #FijaDelDia #CuotaX10 #TimbaDeportiva",
                 trapButtonText = "Transferir $4.000 al Cajero",
-                accentColor = RojoAlerta,
-                emoji = "⚽"
+                accentColor = RojoAlerta
             ),
             InvasiveAdSpec(
                 id = 4,
                 triggerProgress = 0.88f,
-                badge = "POP-UP TRAMPA • CASINO CLANDESTINO",
-                title = "¡NO CIERRES! GIRO GRATIS PENDIENTE",
-                influencerOrSource = "Casino Nocturno .bet",
-                bodyText = "El botón 'X' de arriba es falso. Sacudí fuerte el teléfono para romper este bloqueo publicitario sin entregar tus ahorros.",
+                igUsername = "casino.nocturno.bet",
+                igSponsoredLabel = "Publicidad • Bono Bienvenida",
+                avatarResId = R.drawable.avatar_1,
+                postImageResId = R.drawable.juego_limpio_logo_transparent,
+                imageBannerTag = "🎰 GIRO GRATIS PENDIENTE • NO CIERRES",
+                imageOverlayHeadline = "¡RECLAMÁ $50.000 EN FICHAS DE BONO!",
+                imageOverlaySubtext = "El botón 'X' está bloqueado • Sacudí para salir",
+                likesCountText = "Les gusta a cajero_nocturno y 31.900 personas más",
+                bodyText = "Tenés un Jackpot pre-asignado esperando tu depósito mínimo de $4.000. ¡No pierdas tu racha!",
+                hashtags = "#JackpotVIP #SlotsOnline #RuletaEnVivo #BonoCebo",
                 trapButtonText = "Reclamar Bono Trampa ($4.000)",
-                accentColor = BordeCyan,
-                emoji = "🎰"
+                accentColor = BordeCyan
             )
         )
     }
@@ -494,18 +527,22 @@ fun ScrollAdsGameScreen(
             }
         }
 
-        // 3. OVERLAY DE ANUNCIO INVASIVO (SE QUITA AGITANDO EL TELÉFONO CON EL ACELERÓMETRO)
+        // 3. OVERLAY DE ANUNCIO ESTILO POST DE INSTAGRAM PATROCINADO (SE QUITA AGITANDO EL CELULAR)
         AnimatedVisibility(
             visible = activeAd != null,
             enter = fadeIn(tween(220)) + scaleIn(initialScale = 0.88f),
             exit = fadeOut(tween(180))
         ) {
             val ad = activeAd ?: return@AnimatedVisibility
+            val igRingGradient = Brush.linearGradient(
+                listOf(Color(0xFFF58529), Color(0xFFDD2A7B), Color(0xFF8134AF))
+            )
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.86f))
-                    .padding(horizontal = 20.dp),
+                    .background(Color.Black.copy(alpha = 0.88f))
+                    .padding(horizontal = 16.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -515,178 +552,167 @@ fun ScrollAdsGameScreen(
                             translationX = shakeWobble.value
                             rotationZ = shakeWobble.value * 0.25f
                         }
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(Color(0xFF1A1025))
-                        .border(2.5.dp, ad.accentColor, RoundedCornerShape(22.dp))
-                        .padding(18.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFF121318))
+                        .border(2.dp, ad.accentColor, RoundedCornerShape(20.dp))
                 ) {
-                    // Cabecera del Pop-up invasivo
+                    // A. CABECERA DE POST DE INSTAGRAM (Avatar con aro Story + Usuario Verificado + Publicidad)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .border(2.dp, igRingGradient, CircleShape)
+                                    .padding(2.dp)
+                            ) {
+                                Image(
+                                    painter = painterResource(id = ad.avatarResId),
+                                    contentDescription = ad.igUsername,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = ad.igUsername,
+                                        fontFamily = SpaceGrotesk,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.5.sp,
+                                        color = Color.White
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "✓",
+                                        fontFamily = SpaceGrotesk,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF3897F0)
+                                    )
+                                }
+                                Text(
+                                    text = ad.igSponsoredLabel,
+                                    fontFamily = SpaceGrotesk,
+                                    fontSize = 11.sp,
+                                    color = BordeCyan
+                                )
+                            }
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "[X Bloqueado]",
+                                fontFamily = SpaceGrotesk,
+                                fontSize = 10.sp,
+                                color = TextoSecundario
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
                             Icon(
-                                imageVector = Icons.Default.Warning,
+                                imageVector = Icons.Default.MoreVert,
                                 contentDescription = null,
-                                tint = ad.accentColor,
+                                tint = Color.White.copy(alpha = 0.7f),
                                 modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = ad.badge,
-                                fontFamily = SpaceGrotesk,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp,
-                                color = ad.accentColor
-                            )
-                        }
-
-                        // Falsa X diminuta que avisa que está bloqueado
-                        Text(
-                            text = "[X Bloqueado]",
-                            fontFamily = SpaceGrotesk,
-                            fontSize = 10.sp,
-                            color = TextoSecundario
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text(
-                        text = ad.emoji,
-                        fontSize = 44.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = ad.title,
-                        fontFamily = SpaceGrotesk,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                        color = Color.White,
-                        textAlign = TextAlign.Center
-                    )
-
-                    Text(
-                        text = ad.influencerOrSource,
-                        fontFamily = SpaceGrotesk,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.sp,
-                        color = BordeCyan
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = ad.bodyText,
-                        fontFamily = SpaceGrotesk,
-                        fontSize = 14.sp,
-                        lineHeight = 19.sp,
-                        color = Color.White.copy(alpha = 0.92f),
-                        textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // INSTRUCCIÓN PRINCIPAL DE SENSOR (ACELERÓMETRO)
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color(0xFF0E1624))
-                            .border(1.5.dp, BordeCyan, RoundedCornerShape(14.dp))
-                            .padding(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Vibration,
-                                contentDescription = null,
-                                tint = BordeCyan,
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "¡AGITÁ EL CELULAR PARA CERRAR EL SPAM!",
-                                fontFamily = SpaceGrotesk,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.5.sp,
-                                color = BordeCyan
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        LinearProgressIndicator(
-                            progress = { shakeProgress },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(12.dp)
-                                .clip(RoundedCornerShape(6.dp)),
-                            color = VerdeExito,
-                            trackColor = Color.White.copy(alpha = 0.14f)
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Resistencia al Spam: ${(shakeProgress * 100).toInt()}%",
-                                fontFamily = SpaceGrotesk,
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 11.5.sp,
-                                color = Color.White
-                            )
-
-                            // Botón auxiliar por si se prueba desde un emulador sin acelerómetro físico
-                            Text(
-                                text = "[Simular sacudida]",
-                                fontFamily = SpaceGrotesk,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.5.sp,
-                                color = VerdeExito,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .clickable {
-                                        HapticFeedbackHelper.vibrateShort(context, 30L)
-                                        SoundManager.playClick()
-                                        shakeProgress = (shakeProgress + 0.34f).coerceAtMost(1f)
-                                        if (shakeProgress >= 1f) {
-                                            adsShakenCount++
-                                            activeAd = null
-                                            shakeProgress = 0f
-                                        }
-                                    }
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Botón Trampa del Anuncio (si el usuario cae y lo toca en vez de agitar, suma deuda)
+                    // B. IMAGEN VISUAL DEL POST DE INSTAGRAM CON STICKERS Y OVERLAY PUBLICITARIO
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(44.dp)
-                            .clip(RoundedCornerShape(12.dp))
+                            .height(190.dp)
+                            .background(Color(0xFF0A0D14))
+                    ) {
+                        Image(
+                            painter = painterResource(id = ad.postImageResId),
+                            contentDescription = ad.imageOverlayHeadline,
+                            contentScale = ContentScale.Crop,
+                            alignment = Alignment.TopCenter,
+                            modifier = Modifier.fillMaxSize()
+                        )
+
+                        // Degradado oscuro superior/inferior para resaltar los textos del post
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.verticalGradient(
+                                        listOf(
+                                            Color.Black.copy(alpha = 0.55f),
+                                            Color.Black.copy(alpha = 0.25f),
+                                            Color.Black.copy(alpha = 0.88f)
+                                        )
+                                    )
+                                )
+                        )
+
+                        // Etiqueta superior tipo Sticker de Instagram
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(10.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(ad.accentColor)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = ad.imageBannerTag,
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.5.sp,
+                                color = Color.Black
+                            )
+                        }
+
+                        // Titular llamativo sobre la imagen del post
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .fillMaxWidth()
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                text = ad.imageOverlayHeadline,
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.5.sp,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = ad.imageOverlaySubtext,
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 12.sp,
+                                color = VerdeExito
+                            )
+                        }
+                    }
+
+                    // C. BARRA CTA DE INSTAGRAM ADS (TRAMPA: SI EL JUGADOR LA TOCA, SUMA DEUDA)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
                             .background(ad.accentColor.copy(alpha = 0.22f))
-                            .border(1.dp, ad.accentColor, RoundedCornerShape(12.dp))
                             .clickable {
                                 SoundManager.playClick()
                                 trapsClickedCount++
                                 activeAd = null
                                 shakeProgress = 0f
-                            },
-                        contentAlignment = Alignment.Center
+                            }
+                            .padding(horizontal = 14.dp, vertical = 9.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = "⚠️ ${ad.trapButtonText} (Trampa)",
@@ -695,6 +721,164 @@ fun ScrollAdsGameScreen(
                             fontSize = 12.5.sp,
                             color = Color.White
                         )
+                        Text(
+                            text = "➔",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = ad.accentColor
+                        )
+                    }
+
+                    // D. ÍCONOS DE INTERACCIÓN DE INSTAGRAM + LIKES + DESCRIPCIÓN
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Favorite,
+                                    contentDescription = "Like",
+                                    tint = Color(0xFFFF3040),
+                                    modifier = Modifier.size(21.dp)
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ChatBubbleOutline,
+                                    contentDescription = "Comentar",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.Send,
+                                    contentDescription = "Compartir",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.BookmarkBorder,
+                                contentDescription = "Guardar",
+                                tint = Color.White,
+                                modifier = Modifier.size(21.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(5.dp))
+
+                        Text(
+                            text = ad.likesCountText,
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.5.sp,
+                            color = Color.White
+                        )
+
+                        Spacer(modifier = Modifier.height(3.dp))
+
+                        Text(
+                            text = "${ad.igUsername}  ${ad.bodyText}",
+                            fontFamily = SpaceGrotesk,
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
+                            color = Color.White.copy(alpha = 0.92f)
+                        )
+
+                        Spacer(modifier = Modifier.height(2.dp))
+
+                        Text(
+                            text = ad.hashtags,
+                            fontFamily = SpaceGrotesk,
+                            fontSize = 11.sp,
+                            color = Color(0xFF70B5F9)
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // E. INSTRUCCIÓN PRINCIPAL DE SENSOR (ACELERÓMETRO)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF0E1624))
+                                .border(1.5.dp, BordeCyan, RoundedCornerShape(14.dp))
+                                .padding(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Vibration,
+                                    contentDescription = null,
+                                    tint = BordeCyan,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "¡AGITÁ EL CELULAR PARA CERRAR EL POST!",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.5.sp,
+                                    color = BordeCyan
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            LinearProgressIndicator(
+                                progress = { shakeProgress },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(10.dp)
+                                    .clip(RoundedCornerShape(5.dp)),
+                                color = VerdeExito,
+                                trackColor = Color.White.copy(alpha = 0.14f)
+                            )
+
+                            Spacer(modifier = Modifier.height(5.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Resistencia al Spam: ${(shakeProgress * 100).toInt()}%",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 11.sp,
+                                    color = Color.White
+                                )
+
+                                Text(
+                                    text = "[Simular sacudida]",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    color = VerdeExito,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable {
+                                            HapticFeedbackHelper.vibrateShort(context, 30L)
+                                            SoundManager.playClick()
+                                            shakeProgress = (shakeProgress + 0.34f).coerceAtMost(1f)
+                                            if (shakeProgress >= 1f) {
+                                                adsShakenCount++
+                                                activeAd = null
+                                                shakeProgress = 0f
+                                            }
+                                        }
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }

@@ -139,11 +139,11 @@ object AchievementsCatalog {
         AchievementDef(
             id = ID_TODO_AL_ROJO,
             codeNumber = "#06",
-            title = "Espiral de Deuda (Oculto)",
-            description = "Caíste en todas las trampas de la semana. Sirve de lección: perseguiste pérdidas hasta el domingo.",
-            iconEmoji = "📉",
-            bonusPoints = 300,
-            isSecret = true
+            title = "Sin Celu hasta el Lunes",
+            description = "Saltó la ficha en tu casa o terminaste endeudado: perdiste el celular por el fin de semana, pero aprendiste la lección.",
+            iconEmoji = "📵",
+            bonusPoints = 400,
+            isSecret = false
         ),
         AchievementDef(
             id = ID_SIXSEVEN,
@@ -198,6 +198,10 @@ data class GameState(
     val lastCompletedMode: String = "La Semana",
     val lastModeSummary: String = "",
     val lastEarnedScore: Int = 0,
+    val betMomMoneyOnTuesday: Boolean = false,
+    val isPunishedNoPhone: Boolean = false,
+    val punishmentReasonTitle: String = "",
+    val punishmentReasonBody: String = "",
     val isGameOver: Boolean = false,
     val isPlayingSound: Boolean = true
 ) {

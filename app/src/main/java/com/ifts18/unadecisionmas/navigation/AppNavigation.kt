@@ -34,6 +34,7 @@ import androidx.navigation.compose.rememberNavController
 import com.ifts18.unadecisionmas.ui.screens.GameDecisionScreen
 import com.ifts18.unadecisionmas.ui.screens.GameResultScreen
 import com.ifts18.unadecisionmas.ui.screens.LeaderboardScreen
+import com.ifts18.unadecisionmas.ui.screens.RouletteTrapGameScreen
 import com.ifts18.unadecisionmas.ui.screens.ScrollAdsGameScreen
 import com.ifts18.unadecisionmas.ui.screens.SlotsTrapGameScreen
 import com.ifts18.unadecisionmas.ui.screens.WelcomeScreen
@@ -90,6 +91,10 @@ fun AppNavigation(
                         viewModel.setPlayerProfile(playerName, avatarResId)
                         navController.navigate(Screen.SlotsTrapGame.route)
                     },
+                    onStartRouletteTrapGame = { playerName, avatarResId ->
+                        viewModel.setPlayerProfile(playerName, avatarResId)
+                        navController.navigate(Screen.RouletteTrapGame.route)
+                    },
                     onOpenLeaderboard = { playerName, avatarResId ->
                         viewModel.setPlayerProfile(playerName, avatarResId)
                         navController.navigate(Screen.Leaderboard.route)
@@ -143,6 +148,26 @@ fun AppNavigation(
                         )
                         navController.navigate(Screen.Result.route) {
                             popUpTo(Screen.SlotsTrapGame.route) { inclusive = true }
+                        }
+                    }
+                )
+            }
+
+            composable(route = Screen.RouletteTrapGame.route) {
+                RouletteTrapGameScreen(
+                    onBackToHub = {
+                        navController.popBackStack()
+                    },
+                    onGameFinished = { stoppedEarly, spinsUsed, remainingChips, realMoneyLost, elapsedMillis ->
+                        viewModel.completeRouletteTrapGame(
+                            stoppedEarly = stoppedEarly,
+                            spinsUsed = spinsUsed,
+                            remainingBonusChips = remainingChips,
+                            realMoneyLost = realMoneyLost,
+                            elapsedMillis = elapsedMillis
+                        )
+                        navController.navigate(Screen.Result.route) {
+                            popUpTo(Screen.RouletteTrapGame.route) { inclusive = true }
                         }
                     }
                 )

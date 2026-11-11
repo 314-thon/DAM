@@ -338,6 +338,72 @@ fun GameResultScreen(
                                 }
                             }
                         }
+
+                        // VITRINA DE TROFEOS Y MEDALLAS DESBLOQUEADOS
+                        val unlockedDefs = AchievementsCatalog.all.filter {
+                            gameState.unlockedAchievementIds.contains(it.id)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF121622))
+                                .border(1.dp, VerdeExito.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text(
+                                text = "🏅 Trofeos Desbloqueados (${unlockedDefs.size}/7)",
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = VerdeExito
+                            )
+
+                            if (unlockedDefs.isEmpty()) {
+                                Text(
+                                    text = "Aún no destrabaste trofeos. ¡Devolvé transferencias, elegí planes reales o agitá el celu ante el spam!",
+                                    fontFamily = SpaceGrotesk,
+                                    fontSize = 11.sp,
+                                    color = TextoSecundario
+                                )
+                            } else {
+                                unlockedDefs.forEach { trophy ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0xFF1A2232))
+                                            .padding(horizontal = 8.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text(text = trophy.iconEmoji, fontSize = 16.sp)
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "${trophy.codeNumber} • ${trophy.title}",
+                                                fontFamily = SpaceGrotesk,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.5.sp,
+                                                color = Color.White
+                                            )
+                                        }
+                                        Text(
+                                            text = "+${trophy.bonusPoints} pts",
+                                            fontFamily = SpaceGrotesk,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp,
+                                            color = VerdeExito
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -545,7 +611,7 @@ fun GameResultScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "Volver a jugar",
+                            text = "Menú principal",
                             color = Color.White,
                             fontFamily = SpaceGrotesk,
                             fontSize = 14.5.sp,

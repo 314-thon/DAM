@@ -167,7 +167,11 @@ fun GameDecisionScreen(
     }
 
     // Secuencia de mensajes y temporizador de 25 segundos por cada día
-    LaunchedEffect(gameState.currentDayIndex) {
+    LaunchedEffect(gameState.currentDayIndex, gameState.isPunishedNoPhone) {
+        if (gameState.isPunishedNoPhone) {
+            isTimerActive = false
+            return@LaunchedEffect
+        }
         previewImageResId = null
         SoundManager.startBgMusic()
         loadedMessagesCount = 0
@@ -501,12 +505,13 @@ fun GameDecisionScreen(
                         )
                     }
 
-                    // Las 3 alternativas de decisión del escenario
-                    val options = currentScenario.getAllOptions()
+                    // Las 3 alternativas de decisión del escenario en orden aleatorio y mismo color
+                    val options = remember(gameState.currentDayIndex, gameState.decisionHistory.size) {
+                        currentScenario.getAllOptions().shuffled()
+                    }
                     options.forEach { option ->
                         DecisionButton(
                             text = option.text,
-                            isRisky = !option.isSafe,
                             enabled = !isShakeChallengeActive,
                             onClick = {
                                 if (isTimerActive && !isShakeChallengeActive) {
@@ -520,6 +525,214 @@ fun GameDecisionScreen(
                             isPulsing = isUrgent,
                             pulseScale = { pulseScale },
                             modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // Pantalla / Modal de Castigo ("Saltó la ficha: Sin Celu hasta el próximo Lunes")
+    if (gameState.isPunishedNoPhone) {
+        Dialog(
+            onDismissRequest = {},
+            properties = DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false,
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.90f))
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(Color(0xFF181224))
+                        .border(
+                            width = 2.dp,
+                            brush = Brush.horizontalGradient(listOf(RojoAlerta, BordeMagenta, BordeCyan)),
+                            shape = RoundedCornerShape(24.dp)
+                        )
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "📵",
+                        fontSize = 48.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = gameState.punishmentReasonTitle.ifBlank { "📵 ¡SALTÓ LA FICHA! SIN CELULAR" },
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = RojoAlerta,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = gameState.punishmentReasonBody,
+                        fontFamily = SpaceGrotesk,
+                        fontSize = 14.sp,
+                        lineHeight = 19.sp,
+                        color = Color.White.copy(alpha = 0.92f),
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Insignia de Trofeo Desbloqueado en el acto
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFF142229))
+                            .border(1.2.dp, VerdeExito, RoundedCornerShape(14.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "🏅", fontSize = 26.sp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "TROFEO DESBLOQUEADO (#06)",
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                color = VerdeExito
+                            )
+                            Text(
+                                text = "Sin Celu hasta el Lunes (+400 pts)",
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Resumen de cómo quedó la semana truncada
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF121620))
+                                .border(1.dp, BordeCyan.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                                .padding(vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Ahorro Restante",
+                                fontFamily = SpaceGrotesk,
+                                fontSize = 11.sp,
+                                color = BordeCyan
+                            )
+                            Text(
+                                text = "$${gameState.currentSavings}",
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = Color.White
+                            )
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF121620))
+                                .border(1.dp, RojoAlerta.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                                .padding(vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Deuda Acumulada",
+                                fontFamily = SpaceGrotesk,
+                                fontSize = 11.sp,
+                                color = RojoAlerta
+                            )
+                            Text(
+                                text = "$${gameState.currentDebt}",
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = "Pasó el fin de semana en penitencia... Un nuevo lunes, una nueva oportunidad para terminar la semana sin caer en la trampa.",
+                        fontFamily = SpaceGrotesk,
+                        fontStyle = FontStyle.Italic,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        color = BordeCyan,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Botón 1: Teletransportar al próximo Lunes (Reiniciar semana)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
+                            .clickable {
+                                viewModel.restartToNextMondayAfterPunishment()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "🔄 Pasar al Lunes siguiente (Nuevo comienzo)",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Color.Black
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Botón 2: Ir directo al Balance Final / Menú Principal
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFF222838))
+                            .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
+                            .clickable {
+                                viewModel.finishPunishedWeekToResults()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "📊 Ver Balance Final y Trofeos",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp,
+                            color = Color.White
                         )
                     }
                 }
@@ -614,7 +827,6 @@ private fun SplitProgressBar(
 @Composable
 private fun DecisionButton(
     text: String,
-    isRisky: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -625,11 +837,7 @@ private fun DecisionButton(
     val borderBrush = if (isPulsing) {
         Brush.horizontalGradient(listOf(RojoAlerta, BordeMagenta, BordeCyan))
     } else {
-        if (isRisky) {
-            Brush.horizontalGradient(listOf(BordeMagenta, RojoAlerta))
-        } else {
-            Brush.horizontalGradient(listOf(BordeCyan, VerdeExito.copy(alpha = 0.85f)))
-        }
+        Brush.horizontalGradient(listOf(BordeCyan, BordeMagenta.copy(alpha = 0.75f)))
     }
 
     Box(
@@ -647,7 +855,7 @@ private fun DecisionButton(
                 shape = shape
             )
             .clip(shape)
-            .background(if (isRisky) Color(0x38281018) else Color(0x28102428))
+            .background(Color(0xFF172030).copy(alpha = 0.90f))
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center

@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -30,6 +29,7 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ifts18.unadecisionmas.audio.SoundManager
@@ -64,10 +65,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * JUEGO 3: "La Trampa del Jackpot 🎰" (Idea de Lucía y Evelyn)
- * Simulador interactivo de Tragamonedas + Ruleta con 10 tiros de bono que se acciona
- * agitando o inclinando el celular (Acelerómetro). Demuestra en tiempo real cómo están
- * programados los algoritmos para que la casa siempre gane.
+ * JUEGO 3: "La Trampa del Jackpot 🎰"
+ * Simulador interactivo de Máquina Tragamonedas de 3 Emojis con 10 tiros de bono que se acciona
+ * agitando el celular (Acelerómetro). Muestra en vivo cómo opera el algoritmo (Gancho inicial,
+ * Casi-Acierto y Vaciado Estadístico).
  */
 @Composable
 fun SlotsTrapGameScreen(
@@ -80,9 +81,7 @@ fun SlotsTrapGameScreen(
     val scrollState = rememberScrollState()
 
     val symbols = remember { listOf("💎", "7️⃣", "🍒", "🔔", "🍋") }
-    val rouletteOptions = remember { listOf("29 Negro", "Rojo x2", "0 Verde") }
 
-    var selectedRouletteBet by remember { mutableStateOf("29 Negro") }
     var reel1 by remember { mutableStateOf("7️⃣") }
     var reel2 by remember { mutableStateOf("💎") }
     var reel3 by remember { mutableStateOf("🍒") }
@@ -96,13 +95,13 @@ fun SlotsTrapGameScreen(
     val startTimeMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     var algorithmStageTitle by remember {
-        mutableStateOf("Bono Cebo Activo: Tenés 10 tiros gratis")
+        mutableStateOf("Bono Cebo Activo: Tenés 10 fichas gratis")
     }
     var algorithmExplanation by remember {
-        mutableStateOf("Elegí tu apuesta (ej. 29 Negro) y AGITÁ EL CELULAR para hacer girar el tragamonedas y la ruleta.")
+        mutableStateOf("Agitá el celular o tocá el botón para hacer girar los 3 rodillos y ver cómo responde el algoritmo del tragamonedas.")
     }
-    var rouletteResultBadge by remember {
-        mutableStateOf("Ruleta lista para girar")
+    var spinStatusBanner by remember {
+        mutableStateOf("🎰 Máquina lista: 3 iguales = Premio")
     }
 
     fun triggerSpin() {
@@ -113,7 +112,6 @@ fun SlotsTrapGameScreen(
 
         scope.launch {
             val nextSpinNumber = spinsUsed + 1
-            // Animación rápida de rodillos girando
             repeat(12) {
                 reel1 = symbols.random()
                 reel2 = symbols.random()
@@ -124,7 +122,6 @@ fun SlotsTrapGameScreen(
             spinsUsed = nextSpinNumber
             bonusChips = (bonusChips - 1).coerceAtLeast(0)
 
-            // Lógica pedagógica del algoritmo del casino según el número de tiro
             when (nextSpinNumber) {
                 1, 2 -> {
                     // ETAPA 1: Gancho Inicial (Dopamina + Rollover falso)
@@ -132,9 +129,9 @@ fun SlotsTrapGameScreen(
                     reel2 = "🍒"
                     reel3 = "🍒"
                     fakeLockedWinnings += 3500
-                    rouletteResultBadge = "Salió $selectedRouletteBet (Premio bloqueado por Rollover)"
+                    spinStatusBanner = "🍒 ¡3 CEREZAS! +$3.500 (Retenidos por Rollover x40)"
                     algorithmStageTitle = "Etapa 1 (Tiro $nextSpinNumber/10): El Gancho Inicial"
-                    algorithmExplanation = "¡El algoritmo te dejó ganar a propósito! Te acreditó $$fakeLockedWinnings 'bonificados', pero la letra chica exige apostar 40 veces más (Rollover) para poder retirarlos."
+                    algorithmExplanation = "¡El algoritmo te dejó sacar 3 iguales a propósito! Te acreditó $$fakeLockedWinnings 'bonificados', pero la letra chica exige apostar 40 veces más (Rollover) para poder retirarlos."
                 }
                 3, 4, 5, 6 -> {
                     // ETAPA 2: Casi-Acierto Programado (Near-Miss Effect)
@@ -142,9 +139,9 @@ fun SlotsTrapGameScreen(
                     reel1 = pairSymbol
                     reel2 = pairSymbol
                     reel3 = "🍋"
-                    rouletteResultBadge = if (selectedRouletteBet == "29 Negro") "Salió 28 Rojo (¡Al lado del 29!)" else "Salió 00 Banca"
+                    spinStatusBanner = "⚡ ¡CASI! Salieron dos $pairSymbol y el 3.° frenó al lado"
                     algorithmStageTitle = "Etapa 2 (Tiro $nextSpinNumber/10): Efecto 'Casi Ganás' (Near-Miss)"
-                    algorithmExplanation = "Salieron dos $pairSymbol iguales y el tercero frenó a un milímetro, mientras en la ruleta salió el número de al lado. Está programado para engañar a tu cerebro y que no puedas frenar."
+                    algorithmExplanation = "Salieron dos $pairSymbol iguales y el tercer rodillo frenó a un milímetro. No es mala suerte: está programado para disparar dopamina en tu cerebro y que no puedas soltar el teléfono."
                 }
                 else -> {
                     // ETAPA 3: Vaciado Estadístico (La Casa Siempre Gana)
@@ -152,9 +149,9 @@ fun SlotsTrapGameScreen(
                     reel2 = "🔔"
                     reel3 = "🍒"
                     fakeLockedWinnings = (fakeLockedWinnings - 1800).coerceAtLeast(0)
-                    rouletteResultBadge = "Gana la Banca (Ventaja Matemática)"
+                    spinStatusBanner = "📉 Sin combinación • El RTP (<95%) consume tu saldo"
                     algorithmStageTitle = "Etapa 3 (Tiro $nextSpinNumber/10): Vaciado Estadístico"
-                    algorithmExplanation = "A medida que sumás tiros, el Retorno al Jugador (RTP < 95%) garantiza matemáticamente que el casino recupere el bono y te empuje a cargar plata de tu bolsillo."
+                    algorithmExplanation = "A medida que sumás tiros, el Retorno al Jugador (RTP < 95%) garantiza matemáticamente que el casino recupere el bono y te empuje a cargar plata de tu propio bolsillo."
                 }
             }
 
@@ -163,7 +160,6 @@ fun SlotsTrapGameScreen(
         }
     }
 
-    // Sensor Acelerómetro: Agitar o inclinar el celular activa la tirada
     val sensorReading by rememberAccelerometerMonitor(
         enabled = !isSpinning && spinsUsed < maxSpins,
         shakeThresholdG = 1.42f,
@@ -186,7 +182,7 @@ fun SlotsTrapGameScreen(
                 .verticalScroll(scrollState),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 1. CABECERA Y SENSOR ACTIVO
+            // 1. CABECERA CORREGIDA (Con weight(1f) y badge de Fichas en una sola línea)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -197,7 +193,10 @@ fun SlotsTrapGameScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     IconButton(
                         onClick = onBackToHub,
                         modifier = Modifier.size(32.dp)
@@ -209,109 +208,128 @@ fun SlotsTrapGameScreen(
                         )
                     }
                     Spacer(modifier = Modifier.width(6.dp))
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Juego 3: La Trampa del Jackpot",
+                            text = "Juego 3: Tragamonedas",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.5.sp,
-                            color = Color.White
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "Agitá el celu para girar • ${"%.2f".format(sensorReading.gForce)} G",
+                            text = "Agitá para girar • ${"%.2f".format(sensorReading.gForce)} G",
                             fontFamily = SpaceGrotesk,
                             fontSize = 11.5.sp,
-                            color = BordeCyan
+                            color = BordeCyan,
+                            maxLines = 1
                         )
                     }
                 }
 
+                Spacer(modifier = Modifier.width(8.dp))
+
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
-                        .background(BordeMagenta.copy(alpha = 0.2f))
+                        .background(BordeMagenta.copy(alpha = 0.22f))
                         .border(1.dp, BordeMagenta, RoundedCornerShape(10.dp))
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Fichas: $bonusChips/$maxSpins",
+                        text = "🪙 Fichas: $bonusChips/$maxSpins",
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.5.sp,
-                        color = Color.White
+                        color = Color.White,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 2. SELECTOR DE RULETA (29 NEGRO / ROJO / VERDE - IDEA DE EVELYN Y LUCÍA)
+            // 2. TABLERO DE ESTADO DE FICHAS Y SALDO RETENIDO POR ROLLOVER
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(BurbujaChat.copy(alpha = 0.85f))
+                    .background(BurbujaChat.copy(alpha = 0.90f))
                     .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
-                    .padding(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(12.dp)
             ) {
-                Text(
-                    text = "1. Elegí tu ficha de Ruleta y agitá el teléfono",
-                    fontFamily = SpaceGrotesk,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 13.sp,
-                    color = TextoSecundario
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    rouletteOptions.forEach { option ->
-                        val isSelected = selectedRouletteBet == option
-                        val chipColor = when {
-                            option.contains("Negro") -> Color(0xFF2B3040)
-                            option.contains("Rojo") -> RojoAlerta.copy(alpha = 0.75f)
-                            else -> VerdeExito.copy(alpha = 0.75f)
-                        }
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(38.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(chipColor)
-                                .border(
-                                    width = if (isSelected) 2.dp else 1.dp,
-                                    color = if (isSelected) BordeCyan else Color.White.copy(alpha = 0.2f),
-                                    shape = RoundedCornerShape(10.dp)
-                                )
-                                .clickable {
-                                    SoundManager.playClick()
-                                    selectedRouletteBet = option
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = option,
-                                fontFamily = SpaceGrotesk,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.5.sp,
-                                color = Color.White
-                            )
-                        }
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF121622))
+                            .border(1.dp, BordeCyan.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                            .padding(vertical = 8.dp, horizontal = 10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "FICHAS RESTANTES",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp,
+                            color = BordeCyan
+                        )
+                        Text(
+                            text = "$bonusChips de $maxSpins tiros",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color.White,
+                            maxLines = 1
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF121622))
+                            .border(1.dp, BordeMagenta.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                            .padding(vertical = 8.dp, horizontal = 10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "BONO RETENIDO (ROLLOVER)",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp,
+                            color = BordeMagenta,
+                            maxLines = 1
+                        )
+                        Text(
+                            text = "$$fakeLockedWinnings 🔒",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color.White,
+                            maxLines = 1
+                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                Text(
-                    text = rouletteResultBadge,
-                    fontFamily = SpaceGrotesk,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 12.sp,
-                    color = BordeCyan
+                // Barra visual de fichas disponibles
+                LinearProgressIndicator(
+                    progress = { bonusChips.toFloat() / maxSpins.toFloat() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    color = if (bonusChips > 3) BordeCyan else RojoAlerta,
+                    trackColor = Color.White.copy(alpha = 0.12f)
                 )
             }
 
@@ -336,7 +354,7 @@ fun SlotsTrapGameScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "🎰 CASINO ALGORÍTMICO (MODO RADIOGRAFÍA)",
+                    text = "🎰 TRAGAMONEDAS ALGORÍTMICO (3 EMOJIS)",
                     fontFamily = SpaceGrotesk,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp,
@@ -350,27 +368,38 @@ fun SlotsTrapGameScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                     listOf(reel1, reel2, reel3).forEach { symbol ->
+                    listOf(reel1, reel2, reel3).forEach { symbol ->
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(92.dp)
+                                .height(96.dp)
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(Color(0xFF0B0E14))
                                 .border(
-                                    width = 1.5.dp,
-                                    color = if (isSpinning) BordeMagenta else BordeCyan.copy(alpha = 0.6f),
+                                    width = 1.8.dp,
+                                    color = if (isSpinning) BordeMagenta else BordeCyan.copy(alpha = 0.7f),
                                     shape = RoundedCornerShape(16.dp)
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = symbol,
-                                fontSize = 42.sp
+                                fontSize = 44.sp
                             )
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = spinStatusBanner,
+                    fontFamily = SpaceGrotesk,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.5.sp,
+                    color = VerdeExito,
+                    textAlign = TextAlign.Center
+                )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -390,7 +419,10 @@ fun SlotsTrapGameScreen(
                             .clickable(enabled = !isSpinning) { triggerSpin() },
                         contentAlignment = Alignment.Center
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp)
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Vibration,
                                 contentDescription = null,
@@ -398,11 +430,12 @@ fun SlotsTrapGameScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (isSpinning) "Girando algoritmo..." else "¡AGITÁ EL CELULAR O TOCÁ PARA GIRAR! (${maxSpins - spinsUsed} tiros)",
+                                text = if (isSpinning) "Girando rodillos..." else "¡AGITÁ EL CELULAR O TOCÁ PARA GIRAR! ($bonusChips fichas)",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.5.sp,
-                                color = Color.White
+                                fontSize = 13.sp,
+                                color = Color.White,
+                                maxLines = 1
                             )
                         }
                     }

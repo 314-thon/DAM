@@ -34,7 +34,7 @@ object GameScenariosRepository {
                     )
                 ),
                 safeOption = DecisionOption(
-                    text = "Ir al fulbito con los pibes (-$2.500 ahorro | +15 Bienestar)",
+                    text = "Ir al fulbito con los pibes y tomar algo",
                     isSafe = true,
                     penaltyAmount = 0,
                     savingsDelta = -2500,
@@ -43,7 +43,7 @@ object GameScenariosRepository {
                     educationalFeedback = "Invertir en planes reales y deporte con amigos suma bienestar real sin riesgo de adicción."
                 ),
                 alternativeOption = DecisionOption(
-                    text = "Cuidar el ahorro y rechazar la apuesta ($0 gasto)",
+                    text = "Cuidar el ahorro y rechazar la apuesta",
                     isSafe = true,
                     penaltyAmount = 0,
                     savingsDelta = 0,
@@ -86,7 +86,7 @@ object GameScenariosRepository {
                     )
                 ),
                 safeOption = DecisionOption(
-                    text = "Devolver ya los $72.000 a mamá (Trofeo 100% Honrado)",
+                    text = "Devolverle ya mismo los $72.000 de más a mamá",
                     isSafe = true,
                     penaltyAmount = 0,
                     savingsDelta = 2000,
@@ -95,12 +95,13 @@ object GameScenariosRepository {
                     educationalFeedback = "¡100% Honrado! Devolviste la plata al instante y tu mamá te regaló $2.000 extra por tu honestidad."
                 ),
                 alternativeOption = DecisionOption(
-                    text = "Pagar los apuntes y avisarle a mamá que se equivocó",
+                    text = "Pagar los apuntes y transferirle el resto a mamá avisándole del error",
                     isSafe = true,
                     penaltyAmount = 0,
-                    savingsDelta = 0,
-                    wellbeingDelta = 12,
-                    educationalFeedback = "Frenaste la tentación de usar dinero ajeno para apostar."
+                    savingsDelta = 1000,
+                    wellbeingDelta = 15,
+                    achievementId = AchievementsCatalog.ID_HONRADO_100,
+                    educationalFeedback = "Actuaste con honestidad, devolviste la diferencia y frenaste la tentación de usar dinero familiar."
                 ),
                 riskyOption = DecisionOption(
                     text = "Apostar los $72.000 sobrantes para duplicarlos rápido",
@@ -138,7 +139,7 @@ object GameScenariosRepository {
                     )
                 ),
                 safeOption = DecisionOption(
-                    text = "Asegurar la carga de la SUBE (-$2.500 ahorro | +12 Bienestar)",
+                    text = "Asegurar la carga de la SUBE para toda la semana",
                     isSafe = true,
                     penaltyAmount = 0,
                     savingsDelta = -2500,
@@ -195,6 +196,7 @@ object GameScenariosRepository {
                     penaltyAmount = 0,
                     savingsDelta = 0,
                     wellbeingDelta = 15,
+                    achievementId = AchievementsCatalog.ID_EVITANDO_TENTACION,
                     educationalFeedback = "Los influencers cobran por mostrar ganancias falsas con cuentas demo configuradas para ganar."
                 ),
                 alternativeOption = DecisionOption(
@@ -242,7 +244,7 @@ object GameScenariosRepository {
                     )
                 ),
                 safeOption = DecisionOption(
-                    text = "Sumar los $10.000 a mis ahorros (+$10.000 ahorro | +12 Bienestar)",
+                    text = "Sumar los $10.000 del premio a mis ahorros",
                     isSafe = true,
                     penaltyAmount = 0,
                     savingsDelta = 10000,
@@ -250,7 +252,7 @@ object GameScenariosRepository {
                     educationalFeedback = "¡Excelente! El premio a tu esfuerzo quedó resguardado en tus ahorros reales."
                 ),
                 alternativeOption = DecisionOption(
-                    text = "Ir al cine con amigos y ahorrar el resto (+$6.500 ahorro | +18 Bienestar)",
+                    text = "Ir al cine con amigos y ahorrar el resto",
                     isSafe = true,
                     penaltyAmount = 0,
                     savingsDelta = 6500,
@@ -296,7 +298,7 @@ object GameScenariosRepository {
                     )
                 ),
                 safeOption = DecisionOption(
-                    text = "Recordarle a Mati que solo suben capturas cuando ganan (+16 Bienestar)",
+                    text = "Recordarle a Mati que en el grupo solo suben capturas cuando ganan",
                     isSafe = true,
                     penaltyAmount = 0,
                     savingsDelta = 0,
@@ -347,7 +349,7 @@ object GameScenariosRepository {
                     )
                 ),
                 safeOption = DecisionOption(
-                    text = "No pagar, bloquear y hablar con un adulto / Línea 141 (+20 Bienestar)",
+                    text = "No pagar, bloquear y hablar con mi familia o la Línea 141",
                     isSafe = true,
                     penaltyAmount = 0,
                     savingsDelta = 0,
@@ -355,7 +357,7 @@ object GameScenariosRepository {
                     educationalFeedback = "Ante una extorsión de una red ilegal de juego, jamás hay que transferir: hablar con tu familia o el 141 corta el chantaje."
                 ),
                 alternativeOption = DecisionOption(
-                    text = "Guardar capturas de prueba y pedir orientación en Boti / Escuela",
+                    text = "Guardar capturas de prueba y pedir orientación en Boti o la escuela",
                     isSafe = true,
                     penaltyAmount = 0,
                     savingsDelta = 0,
