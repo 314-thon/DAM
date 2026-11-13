@@ -129,9 +129,9 @@ fun SlotsTrapGameScreen(
                     reel2 = "🍒"
                     reel3 = "🍒"
                     fakeLockedWinnings += 3500
-                    spinStatusBanner = "🍒 ¡3 CEREZAS! +$3.500 (Retenidos por Rollover x40)"
+                    spinStatusBanner = "🍒 ¡3 CEREZAS! +$3.500 (Bono trabado: te piden apostar x40)"
                     algorithmStageTitle = "Etapa 1 (Tiro $nextSpinNumber/10): El Gancho Inicial"
-                    algorithmExplanation = "¡El algoritmo te dejó sacar 3 iguales a propósito! Te acreditó $$fakeLockedWinnings 'bonificados', pero la letra chica exige apostar 40 veces más (Rollover) para poder retirarlos."
+                    algorithmExplanation = "¡El algoritmo te dejó sacar 3 iguales a propósito! Te acreditó $$fakeLockedWinnings 'de regalo', pero la letra chica te obliga a apostar 40 veces ese monto antes de poder retirar un peso."
                 }
                 3, 4, 5, 6 -> {
                     // ETAPA 2: Casi-Acierto Programado (Near-Miss Effect)
@@ -140,7 +140,7 @@ fun SlotsTrapGameScreen(
                     reel2 = pairSymbol
                     reel3 = "🍋"
                     spinStatusBanner = "⚡ ¡CASI! Salieron dos $pairSymbol y el 3.° frenó al lado"
-                    algorithmStageTitle = "Etapa 2 (Tiro $nextSpinNumber/10): Efecto 'Casi Ganás' (Near-Miss)"
+                    algorithmStageTitle = "Etapa 2 (Tiro $nextSpinNumber/10): Efecto 'Casi Ganás'"
                     algorithmExplanation = "Salieron dos $pairSymbol iguales y el tercer rodillo frenó a un milímetro. No es mala suerte: está programado para disparar dopamina en tu cerebro y que no puedas soltar el teléfono."
                 }
                 else -> {
@@ -149,9 +149,9 @@ fun SlotsTrapGameScreen(
                     reel2 = "🔔"
                     reel3 = "🍒"
                     fakeLockedWinnings = (fakeLockedWinnings - 1800).coerceAtLeast(0)
-                    spinStatusBanner = "📉 Sin combinación • El RTP (<95%) consume tu saldo"
-                    algorithmStageTitle = "Etapa 3 (Tiro $nextSpinNumber/10): Vaciado Estadístico"
-                    algorithmExplanation = "A medida que sumás tiros, el Retorno al Jugador (RTP < 95%) garantiza matemáticamente que el casino recupere el bono y te empuje a cargar plata de tu propio bolsillo."
+                    spinStatusBanner = "📉 Sin premio • La máquina está programada para que pierdas"
+                    algorithmStageTitle = "Etapa 3 (Tiro $nextSpinNumber/10): La matemática en tu contra"
+                    algorithmExplanation = "En muchas máquinas modernas, acertar la combinación máxima tiene una probabilidad de 1 en 50 millones o más. Para ponerlo en perspectiva, es mucho más probable que te caiga un rayo (1 en 1 millón al año) o ganar la lotería nacional."
                 }
             }
 
@@ -301,7 +301,7 @@ fun SlotsTrapGameScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "BONO RETENIDO (ROLLOVER)",
+                            text = "BONO TRABADO (NO RETIRABLE)",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 10.sp,

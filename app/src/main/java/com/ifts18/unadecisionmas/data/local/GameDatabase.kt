@@ -30,6 +30,8 @@ data class SavedGameEntity(
     val incorrectDecisionsCount: Int,
     val totalDecisionTimeMillis: Long,
     val serializedHistory: String,
+    val betMomMoneyOnTuesday: Boolean = false,
+    val serializedSessionAchievements: String = "",
     val updatedAt: Long = System.currentTimeMillis()
 ) {
     companion object {
@@ -147,7 +149,7 @@ interface GameDao {
         AchievementEntity::class,
         LocalScoreEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

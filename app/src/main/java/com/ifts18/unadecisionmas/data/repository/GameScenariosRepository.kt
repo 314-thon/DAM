@@ -106,7 +106,7 @@ object GameScenariosRepository {
                 riskyOption = DecisionOption(
                     text = "Apostar los $72.000 sobrantes para duplicarlos rápido",
                     isSafe = false,
-                    penaltyAmount = 12000,
+                    penaltyAmount = 72000,
                     savingsDelta = -8000,
                     wellbeingDelta = -20,
                     educationalFeedback = "Usar plata familiar por error pensando 'la duplico y la devuelvo' es una de las causas más graves de crisis en hogares."
@@ -116,7 +116,7 @@ object GameScenariosRepository {
                 pedagogicalFocus = "Visibilizar el riesgo de apostar dinero familiar o destinado a estudios bajo la ilusión de 'ganar y devolver'."
             ),
 
-            // Miércoles: La plata de la SUBE y la falacia de la racha (Idea de Evelyn Gaitán)
+            // Miércoles: La plata de la SUBE y el mito de la racha (Idea de Evelyn Gaitán)
             GameScenario(
                 dayIndex = 2,
                 dayName = "Miércoles",
@@ -164,7 +164,7 @@ object GameScenariosRepository {
                 ),
                 timeoutPenalty = 3000,
                 decisionTimeSeconds = 25,
-                pedagogicalFocus = "Cuestionar la falacia del jugador y proteger el dinero de gastos esenciales como el transporte."
+                pedagogicalFocus = "Cuestionar el mito de la racha y proteger el dinero de gastos esenciales como el transporte."
             ),
 
             // Jueves: Préstamo inmediato e Influencer vendehumo (Idea de Lucía Pobeda + Sensor)

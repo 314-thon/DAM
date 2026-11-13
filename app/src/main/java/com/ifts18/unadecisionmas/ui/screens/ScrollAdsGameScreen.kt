@@ -17,6 +17,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,19 +28,30 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.outlined.AddBox
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -52,6 +64,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -70,8 +83,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ifts18.unadecisionmas.R
@@ -106,11 +123,41 @@ private data class InvasiveAdSpec(
     val accentColor: Color
 )
 
+private data class IgStoryItem(
+    val handle: String,
+    val avatarResId: Int,
+    val isOwnStory: Boolean = false
+)
+
+private data class IgSuggestionItem(
+    val displayName: String,
+    val handle: String,
+    val avatarResId: Int
+)
+
+private data class IgFeedPostItem(
+    val id: Int,
+    val handle: String,
+    val subLabel: String,
+    val isVerified: Boolean,
+    val avatarResId: Int,
+    val audioBadge: String,
+    val likesBase: Int,
+    val commentsCount: Int,
+    val sharesCount: Int,
+    val likedByHandle: String,
+    val likedOthersCount: String,
+    val caption: String,
+    val hashtags: String,
+    val timeAgo: String,
+    val visualTheme: Int
+)
+
 /**
  * JUEGO 2: "Scroll sin Caer"
- * El jugador debe leer/scrollear un apunte escolar vectorizado de principio a fin.
- * A mitad del scroll saltan posts patrocinados de Instagram con imágenes de influencers,
- * préstamos de $20.000 y casinos que bloquean la lectura. Para destruirlos debe AGITAR EL TELÉFONO.
+ * El jugador scrollea su feed de Instagram en modo oscuro de principio a fin.
+ * A mitad del scroll saltan posts patrocinados de influencers, préstamos de $20.000
+ * y casinos que bloquean la pantalla. Para destruirlos debe AGITAR EL TELÉFONO.
  */
 @Composable
 fun ScrollAdsGameScreen(
@@ -122,6 +169,122 @@ fun ScrollAdsGameScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+
+    val igStories = remember {
+        listOf(
+            IgStoryItem(handle = "Tu historia", avatarResId = R.drawable.avatar_1, isOwnStory = true),
+            IgStoryItem(handle = "valen.musica", avatarResId = R.drawable.avatar_2),
+            IgStoryItem(handle = "lauti_bici", avatarResId = R.drawable.avatar_3),
+            IgStoryItem(handle = "camila.art", avatarResId = R.drawable.avatar_4),
+            IgStoryItem(handle = "tomas.voley", avatarResId = R.drawable.avatar_5),
+            IgStoryItem(handle = "mora.sketch", avatarResId = R.drawable.avatar_4),
+            IgStoryItem(handle = "fede_ok", avatarResId = R.drawable.avatar_1)
+        )
+    }
+
+    val igSuggestions = remember {
+        listOf(
+            IgSuggestionItem("Julieta Paz", "julipaz.ok", R.drawable.avatar_4),
+            IgSuggestionItem("Mate & Código", "mateycodigo", R.drawable.avatar_3),
+            IgSuggestionItem("Bici Urbana BA", "biciurbanaba", R.drawable.avatar_5),
+            IgSuggestionItem("Cine Club 5B", "cineclub.5b", R.drawable.avatar_1)
+        )
+    }
+
+    val igPosts = remember {
+        listOf(
+            IgFeedPostItem(
+                id = 1,
+                handle = "club.barrio_sur",
+                subLabel = "Audio original • Torneo 5.° Año",
+                isVerified = true,
+                avatarResId = R.drawable.avatar_3,
+                audioBadge = "REEL • 0:24",
+                likesBase = 1284,
+                commentsCount = 43,
+                sharesCount = 19,
+                likedByHandle = "lauti_bici",
+                likedOthersCount = "1.283",
+                caption = "Hoy se juega la semi en la cancha del club con toda la banda del curso, cero excusas ⚽🔥",
+                hashtags = "#FutsalBarrioSur #PlanReal #SinTimba",
+                timeAgo = "Hace 2 horas",
+                visualTheme = 1
+            ),
+            IgFeedPostItem(
+                id = 2,
+                handle = "valen.musica",
+                subLabel = "Sugerencia para ti",
+                isVerified = false,
+                avatarResId = R.drawable.avatar_2,
+                audioBadge = "Lo-Fi Study Mix",
+                likesBase = 892,
+                commentsCount = 27,
+                sharesCount = 64,
+                likedByHandle = "camila.art",
+                likedOthersCount = "891",
+                caption = "Armé playlist nueva para meterle al TP sin distraerse ni caer en notificaciones truchas 📚🎧",
+                hashtags = "#MusicaParaEstudiar #Playlist5B #ModoFocus",
+                timeAgo = "Hace 4 horas",
+                visualTheme = 2
+            ),
+            IgFeedPostItem(
+                id = 3,
+                handle = "dato.claro",
+                subLabel = "Educación Digital • Carrusel",
+                isVerified = true,
+                avatarResId = R.drawable.avatar_1,
+                audioBadge = "1 / 4",
+                likesBase = 3410,
+                commentsCount = 118,
+                sharesCount = 405,
+                likedByHandle = "fede_ok",
+                likedOthersCount = "3.409",
+                caption = "Cuando un influencer muestra un retiro de $400k casi siempre usa 'cuenta demo' con saldo ficticio. Nadie sube las 20 pérdidas de la semana.",
+                hashtags = "#OjoConElDemo #VentajaDeLaCasa #DatoReal",
+                timeAgo = "Hace 6 horas",
+                visualTheme = 3
+            ),
+            IgFeedPostItem(
+                id = 4,
+                handle = "camila.art",
+                subLabel = "Palermo, Buenos Aires",
+                isVerified = false,
+                avatarResId = R.drawable.avatar_4,
+                audioBadge = "Acústico • Café y Trazos",
+                likesBase = 645,
+                commentsCount = 19,
+                sharesCount = 12,
+                likedByHandle = "valen.musica",
+                likedOthersCount = "644",
+                caption = "Lo mejor de cuidar tus ahorros es poder disfrutar salidas reales, merienda con amigas y cero deuda en el bolsillo ☕✏️",
+                hashtags = "#SalidasReales #Sketchbook #Cuidate",
+                timeAgo = "Hace 9 horas",
+                visualTheme = 4
+            ),
+            IgFeedPostItem(
+                id = 5,
+                handle = "espacio.joven141",
+                subLabel = "Información Pública • CABA",
+                isVerified = true,
+                avatarResId = R.drawable.ic_boti,
+                audioBadge = "Recurso Gratuito 24/7",
+                likesBase = 4920,
+                commentsCount = 95,
+                sharesCount = 812,
+                likedByHandle = "tomas.voley",
+                likedOthersCount = "4.919",
+                caption = "Si algún compañero la está pasando mal con apuestas o préstamos de cajeros, hablar a tiempo cambia todo. Línea 141 y Boti atienden gratis 24/7 🛡️",
+                hashtags = "#Linea141 #BotiTeAyuda #JuegoLimpio",
+                timeAgo = "Hace 1 día",
+                visualTheme = 5
+            )
+        )
+    }
+
+    val likedPostIds = remember { mutableStateMapOf<Int, Boolean>() }
+    val savedPostIds = remember { mutableStateMapOf<Int, Boolean>() }
+    val followedHandles = remember { mutableStateMapOf<String, Boolean>() }
+    val dismissedSuggestionHandles = remember { mutableStateMapOf<String, Boolean>() }
 
     val adsCatalog = remember {
         listOf(
@@ -136,7 +299,7 @@ fun ScrollAdsGameScreen(
                 imageOverlayHeadline = "+$450.000 EN 10 MINUTOS 💪",
                 imageOverlaySubtext = "«Empecé con $2.000 entre serie y serie en el gym»",
                 likesCountText = "Les gusta a lucas_09 y 18.420 personas más",
-                bodyText = "Bro, dejá de estudiar. Yo generé mi riqueza desde el gimnasio apostando $2.000. El primer tiro tiene ganancia asegurada.",
+                bodyText = "Bro, dejá de scrollear gratis. Yo generé mi riqueza desde el gimnasio apostando $2.000. El primer tiro tiene ganancia asegurada.",
                 hashtags = "#FitnessMillionaire #CasinoVIP #GanarFacil #BonoGratis",
                 trapButtonText = "Instalar App y Apostar $4.000",
                 accentColor = BordeMagenta
@@ -234,7 +397,7 @@ fun ScrollAdsGameScreen(
         }
     }
 
-    // Disparar anuncio invasivo según el progreso de scroll del PDF vectorizado
+    // Disparar anuncio invasivo según el progreso de scroll del feed de Instagram
     LaunchedEffect(scrollFraction) {
         if (activeAd == null) {
             val nextAd = adsCatalog.firstOrNull { ad ->
@@ -278,7 +441,7 @@ fun ScrollAdsGameScreen(
                 .fillMaxSize()
                 .padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
-            // 1. HEADER CON PROGRESO DEL APUNTE Y TELEMETRÍA DEL SENSOR
+            // 1. HEADER CON PROGRESO DEL FEED Y TELEMETRÍA DEL SENSOR
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -313,7 +476,7 @@ fun ScrollAdsGameScreen(
                                 color = Color.White
                             )
                             Text(
-                                text = "Scrolleá el PDF • Agitá el celu si salta spam",
+                                text = "Scrolleá el feed • Agitá el celu si salta spam",
                                 fontFamily = SpaceGrotesk,
                                 fontSize = 11.5.sp,
                                 color = BordeCyan
@@ -366,14 +529,14 @@ fun ScrollAdsGameScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Barra de progreso de lectura del PDF y estado del Acelerómetro en vivo
+                // Barra de progreso de recorrido del feed y estado del Acelerómetro en vivo
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Lectura del PDF: ${(animatedReadProgress * 100).toInt()}%",
+                        text = "Recorrido del Feed: ${(animatedReadProgress * 100).toInt()}%",
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 11.5.sp,
@@ -402,100 +565,72 @@ fun ScrollAdsGameScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // 2. VISOR DE DOCUMENTO / PDF VECTORIZADO ESCOLAR (SCROLLEABLE)
+            // 2. REPLICA DE FEED DE INSTAGRAM EN MODO OSCURO (SCROLLEABLE)
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFF060709))
+                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(18.dp))
                     .verticalScroll(
                         state = scrollState,
                         enabled = activeAd == null // Se bloquea el scroll cuando salta una publicidad invasiva
-                    ),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    )
             ) {
-                VectorPdfPageCard(
-                    pageNumber = 1,
-                    totalPages = 6,
-                    tag = "APUNTE DE MATEMÁTICA • 5.° AÑO",
-                    title = "1. ¿Por qué las casas de apuestas nunca pierden?",
-                    bulletPoints = listOf(
-                        "Toda plataforma de apuestas aplica un margen matemático llamado 'Ventaja de la Casa' (House Edge).",
-                        "En una ruleta o en cuotas deportivas, la suma de probabilidades implícitas supera el 100%.",
-                        "Cuanto más tiempo jugás, más se acerca tu saldo real a la pérdida estadística programada."
-                    ),
-                    diagramType = 1
-                )
+                IgFeedTopBar(playerName = playerName)
 
-                VectorPdfPageCard(
-                    pageNumber = 2,
-                    totalPages = 6,
-                    tag = "PSICOLOGÍA DEL CONSUMO • PUBLICIDAD",
-                    title = "2. El truco de los Influencers y las 'Cuentas Demo'",
-                    bulletPoints = listOf(
-                        "Muchos creadores promocionan casinos ilegales mostrando supuestos retiros millonarios.",
-                        "Esas capturas se graban con 'cuentas demo' cargadas con saldo ficticio por el propio casino.",
-                        "El influencer cobra una comisión por cada adolescente que se registra y pierde sus ahorros."
-                    ),
-                    diagramType = 2
-                )
+                IgStoriesStrip(stories = igStories)
 
-                VectorPdfPageCard(
-                    pageNumber = 3,
-                    totalPages = 6,
-                    tag = "ECONOMÍA COTIDIANA • BILLETERAS",
-                    title = "3. Fricción Cero y Préstamos Instantáneos",
-                    bulletPoints = listOf(
-                        "Pagar con huella o QR anestesia la percepción de pérdida frente al billete físico.",
-                        "Los 'cajeros de WhatsApp' y apps de crédito rápido ofrecen préstamos para que apuestes plata que no tenés.",
-                        "Nunca uses el dinero de la SUBE, apuntes o transferencias familiares para intentar 'duplicar'."
-                    ),
-                    diagramType = 3
-                )
+                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
-                VectorPdfPageCard(
-                    pageNumber = 4,
-                    totalPages = 6,
-                    tag = "NEUROCIENCIA • DOPAMINA",
-                    title = "4. El Efecto 'Casi Ganás' (Near-Miss)",
-                    bulletPoints = listOf(
-                        "Cuando salen dos símbolos iguales y el tercero pasa rozando, tu cerebro libera dopamina como si hubieras ganado.",
-                        "En los casinos digitales ese 'casi acierto' no es casualidad: está programado por software para que sigas tirando.",
-                        "Reconocer este estímulo te permite cortar a tiempo."
-                    ),
-                    diagramType = 1
-                )
+                igPosts.forEachIndexed { index, post ->
+                    IgFeedPostCard(
+                        post = post,
+                        isLiked = likedPostIds[post.id] == true,
+                        isSaved = savedPostIds[post.id] == true,
+                        isFollowed = followedHandles[post.handle] == true,
+                        enabled = activeAd == null,
+                        onToggleLike = {
+                            SoundManager.playClick()
+                            likedPostIds[post.id] = !(likedPostIds[post.id] == true)
+                        },
+                        onToggleSave = {
+                            SoundManager.playClick()
+                            savedPostIds[post.id] = !(savedPostIds[post.id] == true)
+                        },
+                        onToggleFollow = {
+                            SoundManager.playClick()
+                            followedHandles[post.handle] = !(followedHandles[post.handle] == true)
+                        }
+                    )
 
-                VectorPdfPageCard(
-                    pageNumber = 5,
-                    totalPages = 6,
-                    tag = "PREVENCIÓN ESCOLAR • REDES",
-                    title = "5. El sesgo de las capturas en el grupo del curso",
-                    bulletPoints = listOf(
-                        "En los grupos de WhatsApp solo se comparten los tickets ganadores (1 de cada 20).",
-                        "Nadie sube las 19 recargas perdidas de la semana. Eso genera la falsa sensación de que 'todos ganan menos vos'.",
-                        "Invertir en planes reales (fútbol, cine, salidas) construye bienestar duradero."
-                    ),
-                    diagramType = 2
-                )
+                    if (index == 1) {
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+                        IgSuggestionsCarousel(
+                            suggestions = igSuggestions,
+                            followedHandles = followedHandles,
+                            dismissedHandles = dismissedSuggestionHandles,
+                            enabled = activeAd == null,
+                            onToggleFollow = { handle ->
+                                SoundManager.playClick()
+                                followedHandles[handle] = !(followedHandles[handle] == true)
+                            },
+                            onDismiss = { handle ->
+                                SoundManager.playClick()
+                                dismissedSuggestionHandles[handle] = true
+                            }
+                        )
+                    }
 
-                VectorPdfPageCard(
-                    pageNumber = 6,
-                    totalPages = 6,
-                    tag = "RESUMEN FINAL • CANALES DE APOYO",
-                    title = "6. Conclusión del Apunte y Cierre de Lectura",
-                    bulletPoints = listOf(
-                        "¡Llegaste a la última página del documento esquivando las trampas publicitarias!",
-                        "Si algún amigo o compañero está pasando por esto, la Línea 141 y Boti atienden gratis y de forma confidencial 24/7.",
-                        "Tocá el botón de abajo para entregar la lectura y registrar tu puntaje en el Ranking."
-                    ),
-                    diagramType = 3
-                )
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+                }
 
-                // Botón final al terminar de scrollear las 6 páginas
+                // Botón final al llegar al final del feed esquivando los anuncios
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp)
+                        .padding(horizontal = 14.dp, vertical = 16.dp)
                         .height(54.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
@@ -514,16 +649,16 @@ fun ScrollAdsGameScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Entregar Apunte Leído y Ver Puntaje",
+                            text = "Terminar Feed sin Caer y Ver Puntaje",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
+                            fontSize = 15.5.sp,
                             color = Color.Black
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(14.dp))
             }
         }
 
@@ -886,157 +1021,792 @@ fun ScrollAdsGameScreen(
     }
 }
 
+private val IgStoryRingGradient = Brush.linearGradient(
+    listOf(Color(0xFFF58529), Color(0xFFDD2A7B), Color(0xFF8134AF), Color(0xFF515BD4))
+)
+
 /**
- * Página individual del PDF / Apunte escolar vectorizado con gráficos dibujados en Canvas.
+ * Barra superior estilo Instagram en modo oscuro (+, Instagram v, corazón).
  */
 @Composable
-private fun VectorPdfPageCard(
-    pageNumber: Int,
-    totalPages: Int,
-    tag: String,
-    title: String,
-    bulletPoints: List<String>,
-    diagramType: Int
+private fun IgFeedTopBar(playerName: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.AddBox,
+            contentDescription = "Crear",
+            tint = Color.White,
+            modifier = Modifier.size(23.dp)
+        )
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "Instagram",
+                fontFamily = SpaceGrotesk,
+                fontWeight = FontWeight.Bold,
+                fontSize = 19.sp,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.width(2.dp))
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+
+        Box(contentAlignment = Alignment.TopEnd) {
+            Icon(
+                imageVector = Icons.Default.FavoriteBorder,
+                contentDescription = "Notificaciones de $playerName",
+                tint = Color.White,
+                modifier = Modifier.size(23.dp)
+            )
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFFF3040))
+            )
+        }
+    }
+}
+
+/**
+ * Tira horizontal de Historias estilo Instagram con aro degradado y "Tu historia".
+ */
+@Composable
+private fun IgStoriesStrip(stories: List<IgStoryItem>) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(stories) { story ->
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.width(68.dp)
+            ) {
+                Box(contentAlignment = Alignment.BottomEnd) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .then(
+                                if (story.isOwnStory) {
+                                    Modifier.border(1.5.dp, Color.White.copy(alpha = 0.25f), CircleShape)
+                                } else {
+                                    Modifier.border(2.2.dp, IgStoryRingGradient, CircleShape)
+                                }
+                            )
+                            .padding(3.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = story.avatarResId),
+                            contentDescription = story.handle,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                        )
+                    }
+
+                    if (story.isOwnStory) {
+                        Box(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF0095F6))
+                                .border(2.dp, Color(0xFF060709), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(13.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(5.dp))
+
+                Text(
+                    text = story.handle,
+                    fontFamily = SpaceGrotesk,
+                    fontSize = 11.sp,
+                    color = if (story.isOwnStory) TextoSecundario else Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Publicación individual del feed de Instagram con cabecera, multimedia, barra social y caption.
+ */
+@Composable
+private fun IgFeedPostCard(
+    post: IgFeedPostItem,
+    isLiked: Boolean,
+    isSaved: Boolean,
+    isFollowed: Boolean,
+    enabled: Boolean,
+    onToggleLike: () -> Unit,
+    onToggleSave: () -> Unit,
+    onToggleFollow: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF151924))
-            .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(16.dp))
-            .padding(16.dp)
+            .background(Color(0xFF060709))
     ) {
-        // Cabecera estilo hoja de PDF académico
+        // Cabecera del post
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 9.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .border(1.5.dp, IgStoryRingGradient, CircleShape)
+                        .padding(2.dp)
+                ) {
+                    Image(
+                        painter = painterResource(id = post.avatarResId),
+                        contentDescription = post.handle,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(9.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = post.handle,
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (post.isVerified) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = "Verificado",
+                                tint = Color(0xFF3897F0),
+                                modifier = Modifier.size(13.dp)
+                            )
+                        }
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.MusicNote,
+                            contentDescription = null,
+                            tint = TextoSecundario,
+                            modifier = Modifier.size(11.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = post.subLabel,
+                            fontFamily = SpaceGrotesk,
+                            fontSize = 11.sp,
+                            color = TextoSecundario,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            if (isFollowed) Color.White.copy(alpha = 0.14f)
+                            else Color.Transparent
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = if (isFollowed) Color.White.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.45f),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .clickable(enabled = enabled) { onToggleFollow() }
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = if (isFollowed) "Siguiendo" else "Seguir",
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 11.5.sp,
+                        color = Color.White
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "Más opciones",
+                    tint = Color.White.copy(alpha = 0.78f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+
+        // Contenido visual del Post / Reel
+        IgPostVisualMedia(
+            theme = post.visualTheme,
+            audioBadge = post.audioBadge
+        )
+
+        // Barra de acciones + contadores
+        val displayLikes = if (isLiked) post.likesBase + 1 else post.likesBase
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 9.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable(enabled = enabled) { onToggleLike() }
+                ) {
+                    Icon(
+                        imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = "Me gusta",
+                        tint = if (isLiked) Color(0xFFFF3040) else Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "$displayLikes",
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                        color = Color.White
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.ChatBubbleOutline,
+                        contentDescription = "Comentarios",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${post.commentsCount}",
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                        color = Color.White
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Send,
+                        contentDescription = "Compartir",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${post.sharesCount}",
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                        color = Color.White
+                    )
+                }
+            }
+
+            Icon(
+                imageVector = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                contentDescription = "Guardar",
+                tint = Color.White,
+                modifier = Modifier
+                    .size(22.dp)
+                    .clickable(enabled = enabled) { onToggleSave() }
+            )
+        }
+
+        // Likes + Caption + Fecha
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
+        ) {
+            Text(
+                text = buildAnnotatedString {
+                    append("Les gusta a ")
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                        append(post.likedByHandle)
+                    }
+                    append(" y ")
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                        append("${post.likedOthersCount} personas más")
+                    }
+                },
+                fontFamily = SpaceGrotesk,
+                fontSize = 11.5.sp,
+                color = Color.White
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color.White)) {
+                        append("${post.handle}  ")
+                    }
+                    append(post.caption)
+                },
+                fontFamily = SpaceGrotesk,
+                fontSize = 12.5.sp,
+                lineHeight = 17.sp,
+                color = Color.White.copy(alpha = 0.92f)
+            )
+
+            Spacer(modifier = Modifier.height(3.dp))
+
+            Text(
+                text = post.hashtags,
+                fontFamily = SpaceGrotesk,
+                fontSize = 11.5.sp,
+                color = Color(0xFF70B5F9)
+            )
+
+            Spacer(modifier = Modifier.height(3.dp))
+
+            Text(
+                text = post.timeAgo,
+                fontFamily = SpaceGrotesk,
+                fontSize = 10.5.sp,
+                color = TextoSecundario
+            )
+        }
+    }
+}
+
+/**
+ * Pieza gráfica estilo Reel/Post de Instagram con ilustraciones vectoriales y botón de silencio.
+ */
+@Composable
+private fun IgPostVisualMedia(
+    theme: Int,
+    audioBadge: String
+) {
+    val bgColors = when (theme) {
+        1 -> listOf(Color(0xFF0A2E2A), Color(0xFF0D1B2A))
+        2 -> listOf(Color(0xFF28123D), Color(0xFF121629))
+        3 -> listOf(Color(0xFF141E30), Color(0xFF0B0F17))
+        4 -> listOf(Color(0xFF3A1C32), Color(0xFF1A1726))
+        else -> listOf(Color(0xFF0D2836), Color(0xFF111827))
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(220.dp)
+            .background(Brush.linearGradient(bgColors))
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            when (theme) {
+                1 -> {
+                    // Cancha de futsal estilizada
+                    drawRect(
+                        color = VerdeExito.copy(alpha = 0.35f),
+                        topLeft = Offset(32f, 24f),
+                        size = Size(w - 64f, h - 48f),
+                        style = Stroke(width = 4f)
+                    )
+                    drawLine(
+                        color = VerdeExito.copy(alpha = 0.35f),
+                        start = Offset(w / 2f, 24f),
+                        end = Offset(w / 2f, h - 24f),
+                        strokeWidth = 3f
+                    )
+                    drawCircle(
+                        color = VerdeExito.copy(alpha = 0.35f),
+                        radius = h * 0.22f,
+                        center = Offset(w / 2f, h / 2f),
+                        style = Stroke(width = 3f)
+                    )
+                }
+                2 -> {
+                    // Barras de ecualizador Lo-Fi
+                    val barCount = 14
+                    val step = (w - 80f) / barCount
+                    for (i in 0 until barCount) {
+                        val factor = ((i * 3 + 2) % 5 + 2) / 7f
+                        val barH = h * 0.52f * factor
+                        drawRoundRect(
+                            color = if (i % 2 == 0) BordeMagenta.copy(alpha = 0.5f) else BordeCyan.copy(alpha = 0.45f),
+                            topLeft = Offset(44f + i * step, (h - barH) / 2f),
+                            size = Size(step * 0.56f, barH),
+                            cornerRadius = CornerRadius(8f, 8f)
+                        )
+                    }
+                }
+                3 -> {
+                    // Gráfico comparativo: ventaja matemática de la casa vs ahorro real
+                    val pathDown = Path().apply {
+                        moveTo(40f, h * 0.30f)
+                        lineTo(w * 0.35f, h * 0.24f)
+                        lineTo(w * 0.65f, h * 0.62f)
+                        lineTo(w - 40f, h * 0.80f)
+                    }
+                    drawPath(path = pathDown, color = RojoAlerta.copy(alpha = 0.78f), style = Stroke(width = 6f))
+                    val pathSteady = Path().apply {
+                        moveTo(40f, h * 0.55f)
+                        lineTo(w * 0.45f, h * 0.48f)
+                        lineTo(w - 40f, h * 0.32f)
+                    }
+                    drawPath(path = pathSteady, color = VerdeExito.copy(alpha = 0.8f), style = Stroke(width = 5f))
+                }
+                4 -> {
+                    // Círculos cálidos de boceto urbano
+                    drawCircle(
+                        color = Color(0xFFFF8A65).copy(alpha = 0.22f),
+                        radius = h * 0.34f,
+                        center = Offset(w * 0.72f, h * 0.36f)
+                    )
+                    drawCircle(
+                        color = BordeMagenta.copy(alpha = 0.18f),
+                        radius = h * 0.25f,
+                        center = Offset(w * 0.28f, h * 0.64f)
+                    )
+                }
+                else -> {
+                    // Ondas de resguardo y acompañamiento
+                    drawCircle(
+                        color = BordeCyan.copy(alpha = 0.16f),
+                        radius = h * 0.44f,
+                        center = Offset(w / 2f, h / 2f),
+                        style = Stroke(width = 3f)
+                    )
+                    drawCircle(
+                        color = VerdeExito.copy(alpha = 0.24f),
+                        radius = h * 0.28f,
+                        center = Offset(w / 2f, h / 2f),
+                        style = Stroke(width = 4f)
+                    )
+                }
+            }
+        }
+
+        // Centro visual del post según temática
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            when (theme) {
+                1 -> {
+                    Text(
+                        text = "⚽ SEMIFINAL 5.° AÑO",
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 19.sp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Cancha Barrio Sur • 18:30 hs",
+                        fontFamily = SpaceGrotesk,
+                        fontSize = 13.sp,
+                        color = VerdeExito
+                    )
+                }
+                2 -> {
+                    Text(
+                        text = "🎧 LO-FI PARA ESTUDIAR",
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "42 min sin publicidad • Modo foco",
+                        fontFamily = SpaceGrotesk,
+                        fontSize = 12.5.sp,
+                        color = BordeCyan
+                    )
+                }
+                3 -> {
+                    Text(
+                        text = "📊 ¿CUENTA REAL O CUENTA DEMO?",
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.5.sp,
+                        color = Color.White,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "1 ticket ganador en el grupo oculta las 19 recargas perdidas.",
+                        fontFamily = SpaceGrotesk,
+                        fontSize = 12.5.sp,
+                        color = Color.White.copy(alpha = 0.88f),
+                        textAlign = TextAlign.Center
+                    )
+                }
+                4 -> {
+                    Image(
+                        painter = painterResource(id = R.drawable.avatar_4),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .border(2.dp, Color.White.copy(alpha = 0.7f), CircleShape)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "☕ Tarde de merienda y bocetos",
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Color.White
+                    )
+                }
+                else -> {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_boti),
+                        contentDescription = "Boti",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(58.dp)
+                            .clip(CircleShape)
+                            .border(2.dp, BordeCyan, CircleShape)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "🛡️ LÍNEA 141 Y BOTI 24/7",
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.5.sp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Escucha gratuita y confidencial si necesitás hablar",
+                        fontFamily = SpaceGrotesk,
+                        fontSize = 12.sp,
+                        color = BordeCyan,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+
+        // Badge superior izquierdo tipo carrusel / reel
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(10.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.Black.copy(alpha = 0.60f))
+                .padding(horizontal = 8.dp, vertical = 3.dp)
+        ) {
+            Text(
+                text = audioBadge,
+                fontFamily = SpaceGrotesk,
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp,
+                color = Color.White
+            )
+        }
+
+        // Botón redondo de audio silenciado abajo a la derecha (como en IG Reels)
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(10.dp)
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.65f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.VolumeOff,
+                contentDescription = "Audio silenciado",
+                tint = Color.White,
+                modifier = Modifier.size(15.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Carrusel intercalado "Sugerencias para ti" con perfiles ficticios y botón Seguir.
+ */
+@Composable
+private fun IgSuggestionsCarousel(
+    suggestions: List<IgSuggestionItem>,
+    followedHandles: Map<String, Boolean>,
+    dismissedHandles: Map<String, Boolean>,
+    enabled: Boolean,
+    onToggleFollow: (String) -> Unit,
+    onDismiss: (String) -> Unit
+) {
+    val visibleItems = suggestions.filter { dismissedHandles[it.handle] != true }
+    if (visibleItems.isEmpty()) return
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF060709))
+            .padding(vertical = 12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = tag,
+                text = "Sugerencias para ti",
                 fontFamily = SpaceGrotesk,
                 fontWeight = FontWeight.Bold,
-                fontSize = 10.5.sp,
-                color = BordeCyan
+                fontSize = 13.5.sp,
+                color = Color.White
             )
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(BurbujaChat)
-                    .padding(horizontal = 8.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = "PÁG. $pageNumber / $totalPages",
-                    fontFamily = SpaceGrotesk,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 10.5.sp,
-                    color = Color.White
-                )
-            }
+            Text(
+                text = "Ver todo",
+                fontFamily = SpaceGrotesk,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.sp,
+                color = Color(0xFF3897F0)
+            )
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = title,
-            fontFamily = SpaceGrotesk,
-            fontWeight = FontWeight.Bold,
-            fontSize = 17.5.sp,
-            color = Color.White
-        )
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Ilustración vectorial en Canvas dentro del apunte PDF
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(95.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color(0xFF0D1117))
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            val w = size.width
-            val h = size.height
-
-            when (diagramType) {
-                1 -> {
-                    // Gráfico vectorial: Curva de saldo del jugador cayendo frente a la ventaja de la casa
-                    val path = Path().apply {
-                        moveTo(24f, h * 0.25f)
-                        lineTo(w * 0.25f, h * 0.18f)
-                        lineTo(w * 0.48f, h * 0.52f)
-                        lineTo(w * 0.72f, h * 0.68f)
-                        lineTo(w - 24f, h * 0.85f)
-                    }
-                    drawPath(path = path, color = RojoAlerta, style = Stroke(width = 5f))
-                    drawLine(
-                        color = VerdeExito.copy(alpha = 0.6f),
-                        start = Offset(24f, h * 0.35f),
-                        end = Offset(w - 24f, h * 0.35f),
-                        strokeWidth = 3f
-                    )
-                }
-                2 -> {
-                    // Gráfico vectorial: 1 ticket ganador visible vs 9 tickets perdedores ocultos
-                    val barCount = 8
-                    val barW = (w - 80f) / barCount
-                    for (i in 0 until barCount) {
-                        val isWinner = i == 2
-                        val barH = if (isWinner) h * 0.70f else h * 0.28f
-                        drawRoundRect(
-                            color = if (isWinner) BordeCyan else RojoAlerta.copy(alpha = 0.55f),
-                            topLeft = Offset(36f + i * barW, h - barH - 12f),
-                            size = Size(barW * 0.65f, barH),
-                            cornerRadius = CornerRadius(6f, 6f)
-                        )
-                    }
-                }
-                else -> {
-                    // Gráfico vectorial: Escudo de ahorro y bienestar vs intereses de deuda
-                    drawCircle(
-                        color = VerdeExito.copy(alpha = 0.25f),
-                        radius = h * 0.36f,
-                        center = Offset(w * 0.30f, h * 0.5f)
-                    )
-                    drawCircle(
-                        color = BordeMagenta.copy(alpha = 0.25f),
-                        radius = h * 0.36f,
-                        center = Offset(w * 0.70f, h * 0.5f)
-                    )
-                    drawLine(
-                        color = BordeCyan,
-                        start = Offset(w * 0.30f, h * 0.5f),
-                        end = Offset(w * 0.70f, h * 0.5f),
-                        strokeWidth = 4f
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        bulletPoints.forEach { point ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 3.dp),
-                verticalAlignment = Alignment.Top
-            ) {
+            items(visibleItems) { item ->
+                val isFollowed = followedHandles[item.handle] == true
                 Box(
                     modifier = Modifier
-                        .padding(top = 7.dp)
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(BordeCyan)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = point,
-                    fontFamily = SpaceGrotesk,
-                    fontSize = 13.5.sp,
-                    lineHeight = 19.sp,
-                    color = Color.White.copy(alpha = 0.90f)
-                )
+                        .width(148.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF11141B))
+                        .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                        .padding(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Ocultar sugerencia",
+                        tint = TextoSecundario,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .size(16.dp)
+                            .clickable(enabled = enabled) { onDismiss(item.handle) }
+                    )
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Image(
+                            painter = painterResource(id = item.avatarResId),
+                            contentDescription = item.displayName,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(60.dp)
+                                .clip(CircleShape)
+                                .border(1.5.dp, Color.White.copy(alpha = 0.25f), CircleShape)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = item.displayName,
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.5.sp,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "@${item.handle}",
+                            fontFamily = SpaceGrotesk,
+                            fontSize = 11.sp,
+                            color = TextoSecundario,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Sugerencia para ti",
+                            fontFamily = SpaceGrotesk,
+                            fontSize = 10.sp,
+                            color = TextoSecundario.copy(alpha = 0.8f)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(30.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (isFollowed) Color.White.copy(alpha = 0.14f)
+                                    else Color(0xFF0095F6)
+                                )
+                                .clickable(enabled = enabled) { onToggleFollow(item.handle) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (isFollowed) "Siguiendo" else "Seguir",
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
             }
         }
     }

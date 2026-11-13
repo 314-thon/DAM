@@ -192,6 +192,7 @@ data class GameState(
     val totalDecisionTimeMillis: Long = 0L,
     val decisionHistory: List<DecisionRecord> = emptyList(),
     val unlockedAchievementIds: Set<String> = emptySet(),
+    val sessionAchievementIds: Set<String> = emptySet(),
     val newlyUnlockedAchievement: AchievementDef? = null,
     val hasSavedGameInRoom: Boolean = false,
     val savedGameDayName: String = "",
@@ -213,7 +214,7 @@ data class GameState(
         val netMoneyScore = ((currentSavings - currentDebt) / 5).coerceAtLeast(-5000)
         val wellbeingBonus = wellbeingPoints * 120
         val accuracyBonus = correctDecisionsCount * 600
-        val achievementsBonus = unlockedAchievementIds.sumOf { id ->
+        val achievementsBonus = sessionAchievementIds.sumOf { id ->
             AchievementsCatalog.findById(id)?.bonusPoints ?: 400
         }
         // Bonus de velocidad: máximo 175 segundos (7 días * 25s). Cada segundo ahorrado suma 18 pts.

@@ -11,6 +11,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
@@ -70,8 +71,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.ifts18.unadecisionmas.audio.SoundManager
 import com.ifts18.unadecisionmas.data.model.AchievementsCatalog
 import com.ifts18.unadecisionmas.data.model.GameState
@@ -180,6 +179,7 @@ fun GameDecisionScreen(
         timerProgress.snapTo(1f)
 
         fun playNotification() {
+            if (SoundManager.isMuted.value) return
             try {
                 val notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                 val ringtone = RingtoneManager.getRingtone(context, notificationUri)
@@ -250,12 +250,14 @@ fun GameDecisionScreen(
             .background(backgroundBrush)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+        if (!gameState.isPunishedNoPhone) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
             // 1. TOP BAR FIJA CON AHORRO, DEUDA, BIENESTAR Y DÍA
             GameTopBar(
                 gameState = gameState,
@@ -391,7 +393,7 @@ fun GameDecisionScreen(
                     }
                 }
 
-                if (loadedMessagesCount < currentScenario.messages.size) {
+                if (!gameState.isPunishedNoPhone && loadedMessagesCount < currentScenario.messages.size) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -530,28 +532,26 @@ fun GameDecisionScreen(
                 }
             }
         }
-    }
+        }
 
-    // Pantalla / Modal de Castigo ("Saltó la ficha: Sin Celu hasta el próximo Lunes")
-    if (gameState.isPunishedNoPhone) {
-        Dialog(
-            onDismissRequest = {},
-            properties = DialogProperties(
-                dismissOnBackPress = false,
-                dismissOnClickOutside = false,
-                usePlatformDefaultWidth = false
-            )
+        // Pantalla / Overlay integrado de Castigo ("Saltó la ficha: Sin Celu hasta el próximo Lunes")
+        AnimatedVisibility(
+            visible = gameState.isPunishedNoPhone,
+            enter = fadeIn(tween(260)) + scaleIn(initialScale = 0.92f),
+            exit = fadeOut(tween(180))
         ) {
+            val punishmentScrollState = rememberScrollState()
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.90f))
-                    .padding(horizontal = 20.dp),
+                    .background(Color.Black.copy(alpha = 0.92f))
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .verticalScroll(punishmentScrollState)
                         .clip(RoundedCornerShape(24.dp))
                         .background(Color(0xFF181224))
                         .border(
@@ -738,43 +738,43 @@ fun GameDecisionScreen(
                 }
             }
         }
-    }
 
-    // Diálogo emergente para ver la captura ampliada en pantalla completa
-    previewImageResId?.let { imgRes ->
-        Dialog(
-            onDismissRequest = { previewImageResId = null },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
+        // Overlay integrado para ver la captura ampliada en pantalla completa
+        AnimatedVisibility(
+            visible = previewImageResId != null,
+            enter = fadeIn(tween(200)),
+            exit = fadeOut(tween(160))
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.94f))
-                    .clickable { previewImageResId = null },
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = imgRes),
-                    contentDescription = "Captura ampliada",
-                    contentScale = ContentScale.Fit,
+            previewImageResId?.let { imgRes ->
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 16.dp, vertical = 40.dp)
-                )
-                IconButton(
-                    onClick = { previewImageResId = null },
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .statusBarsPadding()
-                        .padding(16.dp)
-                        .size(40.dp)
-                        .background(Color.White.copy(alpha = 0.2f), CircleShape)
+                        .background(Color.Black.copy(alpha = 0.94f))
+                        .clickable { previewImageResId = null },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Cerrar",
-                        tint = Color.White
+                    Image(
+                        painter = painterResource(id = imgRes),
+                        contentDescription = "Captura ampliada",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp, vertical = 40.dp)
                     )
+                    IconButton(
+                        onClick = { previewImageResId = null },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(16.dp)
+                            .size(40.dp)
+                            .background(Color.White.copy(alpha = 0.2f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Cerrar",
+                            tint = Color.White
+                        )
+                    }
                 }
             }
         }

@@ -438,11 +438,11 @@ fun WelcomeScreen(
                     }
                 )
 
-                // JUEGO 2: SCROLL SIN CAER (APUNTE + INSTAGRAM ADS + ACELERÓMETRO)
+                // JUEGO 2: SCROLL SIN CAER (INSTAGRAM FEED + ADS + ACELERÓMETRO)
                 GameLaunchCard(
                     badge = "JUEGO 2 • SENSOR ACELERÓMETRO",
                     title = "Scroll sin Caer: Spam en Instagram",
-                    description = "Leé el apunte escolar y agitá el celu para destruir los posts engañosos de casinos.",
+                    description = "Scrolleá tu feed de Instagram sin caer y agitá el celu para bloquear las promos truchas de casinos.",
                     emoji = "📸",
                     isPrimary = false,
                     onClick = {

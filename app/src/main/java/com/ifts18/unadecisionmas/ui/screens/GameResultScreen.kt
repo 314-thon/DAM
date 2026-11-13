@@ -274,7 +274,7 @@ fun GameResultScreen(
                                 color = Color.White
                             )
                             Text(
-                                text = "⏱ ${"%.1f".format(gameState.totalDecisionTimeMillis / 1000f)}s • 🏅 ${gameState.unlockedAchievementIds.size}/7",
+                                text = "⏱ ${"%.1f".format(gameState.totalDecisionTimeMillis / 1000f)}s • 🏅 ${gameState.sessionAchievementIds.size} en partida",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 11.5.sp,
@@ -339,9 +339,9 @@ fun GameResultScreen(
                             }
                         }
 
-                        // VITRINA DE TROFEOS Y MEDALLAS DESBLOQUEADOS
-                        val unlockedDefs = AchievementsCatalog.all.filter {
-                            gameState.unlockedAchievementIds.contains(it.id)
+                        // VITRINA DE TROFEOS Y MEDALLAS DE ESTA PARTIDA
+                        val sessionUnlockedDefs = AchievementsCatalog.all.filter {
+                            gameState.sessionAchievementIds.contains(it.id)
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Column(
@@ -353,23 +353,35 @@ fun GameResultScreen(
                                 .padding(horizontal = 10.dp, vertical = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
-                            Text(
-                                text = "🏅 Trofeos Desbloqueados (${unlockedDefs.size}/7)",
-                                fontFamily = SpaceGrotesk,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                color = VerdeExito
-                            )
-
-                            if (unlockedDefs.isEmpty()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Text(
-                                    text = "Aún no destrabaste trofeos. ¡Devolvé transferencias, elegí planes reales o agitá el celu ante el spam!",
+                                    text = "🏅 Trofeos de esta Partida (${sessionUnlockedDefs.size})",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = VerdeExito
+                                )
+                                Text(
+                                    text = "Álbum: ${gameState.unlockedAchievementIds.size}/7",
+                                    fontFamily = SpaceGrotesk,
+                                    fontSize = 10.5.sp,
+                                    color = TextoSecundario
+                                )
+                            }
+
+                            if (sessionUnlockedDefs.isEmpty()) {
+                                Text(
+                                    text = "En esta partida no sumaste trofeos nuevos. ¡Probá devolver transferencias, elegir planes reales o sacudir ante el spam!",
                                     fontFamily = SpaceGrotesk,
                                     fontSize = 11.sp,
                                     color = TextoSecundario
                                 )
                             } else {
-                                unlockedDefs.forEach { trophy ->
+                                sessionUnlockedDefs.forEach { trophy ->
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()

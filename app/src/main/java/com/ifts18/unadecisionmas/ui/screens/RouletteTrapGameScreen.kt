@@ -5,11 +5,14 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,10 +26,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Shield
@@ -92,7 +93,6 @@ fun RouletteTrapGameScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val scrollState = rememberScrollState()
 
     val wheelPockets = remember {
         listOf(
@@ -119,6 +119,7 @@ fun RouletteTrapGameScreen(
     val wheelRotation = remember { Animatable(0f) }
 
     var isSpinning by remember { mutableStateOf(false) }
+    var showResultPopup by remember { mutableStateOf(false) }
     var spinsUsed by remember { mutableIntStateOf(0) }
     val maxSpins = 10
     var bonusChips by remember { mutableIntStateOf(10) }
@@ -137,8 +138,9 @@ fun RouletteTrapGameScreen(
     }
 
     fun triggerRouletteSpin() {
-        if (isSpinning || spinsUsed >= maxSpins || bonusChips <= 0) return
+        if (isSpinning || showResultPopup || spinsUsed >= maxSpins || bonusChips <= 0) return
         isSpinning = true
+        showResultPopup = false
         SoundManager.playClick()
         HapticFeedbackHelper.vibrateShort(context, 55L)
 
@@ -188,9 +190,9 @@ fun RouletteTrapGameScreen(
             when (nextSpinNumber) {
                 1, 2 -> {
                     fakeLockedWinnings += 4000
-                    resultBannerText = "🎉 ¡Salió ${landedPocket.number} ${landedPocket.colorName}! +$4.000 (Bloqueados por Rollover)"
+                    resultBannerText = "🎉 ¡Salió ${landedPocket.number} ${landedPocket.colorName}! +$4.000 (Bono trabado)"
                     algorithmStageTitle = "Etapa 1 (Tirada $nextSpinNumber/10): El Gancho Inicial"
-                    algorithmExplanation = "Al principio te hacen acertar para generar euforia, pero el premio queda retenido como 'Saldo de Bono' para obligarte a seguir apostando."
+                    algorithmExplanation = "Al principio te hacen acertar para entusiasmarse, pero el premio queda trabado como 'Saldo de Bono' y no se puede retirar sin apostar mucho más."
                 }
                 3, 4, 5, 6 -> {
                     val betLabel = when (selectedBetMode) {
@@ -199,8 +201,8 @@ fun RouletteTrapGameScreen(
                         else -> "#${selectedPocket.number} ${selectedPocket.colorName}"
                     }
                     resultBannerText = "⚡ ¡Casi! Apostaste a $betLabel y frenó al lado: ${landedPocket.number} ${landedPocket.colorName}"
-                    algorithmStageTitle = "Etapa 2 (Tirada $nextSpinNumber/10): Casi-Acierto y Falacia de la Racha"
-                    algorithmExplanation = "La bolilla frenó justo al lado de tu ficha (${landedPocket.number} ${landedPocket.colorName}). Esto activa la 'ilusión de control' haciéndote creer que en la próxima tirada seguro sale."
+                    algorithmStageTitle = "Etapa 2 (Tirada $nextSpinNumber/10): Casi-Acierto y Mito de la Racha"
+                    algorithmExplanation = "La bolilla frenó justo al lado de tu ficha (${landedPocket.number} ${landedPocket.colorName}). Es un mito creer que 'ya está por salir': cada giro es independiente y busca tentarte a seguir."
                 }
                 else -> {
                     fakeLockedWinnings = (fakeLockedWinnings - 2000).coerceAtLeast(0)
@@ -212,11 +214,12 @@ fun RouletteTrapGameScreen(
 
             HapticFeedbackHelper.vibrateShort(context, 45L)
             isSpinning = false
+            showResultPopup = true
         }
     }
 
     val sensorReading by rememberAccelerometerMonitor(
-        enabled = !isSpinning && spinsUsed < maxSpins,
+        enabled = !isSpinning && !showResultPopup && spinsUsed < maxSpins,
         shakeThresholdG = 1.42f,
         minIntervalMs = 600L
     ) {
@@ -233,18 +236,17 @@ fun RouletteTrapGameScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 10.dp)
-                .verticalScroll(scrollState),
+                .padding(horizontal = 14.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // 1. CABECERA CON CONTADOR DE FICHAS EN UNA SOLA LÍNEA
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(Color(0xFF161922))
-                    .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(16.dp))
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(14.dp))
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -254,7 +256,7 @@ fun RouletteTrapGameScreen(
                 ) {
                     IconButton(
                         onClick = onBackToHub,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(30.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
@@ -268,7 +270,7 @@ fun RouletteTrapGameScreen(
                             text = "Juego 4: La Ruleta del 29",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 15.5.sp,
+                            fontSize = 15.sp,
                             color = Color.White,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -276,7 +278,7 @@ fun RouletteTrapGameScreen(
                         Text(
                             text = "Agitá para girar • ${"%.2f".format(sensorReading.gForce)} G",
                             fontFamily = SpaceGrotesk,
-                            fontSize = 11.5.sp,
+                            fontSize = 11.sp,
                             color = BordeCyan,
                             maxLines = 1
                         )
@@ -290,14 +292,14 @@ fun RouletteTrapGameScreen(
                         .clip(RoundedCornerShape(10.dp))
                         .background(BordeMagenta.copy(alpha = 0.22f))
                         .border(1.dp, BordeMagenta, RoundedCornerShape(10.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "🪙 Fichas: $bonusChips/$maxSpins",
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.5.sp,
+                        fontSize = 12.sp,
                         color = Color.White,
                         maxLines = 1,
                         softWrap = false
@@ -305,28 +307,28 @@ fun RouletteTrapGameScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             // 2. RUEDA DE RULETA VISUAL ANIMADA EN CANVAS
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(18.dp))
                     .background(
                         Brush.verticalGradient(
                             listOf(Color(0xFF1E142D), Color(0xFF111622))
                         )
                     )
                     .border(
-                        width = 1.8.dp,
+                        width = 1.6.dp,
                         brush = Brush.horizontalGradient(listOf(BordeCyan, BordeMagenta)),
-                        shape = RoundedCornerShape(20.dp)
+                        shape = RoundedCornerShape(18.dp)
                     )
-                    .padding(14.dp),
+                    .padding(10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
-                    modifier = Modifier.size(190.dp),
+                    modifier = Modifier.size(152.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
@@ -399,10 +401,10 @@ fun RouletteTrapGameScreen(
                     // Centro de la ruleta mostrando el número que salió
                     Column(
                         modifier = Modifier
-                            .size(92.dp)
+                            .size(74.dp)
                             .clip(CircleShape)
                             .background(Color(0xFF0E131D))
-                            .border(2.5.dp, landedPocket.pocketColor, CircleShape),
+                            .border(2.2.dp, landedPocket.pocketColor, CircleShape),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
@@ -410,14 +412,14 @@ fun RouletteTrapGameScreen(
                             text = if (isSpinning) "..." else "${landedPocket.number}",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 26.sp,
+                            fontSize = 22.sp,
                             color = Color.White
                         )
                         Text(
                             text = if (isSpinning) "GIRANDO" else landedPocket.colorName.uppercase(),
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp,
+                            fontSize = 9.sp,
                             color = when (landedPocket.colorName) {
                                 "Rojo" -> RojoAlerta
                                 "Verde" -> VerdeExito
@@ -427,19 +429,22 @@ fun RouletteTrapGameScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
                     text = resultBannerText,
                     fontFamily = SpaceGrotesk,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 12.5.sp,
+                    fontSize = 11.5.sp,
+                    lineHeight = 15.sp,
                     color = BordeCyan,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             // 3. PAÑO DE APUESTA INTERACTIVO: ELEGIR NÚMERO O COLOR CLARAMENTE
             Column(
@@ -448,7 +453,7 @@ fun RouletteTrapGameScreen(
                     .clip(RoundedCornerShape(16.dp))
                     .background(BurbujaChat.copy(alpha = 0.90f))
                     .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(16.dp))
-                    .padding(12.dp),
+                    .padding(10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Row(
@@ -460,19 +465,19 @@ fun RouletteTrapGameScreen(
                         text = "1. Tocá para elegir tu apuesta:",
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.5.sp,
+                        fontSize = 12.sp,
                         color = Color.White
                     )
                     Text(
                         text = "Bono retenido: $$fakeLockedWinnings 🔒",
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 11.5.sp,
+                        fontSize = 11.sp,
                         color = BordeMagenta
                     )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 // Selector de modo: Pleno al Número vs Todo al Rojo vs Todo al Negro
                 Row(
@@ -489,7 +494,7 @@ fun RouletteTrapGameScreen(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(38.dp)
+                                .height(33.dp)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(
                                     if (isSelected) accent.copy(alpha = 0.25f)
@@ -500,7 +505,7 @@ fun RouletteTrapGameScreen(
                                     color = if (isSelected) accent else Color.White.copy(alpha = 0.16f),
                                     shape = RoundedCornerShape(10.dp)
                                 )
-                                .clickable(enabled = !isSpinning) {
+                                .clickable(enabled = !isSpinning && !showResultPopup) {
                                     SoundManager.playClick()
                                     selectedBetMode = modeKey
                                 },
@@ -510,7 +515,7 @@ fun RouletteTrapGameScreen(
                                 text = label,
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
+                                fontSize = 11.5.sp,
                                 color = Color.White,
                                 maxLines = 1
                             )
@@ -518,17 +523,17 @@ fun RouletteTrapGameScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
                     text = "2. Tocá cualquier casillero para cambiar el número a apostar:",
                     fontFamily = SpaceGrotesk,
-                    fontSize = 11.5.sp,
+                    fontSize = 11.sp,
                     color = TextoSecundario,
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 // Grilla de números de la ruleta (2 filas de 6 números cada una)
                 val firstRow = wheelPockets.take(6)
@@ -538,7 +543,7 @@ fun RouletteTrapGameScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 3.dp),
+                            .padding(vertical = 2.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         rowPockets.forEachIndexed { colIdx, pocket ->
@@ -547,7 +552,7 @@ fun RouletteTrapGameScreen(
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(38.dp)
+                                    .height(33.dp)
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(pocket.pocketColor)
                                     .border(
@@ -555,7 +560,7 @@ fun RouletteTrapGameScreen(
                                         color = if (isNumberSelected) BordeCyan else Color.White.copy(alpha = 0.22f),
                                         shape = RoundedCornerShape(8.dp)
                                     )
-                                    .clickable(enabled = !isSpinning) {
+                                    .clickable(enabled = !isSpinning && !showResultPopup) {
                                         SoundManager.playClick()
                                         selectedNumberIndex = actualIndex
                                         selectedBetMode = "PLENO"
@@ -566,7 +571,7 @@ fun RouletteTrapGameScreen(
                                     text = if (isNumberSelected) "🪙${pocket.number}" else "${pocket.number}",
                                     fontFamily = SpaceGrotesk,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 12.5.sp,
+                                    fontSize = 12.sp,
                                     color = Color.White,
                                     maxLines = 1
                                 )
@@ -575,22 +580,22 @@ fun RouletteTrapGameScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Botón de acción por Acelerómetro o toque
                 if (spinsUsed < maxSpins) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
-                            .clip(RoundedCornerShape(14.dp))
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
                             .background(
                                 Brush.horizontalGradient(
-                                    if (isSpinning) listOf(Color.Gray, Color.DarkGray)
+                                    if (isSpinning || showResultPopup) listOf(Color.Gray, Color.DarkGray)
                                     else listOf(BordeMagenta, BordeCyan)
                                 )
                             )
-                            .clickable(enabled = !isSpinning) { triggerRouletteSpin() },
+                            .clickable(enabled = !isSpinning && !showResultPopup) { triggerRouletteSpin() },
                         contentAlignment = Alignment.Center
                     ) {
                         Row(
@@ -611,7 +616,7 @@ fun RouletteTrapGameScreen(
                                 },
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
+                                fontSize = 12.5.sp,
                                 color = Color.White,
                                 maxLines = 1
                             )
@@ -620,13 +625,13 @@ fun RouletteTrapGameScreen(
                 } else {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
                             text = "¡Se agotaron las 10 fichas! El casino te pide cargar plata real:",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp,
+                            fontSize = 12.sp,
                             color = RojoAlerta,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
@@ -635,7 +640,7 @@ fun RouletteTrapGameScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(44.dp)
+                                .height(40.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(RojoAlerta.copy(alpha = 0.2f))
                                 .border(1.dp, RojoAlerta, RoundedCornerShape(12.dp))
@@ -651,7 +656,7 @@ fun RouletteTrapGameScreen(
                                 text = "⚠️ Cargar $5.000 de mis ahorros para seguir buscando el pleno",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
+                                fontSize = 11.5.sp,
                                 color = Color.White
                             )
                         }
@@ -659,45 +664,9 @@ fun RouletteTrapGameScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-            // 4. EXPLICACIÓN EN VIVO DE LA MATEMÁTICA DE LA RULETA
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF141B29))
-                    .border(1.dp, BordeCyan.copy(alpha = 0.45f), RoundedCornerShape(16.dp))
-                    .padding(14.dp)
-            ) {
-                Text(
-                    text = "🔍 Cómo funciona la ventaja de la banca:",
-                    fontFamily = SpaceGrotesk,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    color = BordeCyan
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = algorithmStageTitle,
-                    fontFamily = SpaceGrotesk,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.5.sp,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = algorithmExplanation,
-                    fontFamily = SpaceGrotesk,
-                    fontSize = 12.5.sp,
-                    lineHeight = 17.sp,
-                    color = Color.White.copy(alpha = 0.90f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // 5. BOTÓN PARA PLANTARSE A TIEMPO
+            // 4. BOTÓN PARA PLANTARSE A TIEMPO
             AnimatedVisibility(
                 visible = spinsUsed >= 1,
                 enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 2 }
@@ -705,7 +674,7 @@ fun RouletteTrapGameScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp)
+                        .height(46.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
                         .clickable {
@@ -737,14 +706,200 @@ fun RouletteTrapGameScreen(
                             },
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.5.sp,
+                            fontSize = 14.sp,
                             color = Color.Black
                         )
                     }
                 }
             }
+        }
 
-            Spacer(modifier = Modifier.height(14.dp))
+        // OVERLAY MODAL DE EXPLICACIÓN POR CADA TIRADA (SIN SCROLL EN PANTALLA PRINCIPAL)
+        AnimatedVisibility(
+            visible = showResultPopup,
+            enter = fadeIn(tween(220)) + scaleIn(tween(260), initialScale = 0.92f),
+            exit = fadeOut(tween(180))
+        ) {
+            val stageColor = when {
+                spinsUsed <= 2 -> VerdeExito
+                spinsUsed <= 6 -> Color(0xFFFFD54F)
+                else -> RojoAlerta
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.74f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        showResultPopup = false
+                    }
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Color(0xFF141B29))
+                        .border(
+                            width = 2.dp,
+                            brush = Brush.horizontalGradient(listOf(stageColor, BordeCyan)),
+                            shape = RoundedCornerShape(22.dp)
+                        )
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {}
+                        .padding(18.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(stageColor.copy(alpha = 0.18f))
+                                .border(1.dp, stageColor.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "TIRADA $spinsUsed / $maxSpins",
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.5.sp,
+                                color = stageColor
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(landedPocket.pocketColor)
+                                .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "Salió #${landedPocket.number} ${landedPocket.colorName}",
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.5.sp,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = resultBannerText,
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.5.sp,
+                        lineHeight = 20.sp,
+                        color = Color.White,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFF0E131D))
+                            .border(1.dp, BordeCyan.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+                            .padding(14.dp)
+                    ) {
+                        Text(
+                            text = "🔍 Cómo funciona la ventaja de la banca:",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = BordeCyan
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = algorithmStageTitle,
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = stageColor
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = algorithmExplanation,
+                            fontFamily = SpaceGrotesk,
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            color = Color.White.copy(alpha = 0.92f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp)
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(Brush.horizontalGradient(listOf(BordeMagenta, BordeCyan)))
+                            .clickable {
+                                SoundManager.playClick()
+                                showResultPopup = false
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (spinsUsed < maxSpins) {
+                                "Seguir tirando ($bonusChips fichas restantes)"
+                            } else {
+                                "Continuar (Se agotaron las fichas)"
+                            },
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp,
+                            color = Color.White
+                        )
+                    }
+
+                    if (spinsUsed < maxSpins) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(42.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(VerdeExito.copy(alpha = 0.16f))
+                                .border(1.dp, VerdeExito, RoundedCornerShape(12.dp))
+                                .clickable {
+                                    SoundManager.playClick()
+                                    showResultPopup = false
+                                    val elapsed = System.currentTimeMillis() - startTimeMillis
+                                    onGameFinished(
+                                        true,
+                                        spinsUsed,
+                                        bonusChips,
+                                        realMoneyLost,
+                                        elapsed
+                                    )
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "🛡️ Plantarse ahora y no caer en la trampa",
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.5.sp,
+                                color = VerdeExito
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

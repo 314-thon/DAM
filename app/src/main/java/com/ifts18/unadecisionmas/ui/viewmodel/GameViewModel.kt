@@ -106,6 +106,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 decisionHistory = emptyList(),
                 lastCompletedMode = "La Semana",
                 lastModeSummary = "",
+                sessionAchievementIds = emptySet(),
                 betMomMoneyOnTuesday = false,
                 isPunishedNoPhone = false,
                 punishmentReasonTitle = "",
@@ -127,6 +128,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             val saved = gameDao.getSavedGame() ?: return@launch
             scenarios = GameScenariosRepository.getScenarios(saved.playerName)
             val history = SavedGameEntity.deserializeHistory(saved.serializedHistory)
+            val restoredSessionAchievements = saved.serializedSessionAchievements
+                .split(",")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .toSet()
 
             SoundManager.stopGameOverSequence()
             SoundManager.startBgMusic()
@@ -142,6 +148,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     incorrectDecisionsCount = saved.incorrectDecisionsCount,
                     totalDecisionTimeMillis = saved.totalDecisionTimeMillis,
                     decisionHistory = history,
+                    sessionAchievementIds = restoredSessionAchievements,
+                    betMomMoneyOnTuesday = saved.betMomMoneyOnTuesday,
                     lastCompletedMode = "La Semana",
                     isGameOver = false
                 )
@@ -190,6 +198,83 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val nextDayIndex = current.currentDayIndex + 1
         val isLastDay = current.currentDayIndex >= scenarios.lastIndex
 
+        applyStepOutcome(
+            nextDayIndex = nextDayIndex,
+            isLastDay = isLastDay,
+            newDebt = newDebt,
+            newSavings = newSavings,
+            newWellbeing = newWellbeing,
+            newTimeMillis = newTimeMillis,
+            newHistory = newHistory,
+            newCorrect = newCorrect,
+            newIncorrect = newIncorrect,
+            betMomOnTuesday = betMomOnTuesday,
+            lastModeSummary = if (newDebt == 0) {
+                "Superaste la semana con $$newSavings en ahorros y $0 de deuda."
+            } else {
+                "Terminaste la semana con $$newDebt de deuda y $$newSavings en ahorros."
+            }
+        )
+    }
+
+    fun onTimeout() {
+        val current = _gameState.value
+        val scenario = getCurrentScenario()
+
+        SoundManager.resetMusicSpeed()
+        SoundManager.stopHeartbeat()
+
+        val timeoutMillis = scenario.decisionTimeSeconds * 1000L
+        val newDebt = current.currentDebt + scenario.timeoutPenalty
+        val newSavings = (current.currentSavings - (scenario.timeoutPenalty / 2)).coerceAtLeast(0)
+        val newWellbeing = (current.wellbeingPoints - 8).coerceAtLeast(0)
+        val newTimeMillis = current.totalDecisionTimeMillis + timeoutMillis
+
+        val record = DecisionRecord(
+            dayName = scenario.dayName,
+            chosenOptionText = "Tiempo agotado (${scenario.decisionTimeSeconds}s)",
+            isSafe = false,
+            addedDebt = scenario.timeoutPenalty,
+            savingsDelta = -(scenario.timeoutPenalty / 2),
+            wellbeingDelta = -8,
+            responseTimeMillis = timeoutMillis,
+            feedback = "El tiempo límite venció. En ciberapuestas, la urgencia forzada empuja a perder el control."
+        )
+
+        val newHistory = current.decisionHistory + record
+        val newIncorrect = current.incorrectDecisionsCount + 1
+        val betMomOnTuesday = current.betMomMoneyOnTuesday
+        val nextDayIndex = current.currentDayIndex + 1
+        val isLastDay = current.currentDayIndex >= scenarios.lastIndex
+
+        applyStepOutcome(
+            nextDayIndex = nextDayIndex,
+            isLastDay = isLastDay,
+            newDebt = newDebt,
+            newSavings = newSavings,
+            newWellbeing = newWellbeing,
+            newTimeMillis = newTimeMillis,
+            newHistory = newHistory,
+            newCorrect = current.correctDecisionsCount,
+            newIncorrect = newIncorrect,
+            betMomOnTuesday = betMomOnTuesday,
+            lastModeSummary = "Terminaste la semana con $$newDebt de deuda acumulada."
+        )
+    }
+
+    private fun applyStepOutcome(
+        nextDayIndex: Int,
+        isLastDay: Boolean,
+        newDebt: Int,
+        newSavings: Int,
+        newWellbeing: Int,
+        newTimeMillis: Long,
+        newHistory: List<DecisionRecord>,
+        newCorrect: Int,
+        newIncorrect: Int,
+        betMomOnTuesday: Boolean,
+        lastModeSummary: String
+    ) {
         // Evaluar disparadores del "Emulador de Castigo" (Sin Celu hasta el próximo Lunes)
         val caughtMomTransferOnFriday = !isLastDay && nextDayIndex == 4 && betMomOnTuesday
         val brokeAndInDebt = !isLastDay && newSavings == 0 && newDebt >= 10000
@@ -226,11 +311,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 punishmentReasonTitle = punishmentTitle,
                 punishmentReasonBody = punishmentBody,
                 lastCompletedMode = "La Semana",
-                lastModeSummary = if (newDebt == 0) {
-                    "Superaste la semana con $$newSavings en ahorros y $0 de deuda."
-                } else {
-                    "Terminaste la semana con $$newDebt de deuda y $$newSavings en ahorros."
-                },
+                lastModeSummary = lastModeSummary,
                 isGameOver = isLastDay && !shouldTriggerPunishment
             )
             updated.copy(lastEarnedScore = updated.calculateCompetitiveScore())
@@ -251,97 +332,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 correct = newCorrect,
                 incorrect = newIncorrect,
                 timeMillis = newTimeMillis,
-                history = newHistory
-            )
-        }
-    }
-
-    fun onTimeout() {
-        val current = _gameState.value
-        val scenario = getCurrentScenario()
-
-        SoundManager.resetMusicSpeed()
-        SoundManager.stopHeartbeat()
-
-        val timeoutMillis = scenario.decisionTimeSeconds * 1000L
-        val newDebt = current.currentDebt + scenario.timeoutPenalty
-        val newSavings = (current.currentSavings - (scenario.timeoutPenalty / 2)).coerceAtLeast(0)
-        val newWellbeing = (current.wellbeingPoints - 8).coerceAtLeast(0)
-        val newTimeMillis = current.totalDecisionTimeMillis + timeoutMillis
-
-        val record = DecisionRecord(
-            dayName = scenario.dayName,
-            chosenOptionText = "Tiempo agotado (${scenario.decisionTimeSeconds}s)",
-            isSafe = false,
-            addedDebt = scenario.timeoutPenalty,
-            savingsDelta = -(scenario.timeoutPenalty / 2),
-            wellbeingDelta = -8,
-            responseTimeMillis = timeoutMillis,
-            feedback = "El tiempo límite venció. En ciberapuestas, la urgencia forzada empuja a perder el control."
-        )
-
-        val newHistory = current.decisionHistory + record
-        val newIncorrect = current.incorrectDecisionsCount + 1
-        val betMomOnTuesday = current.betMomMoneyOnTuesday || current.currentDayIndex == 1
-        val nextDayIndex = current.currentDayIndex + 1
-        val isLastDay = current.currentDayIndex >= scenarios.lastIndex
-
-        val caughtMomTransferOnFriday = !isLastDay && nextDayIndex == 4 && betMomOnTuesday
-        val brokeAndInDebt = !isLastDay && newSavings == 0 && newDebt >= 10000
-        val shouldTriggerPunishment = caughtMomTransferOnFriday || brokeAndInDebt
-
-        val punishmentTitle = when {
-            caughtMomTransferOnFriday -> "📵 ¡SALTÓ LA FICHA! TE SACARON EL CELULAR"
-            brokeAndInDebt -> "📵 ¡TE QUEDASTE EN CERO Y SALTÓ LA ALERTA!"
-            else -> ""
-        }
-        val punishmentBody = when {
-            caughtMomTransferOnFriday -> "Llegó el viernes y tu mamá pidió el comprobante de la fotocopiadora. Descubrieron qué pasó con los $72.000 y te sacaron el celular por todo el fin de semana."
-            brokeAndInDebt -> "Te quedaste con $0 de ahorro y $$newDebt de deuda. En tu casa se dieron cuenta y te sacaron el celular hasta el próximo lunes."
-            else -> ""
-        }
-
-        if (shouldTriggerPunishment) {
-            unlockAchievement(AchievementsCatalog.ID_TODO_AL_ROJO)
-            SoundManager.playGameOverSequence(isWon = false)
-        }
-
-        _gameState.update { state ->
-            val updated = state.copy(
-                currentDebt = newDebt,
-                currentSavings = newSavings,
-                wellbeingPoints = newWellbeing,
-                incorrectDecisionsCount = newIncorrect,
-                totalDecisionTimeMillis = newTimeMillis,
-                decisionHistory = newHistory,
-                currentDayIndex = if (isLastDay) state.currentDayIndex else nextDayIndex,
+                history = newHistory,
                 betMomMoneyOnTuesday = betMomOnTuesday,
-                isPunishedNoPhone = shouldTriggerPunishment,
-                punishmentReasonTitle = punishmentTitle,
-                punishmentReasonBody = punishmentBody,
-                lastCompletedMode = "La Semana",
-                lastModeSummary = "Terminaste la semana con $$newDebt de deuda acumulada.",
-                isGameOver = isLastDay && !shouldTriggerPunishment
-            )
-            updated.copy(lastEarnedScore = updated.calculateCompetitiveScore())
-        }
-
-        if (shouldTriggerPunishment) {
-            viewModelScope.launch(Dispatchers.IO) {
-                gameDao.clearSavedGame()
-            }
-        } else if (isLastDay) {
-            finalizeWeekGame(newDebt, current.correctDecisionsCount, newIncorrect)
-        } else {
-            persistCheckpointToRoom(
-                nextDayIndex = nextDayIndex,
-                debt = newDebt,
-                savings = newSavings,
-                wellbeing = newWellbeing,
-                correct = current.correctDecisionsCount,
-                incorrect = newIncorrect,
-                timeMillis = newTimeMillis,
-                history = newHistory
+                sessionAchievements = _gameState.value.sessionAchievementIds
             )
         }
     }
@@ -365,6 +358,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 incorrectDecisionsCount = 0,
                 totalDecisionTimeMillis = 0L,
                 decisionHistory = emptyList(),
+                sessionAchievementIds = emptySet(),
                 betMomMoneyOnTuesday = false,
                 isPunishedNoPhone = false,
                 punishmentReasonTitle = "",
@@ -404,7 +398,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         correct: Int,
         incorrect: Int,
         timeMillis: Long,
-        history: List<DecisionRecord>
+        history: List<DecisionRecord>,
+        betMomMoneyOnTuesday: Boolean,
+        sessionAchievements: Set<String>
     ) {
         val profile = _gameState.value.profile
         viewModelScope.launch(Dispatchers.IO) {
@@ -420,7 +416,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     correctDecisionsCount = correct,
                     incorrectDecisionsCount = incorrect,
                     totalDecisionTimeMillis = timeMillis,
-                    serializedHistory = SavedGameEntity.serializeHistory(history)
+                    serializedHistory = SavedGameEntity.serializeHistory(history),
+                    betMomMoneyOnTuesday = betMomMoneyOnTuesday,
+                    serializedSessionAchievements = sessionAchievements.joinToString(",")
                 )
             )
         }
@@ -448,17 +446,22 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Registra la finalización del Juego 2: "Scroll sin Caer" (Apunte + Ads + Acelerómetro).
+     * Registra la finalización del Juego 2: "Scroll sin Caer" (Feed Instagram + Ads + Acelerómetro).
      */
     fun completeScrollAdsGame(
         adsShakenOff: Int,
         adTrapsClicked: Int,
         elapsedMillis: Long
     ) {
-        if (adsShakenOff >= 3 && adTrapsClicked == 0) {
-            unlockAchievement(AchievementsCatalog.ID_EVITANDO_TENTACION)
-        } else if (adsShakenOff >= 1) {
-            unlockAchievement(AchievementsCatalog.ID_EVITANDO_TENTACION)
+        val sessionEarned = if (adsShakenOff >= 1) {
+            unlockAchievement(
+                AchievementsCatalog.ID_EVITANDO_TENTACION,
+                resetSessionTo = setOf(AchievementsCatalog.ID_EVITANDO_TENTACION)
+            )
+            setOf(AchievementsCatalog.ID_EVITANDO_TENTACION)
+        } else {
+            _gameState.update { it.copy(sessionAchievementIds = emptySet()) }
+            emptySet()
         }
 
         val addedDebt = adTrapsClicked * 4000
@@ -466,12 +469,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val wellbeing = (40 + adsShakenOff * 12 - adTrapsClicked * 15).coerceAtLeast(10)
         val speedBonus = ((45_000L - elapsedMillis).coerceAtLeast(0L) / 25L).toInt()
         val score = (savings / 2) + (adsShakenOff * 1400) - (adTrapsClicked * 1800) + speedBonus +
-                (_gameState.value.unlockedAchievementIds.size * 600)
+                (sessionEarned.size * 600)
 
         val summary = if (adTrapsClicked == 0) {
-            "¡Llegaste al final del apunte! Destruiste $adsShakenOff anuncios de Instagram agitando el celu sin caer en ninguna trampa."
+            "¡Terminaste el feed! Destruiste $adsShakenOff anuncios en Instagram agitando el celu sin caer en ninguna trampa."
         } else {
-            "Terminaste el apunte tras sacudir $adsShakenOff anuncios, pero tocaste $adTrapsClicked publicidades trampa ($$addedDebt de deuda)."
+            "Terminaste el feed tras sacudir $adsShakenOff anuncios, pero tocaste $adTrapsClicked publicidades trampa ($$addedDebt de deuda)."
         }
 
         _gameState.update { state ->
@@ -482,6 +485,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 correctDecisionsCount = adsShakenOff,
                 incorrectDecisionsCount = adTrapsClicked,
                 totalDecisionTimeMillis = elapsedMillis,
+                decisionHistory = emptyList(),
                 lastCompletedMode = "Scroll sin Caer",
                 lastModeSummary = summary,
                 lastEarnedScore = score.coerceAtLeast(250),
@@ -503,7 +507,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         realMoneyLost: Int,
         elapsedMillis: Long
     ) {
-        unlockAchievement(AchievementsCatalog.ID_OJO_ABIERTO)
+        val sessionEarned = setOf(AchievementsCatalog.ID_OJO_ABIERTO)
+        unlockAchievement(AchievementsCatalog.ID_OJO_ABIERTO, resetSessionTo = sessionEarned)
 
         val isWon = stoppedEarly || realMoneyLost == 0
         val savings = (15000 - realMoneyLost + (if (stoppedEarly) remainingBonusChips * 500 else 0)).coerceAtLeast(0)
@@ -511,7 +516,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val score = (if (stoppedEarly) 11500 else 7800) +
                 (remainingBonusChips * 450) -
                 (realMoneyLost / 2) +
-                (_gameState.value.unlockedAchievementIds.size * 600)
+                (sessionEarned.size * 600)
 
         val summary = if (stoppedEarly) {
             "¡Te plantaste a tiempo en el tiro $spinsUsed/10! Descubriste el gancho del tragamonedas antes de que la casa vaciara tus fichas."
@@ -527,6 +532,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 correctDecisionsCount = if (stoppedEarly) 7 else 5,
                 incorrectDecisionsCount = if (stoppedEarly) 0 else 2,
                 totalDecisionTimeMillis = elapsedMillis,
+                decisionHistory = emptyList(),
                 lastCompletedMode = "Trampa del Jackpot",
                 lastModeSummary = summary,
                 lastEarnedScore = score.coerceAtLeast(400),
@@ -548,7 +554,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         realMoneyLost: Int,
         elapsedMillis: Long
     ) {
-        unlockAchievement(AchievementsCatalog.ID_OJO_ABIERTO)
+        val sessionEarned = setOf(AchievementsCatalog.ID_OJO_ABIERTO)
+        unlockAchievement(AchievementsCatalog.ID_OJO_ABIERTO, resetSessionTo = sessionEarned)
 
         val isWon = stoppedEarly || realMoneyLost == 0
         val savings = (15000 - realMoneyLost + (if (stoppedEarly) remainingBonusChips * 550 else 0)).coerceAtLeast(0)
@@ -556,7 +563,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val score = (if (stoppedEarly) 11800 else 7600) +
                 (remainingBonusChips * 480) -
                 (realMoneyLost / 2) +
-                (_gameState.value.unlockedAchievementIds.size * 600)
+                (sessionEarned.size * 600)
 
         val summary = if (stoppedEarly) {
             "¡Te retiraste de la ruleta en la tirada $spinsUsed/10! Comprobaste cómo el Cero Verde y los casi-aciertos inclinan la probabilidad a favor de la banca."
@@ -572,6 +579,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 correctDecisionsCount = if (stoppedEarly) 7 else 5,
                 incorrectDecisionsCount = if (stoppedEarly) 0 else 2,
                 totalDecisionTimeMillis = elapsedMillis,
+                decisionHistory = emptyList(),
                 lastCompletedMode = "La Ruleta del 29",
                 lastModeSummary = summary,
                 lastEarnedScore = score.coerceAtLeast(400),
@@ -593,7 +601,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             savings = current.currentSavings,
             wellbeingPoints = current.wellbeingPoints,
             totalTimeMillis = current.totalDecisionTimeMillis.coerceAtLeast(1000L),
-            achievementsCount = current.unlockedAchievementIds.size,
+            achievementsCount = current.sessionAchievementIds.size,
             hasSixSeven = current.unlockedAchievementIds.contains(AchievementsCatalog.ID_SIXSEVEN),
             gameMode = modeName,
             timestamp = System.currentTimeMillis()
@@ -603,16 +611,23 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun unlockAchievement(achievementId: String) {
+    fun unlockAchievement(
+        achievementId: String,
+        resetSessionTo: Set<String>? = null
+    ) {
         val def = AchievementsCatalog.findById(achievementId) ?: return
         val alreadyUnlocked = _gameState.value.unlockedAchievementIds.contains(achievementId)
+
+        _gameState.update { state ->
+            val updatedSession = resetSessionTo ?: (state.sessionAchievementIds + achievementId)
+            state.copy(
+                sessionAchievementIds = updatedSession,
+                unlockedAchievementIds = state.unlockedAchievementIds + achievementId,
+                newlyUnlockedAchievement = if (!alreadyUnlocked) def else state.newlyUnlockedAchievement
+            )
+        }
+
         if (!alreadyUnlocked) {
-            _gameState.update { state ->
-                state.copy(
-                    unlockedAchievementIds = state.unlockedAchievementIds + achievementId,
-                    newlyUnlockedAchievement = def
-                )
-            }
             viewModelScope.launch(Dispatchers.IO) {
                 gameDao.unlockAchievement(AchievementEntity(achievementId = achievementId))
             }
@@ -664,6 +679,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 incorrectDecisionsCount = 0,
                 totalDecisionTimeMillis = 0L,
                 decisionHistory = emptyList(),
+                sessionAchievementIds = emptySet(),
                 betMomMoneyOnTuesday = false,
                 isPunishedNoPhone = false,
                 punishmentReasonTitle = "",
