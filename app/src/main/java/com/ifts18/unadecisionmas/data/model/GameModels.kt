@@ -72,14 +72,13 @@ data class DecisionRecord(
 )
 
 /**
- * Definición de un logro o medalla del sistema (incluyendo el Easter Egg SIXSEVEN).
+ * Definición de un logro o medalla del sistema.
  */
 data class AchievementDef(
     val id: String,
     val codeNumber: String,
     val title: String,
     val description: String,
-    val iconEmoji: String,
     val bonusPoints: Int,
     val isSecret: Boolean = false
 )
@@ -99,58 +98,51 @@ object AchievementsCatalog {
         AchievementDef(
             id = ID_INTOCABLE,
             codeNumber = "#01",
-            title = "Intocable ($0 Deuda)",
-            description = "Terminaste la semana completa sin contraer un solo peso de deuda en apuestas.",
-            iconEmoji = "🛡️",
+            title = "Intocable ($0 deuda)",
+            description = "Terminaste la semana sin contraer deuda en apuestas.",
             bonusPoints = 1500
         ),
         AchievementDef(
             id = ID_HONRADO_100,
             codeNumber = "#02",
             title = "100% Honrado",
-            description = "Devolviste los $80.000 de la transferencia por error de mamá sin caer en la timba.",
-            iconEmoji = "🤝",
+            description = "Devolviste los $80.000 de mamá sin tocar el casino.",
             bonusPoints = 1200
         ),
         AchievementDef(
             id = ID_EVITANDO_TENTACION,
             codeNumber = "#03",
-            title = "Evitando Tentación",
-            description = "Sacudiste el teléfono a tiempo con el acelerómetro y destruiste el bombardeo de anuncios de casinos.",
-            iconEmoji = "📳",
+            title = "Sin caer en el scroll",
+            description = "Sacudiste el teléfono para frenar el bombardeo de anuncios.",
             bonusPoints = 1300
         ),
         AchievementDef(
             id = ID_OJO_ABIERTO,
             codeNumber = "#04",
-            title = "Ojo Abierto",
-            description = "Desenmascaraste el algoritmo del Tragamonedas y comprobaste por qué la casa siempre gana.",
-            iconEmoji = "🎰",
+            title = "Ojo abierto",
+            description = "Desarmaste el truco matemático antes de que la casa se quede con todo.",
             bonusPoints = 1200
         ),
         AchievementDef(
             id = ID_VIDA_REAL,
             codeNumber = "#05",
-            title = "Canchita y Amigos",
-            description = "Elegiste invertir tu tiempo y ahorros en planes reales con amigos en vez de billeteras de casino.",
-            iconEmoji = "⚽",
+            title = "Canchita y amigos",
+            description = "Elegiste planes reales con amigos por encima de billeteras de apuestas.",
             bonusPoints = 1000
         ),
         AchievementDef(
             id = ID_TODO_AL_ROJO,
             codeNumber = "#06",
-            title = "Sin Celu hasta el Lunes",
-            description = "Saltó la ficha en tu casa o terminaste endeudado: perdiste el celular por el fin de semana, pero aprendiste la lección.",
-            iconEmoji = "📵",
+            title = "Sin celu hasta el lunes",
+            description = "Saltó la ficha o cerraste con deuda y te quedaste sin teléfono el finde.",
             bonusPoints = 400,
             isSecret = false
         ),
         AchievementDef(
             id = ID_SIXSEVEN,
             codeNumber = "#67",
-            title = "SIXSEVEN (Easter Egg)",
-            description = "Medalla clandestina desbloqueada escaneando el código QR secreto de otro compañero con Juego Limpio.",
-            iconEmoji = "👾",
+            title = "SixSeven",
+            description = "Medalla secreta desbloqueada al escanear el QR oculto de otro jugador.",
             bonusPoints = 2500,
             isSecret = true
         )
@@ -158,6 +150,56 @@ object AchievementsCatalog {
 
     fun findById(id: String): AchievementDef? = all.find { it.id == id }
 }
+
+/**
+ * Símbolos vectoriales de los rodillos del tragamonedas (sin emojis).
+ */
+enum class SlotSymbol(val label: String) {
+    SEVEN("777"),
+    COIN("Moneda"),
+    BAR("BAR"),
+    DIAMOND("Diamante"),
+    BELL("Campana"),
+    CHERRY("Cereza"),
+    GRAPES("Uvas"),
+    LEMON("Limón")
+}
+
+/**
+ * Estado persistente del minijuego Tragamonedas (Juego 3).
+ */
+data class SlotsGameState(
+    val reel1: SlotSymbol = SlotSymbol.SEVEN,
+    val reel2: SlotSymbol = SlotSymbol.DIAMOND,
+    val reel3: SlotSymbol = SlotSymbol.CHERRY,
+    val spinsUsed: Int = 0,
+    val maxSpins: Int = 10,
+    val bonusChips: Int = 10,
+    val fakeLockedWinnings: Int = 0,
+    val realMoneyLost: Int = 0,
+    val elapsedMillis: Long = 0L,
+    val algorithmStageTitle: String = "Tenés 10 fichas de bono",
+    val algorithmExplanation: String = "Agitá el celular o tocá Girar para probar la máquina.",
+    val spinStatusBanner: String = "3 iguales suman saldo de bono"
+)
+
+/**
+ * Estado persistente del minijuego La Ruleta del 29 (Juego 4).
+ */
+data class RouletteGameState(
+    val selectedNumberIndex: Int = 8,
+    val selectedBetMode: String = "PLENO",
+    val landedPocketIndex: Int = 8,
+    val spinsUsed: Int = 0,
+    val maxSpins: Int = 10,
+    val bonusChips: Int = 10,
+    val fakeLockedWinnings: Int = 0,
+    val realMoneyLost: Int = 0,
+    val elapsedMillis: Long = 0L,
+    val resultBannerText: String = "Elegí número o color y agitá para girar",
+    val algorithmStageTitle: String = "10 fichas de bono activas",
+    val algorithmExplanation: String = "Probá el paño para ver qué pasa en cada tirada."
+)
 
 /**
  * Entrada del Ranking Global (Firebase + caché local Room).

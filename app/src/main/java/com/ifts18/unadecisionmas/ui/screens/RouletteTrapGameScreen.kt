@@ -30,18 +30,20 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,12 +56,16 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.ifts18.unadecisionmas.audio.SoundManager
+import com.ifts18.unadecisionmas.data.model.RouletteGameState
 import com.ifts18.unadecisionmas.sensor.HapticFeedbackHelper
 import com.ifts18.unadecisionmas.sensor.rememberAccelerometerMonitor
 import com.ifts18.unadecisionmas.ui.theme.BordeCyan
@@ -81,17 +87,20 @@ private data class RoulettePocket(
 )
 
 /**
- * JUEGO 4: "La Ruleta del 29 🎡"
- * Simulador interactivo de Ruleta con rueda giratoria real en Canvas, paño interactivo
- * para elegir número y color, y accionamiento mediante el sensor Acelerómetro.
+ * JUEGO 4: "La Ruleta del 29"
+ * Simulador interactivo de Ruleta con rueda giratoria en Canvas, paño interactivo
+ * y memoria persistente en Room.
  */
 @Composable
 fun RouletteTrapGameScreen(
+    state: RouletteGameState,
+    onStateChange: (RouletteGameState) -> Unit,
     onBackToHub: () -> Unit,
     onGameFinished: (stoppedEarly: Boolean, spinsUsed: Int, remainingChips: Int, realMoneyLost: Int, elapsedMillis: Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
 
     val wheelPockets = remember {
@@ -111,68 +120,103 @@ fun RouletteTrapGameScreen(
         )
     }
 
-    var selectedNumberIndex by remember { mutableIntStateOf(8) } // Por defecto 29 Negro
+    val selectedNumberIndex = state.selectedNumberIndex.coerceIn(0, wheelPockets.lastIndex)
     val selectedPocket = wheelPockets[selectedNumberIndex]
-    var selectedBetMode by remember { mutableStateOf("PLENO") } // "PLENO", "ROJO", "NEGRO"
+    val selectedBetMode = state.selectedBetMode
+    val landedPocket = wheelPockets[state.landedPocketIndex.coerceIn(0, wheelPockets.lastIndex)]
 
-    var landedPocket by remember { mutableStateOf(wheelPockets[8]) }
     val wheelRotation = remember { Animatable(0f) }
-
     var isSpinning by remember { mutableStateOf(false) }
     var showResultPopup by remember { mutableStateOf(false) }
-    var spinsUsed by remember { mutableIntStateOf(0) }
-    val maxSpins = 10
-    var bonusChips by remember { mutableIntStateOf(10) }
-    var fakeLockedWinnings by remember { mutableIntStateOf(0) }
-    var realMoneyLost by remember { mutableIntStateOf(0) }
-    val startTimeMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
-    var resultBannerText by remember {
-        mutableStateOf("Tocá un número del paño para cambiar tu ficha y agitá el celular")
+    val spinsUsed = state.spinsUsed
+    val maxSpins = state.maxSpins
+    val bonusChips = state.bonusChips
+    val fakeLockedWinnings = state.fakeLockedWinnings
+    val realMoneyLost = state.realMoneyLost
+    val resultBannerText = state.resultBannerText
+    val algorithmStageTitle = state.algorithmStageTitle
+    val algorithmExplanation = state.algorithmExplanation
+
+    val currentState by rememberUpdatedState(state)
+    var sessionOpenedAt by remember { mutableStateOf(System.currentTimeMillis()) }
+    var activeBeforePauseMillis by remember { mutableStateOf(state.elapsedMillis) }
+    var isLifecycleResumed by remember { mutableStateOf(true) }
+    var hasFinished by remember { mutableStateOf(false) }
+
+    val sliceAngle = 360f / wheelPockets.size
+    LaunchedEffect(state.landedPocketIndex) {
+        if (!isSpinning) {
+            val alignedAngle = (360f - (state.landedPocketIndex.coerceIn(0, wheelPockets.lastIndex) * sliceAngle) - sliceAngle / 2f) % 360f
+            wheelRotation.snapTo(alignedAngle)
+        }
     }
-    var algorithmStageTitle by remember {
-        mutableStateOf("Ruleta Lista: 10 fichas de bono activas")
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    isLifecycleResumed = true
+                    sessionOpenedAt = System.currentTimeMillis()
+                }
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
+                    if (isLifecycleResumed) {
+                        activeBeforePauseMillis += (System.currentTimeMillis() - sessionOpenedAt).coerceAtLeast(0L)
+                        isLifecycleResumed = false
+                        if (!hasFinished && currentState.spinsUsed > 0) {
+                            onStateChange(currentState.copy(elapsedMillis = activeBeforePauseMillis))
+                        }
+                    }
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            if (!hasFinished && currentState.spinsUsed > 0) {
+                val extra = if (isLifecycleResumed) (System.currentTimeMillis() - sessionOpenedAt).coerceAtLeast(0L) else 0L
+                onStateChange(currentState.copy(elapsedMillis = activeBeforePauseMillis + extra))
+            }
+        }
     }
-    var algorithmExplanation by remember {
-        mutableStateOf("Elegí tu número con los botones del paño (ej. 29 Negro) o apostá a Color, y agitá el teléfono para girar la rueda.")
+
+    fun currentTotalElapsed(): Long {
+        val extra = if (isLifecycleResumed) (System.currentTimeMillis() - sessionOpenedAt).coerceAtLeast(0L) else 0L
+        return activeBeforePauseMillis + extra
     }
 
     fun triggerRouletteSpin() {
-        if (isSpinning || showResultPopup || spinsUsed >= maxSpins || bonusChips <= 0) return
+        val snapshot = currentState
+        if (isSpinning || !isLifecycleResumed || showResultPopup || snapshot.spinsUsed >= snapshot.maxSpins || snapshot.bonusChips <= 0) return
         isSpinning = true
         showResultPopup = false
         SoundManager.playClick()
         HapticFeedbackHelper.vibrateShort(context, 55L)
 
         scope.launch {
-            val nextSpinNumber = spinsUsed + 1
+            val nextSpinNumber = snapshot.spinsUsed + 1
+            val currentSelIdx = snapshot.selectedNumberIndex.coerceIn(0, wheelPockets.lastIndex)
+            val currentSelPocket = wheelPockets[currentSelIdx]
 
-            // Determinar casillero de destino según la etapa pedagógica del algoritmo
             val targetPocketIndex = when (nextSpinNumber) {
                 1, 2 -> {
-                    // Etapa 1: Gancho inicial (sale exactamente lo que el jugador apostó)
-                    when (selectedBetMode) {
+                    when (snapshot.selectedBetMode) {
                         "ROJO" -> wheelPockets.indexOfFirst { it.colorName == "Rojo" }
                         "NEGRO" -> wheelPockets.indexOfFirst { it.colorName == "Negro" }
-                        else -> selectedNumberIndex
+                        else -> currentSelIdx
                     }
                 }
                 3, 4, 5, 6 -> {
-                    // Etapa 2: Casi-Acierto (sale el número pegado al lado en la rueda)
-                    when (selectedBetMode) {
+                    when (snapshot.selectedBetMode) {
                         "ROJO" -> wheelPockets.indexOfFirst { it.colorName == "Negro" }
                         "NEGRO" -> wheelPockets.indexOfFirst { it.colorName == "Rojo" }
-                        else -> (selectedNumberIndex - 1 + wheelPockets.size) % wheelPockets.size
+                        else -> (currentSelIdx - 1 + wheelPockets.size) % wheelPockets.size
                     }
                 }
-                else -> {
-                    // Etapa 3: Sale el 0 Verde o el color opuesto (Ventaja de la Banca)
-                    0 // 0 Verde
-                }
+                else -> 0
             }
 
-            val sliceAngle = 360f / wheelPockets.size
-            // Alinear el casillero elegido arriba en la flecha dorada (-90 grados)
             val targetAngleMod = (360f - (targetPocketIndex * sliceAngle) - sliceAngle / 2f) % 360f
             val currentMod = wheelRotation.value % 360f
             val delta = ((targetAngleMod - currentMod) + 360f) % 360f
@@ -183,35 +227,54 @@ fun RouletteTrapGameScreen(
                 animationSpec = tween(durationMillis = 1250, easing = FastOutSlowInEasing)
             )
 
-            landedPocket = wheelPockets[targetPocketIndex]
-            spinsUsed = nextSpinNumber
-            bonusChips = (bonusChips - 1).coerceAtLeast(0)
+            val landed = wheelPockets[targetPocketIndex]
+            val updatedChips = (snapshot.bonusChips - 1).coerceAtLeast(0)
+            val totalElapsed = currentTotalElapsed()
 
-            when (nextSpinNumber) {
+            val nextState = when (nextSpinNumber) {
                 1, 2 -> {
-                    fakeLockedWinnings += 4000
-                    resultBannerText = "🎉 ¡Salió ${landedPocket.number} ${landedPocket.colorName}! +$4.000 (Bono trabado)"
-                    algorithmStageTitle = "Etapa 1 (Tirada $nextSpinNumber/10): El Gancho Inicial"
-                    algorithmExplanation = "Al principio te hacen acertar para entusiasmarse, pero el premio queda trabado como 'Saldo de Bono' y no se puede retirar sin apostar mucho más."
+                    snapshot.copy(
+                        landedPocketIndex = targetPocketIndex,
+                        spinsUsed = nextSpinNumber,
+                        bonusChips = updatedChips,
+                        fakeLockedWinnings = snapshot.fakeLockedWinnings + 4000,
+                        elapsedMillis = totalElapsed,
+                        resultBannerText = "+$4.000 en bono trabado",
+                        algorithmStageTitle = "Etapa 1: Gancho inicial",
+                        algorithmExplanation = "Te dejan ganar al inicio, pero el saldo queda trabado y exige seguir apostando."
+                    )
                 }
                 3, 4, 5, 6 -> {
-                    val betLabel = when (selectedBetMode) {
+                    val betLabel = when (snapshot.selectedBetMode) {
                         "ROJO" -> "Rojo"
                         "NEGRO" -> "Negro"
-                        else -> "#${selectedPocket.number} ${selectedPocket.colorName}"
+                        else -> "#${currentSelPocket.number} ${currentSelPocket.colorName}"
                     }
-                    resultBannerText = "⚡ ¡Casi! Apostaste a $betLabel y frenó al lado: ${landedPocket.number} ${landedPocket.colorName}"
-                    algorithmStageTitle = "Etapa 2 (Tirada $nextSpinNumber/10): Casi-Acierto y Mito de la Racha"
-                    algorithmExplanation = "La bolilla frenó justo al lado de tu ficha (${landedPocket.number} ${landedPocket.colorName}). Es un mito creer que 'ya está por salir': cada giro es independiente y busca tentarte a seguir."
+                    snapshot.copy(
+                        landedPocketIndex = targetPocketIndex,
+                        spinsUsed = nextSpinNumber,
+                        bonusChips = updatedChips,
+                        elapsedMillis = totalElapsed,
+                        resultBannerText = "Frenó al lado (#${landed.number} ${landed.colorName})",
+                        algorithmStageTitle = "Etapa 2: Casi-acierto",
+                        algorithmExplanation = "Apostaste a $betLabel y cayó pegado. Cada tirada es independiente, no hay rachas."
+                    )
                 }
                 else -> {
-                    fakeLockedWinnings = (fakeLockedWinnings - 2000).coerceAtLeast(0)
-                    resultBannerText = "🟢 Salió 0 Verde • Gana la Banca (Perdés tu ficha)"
-                    algorithmStageTitle = "Etapa 3 (Tirada $nextSpinNumber/10): El Cero Verde y la Ventaja de la Casa"
-                    algorithmExplanation = "Aunque Rojo o Negro parezcan 50/50, el 0 Verde inclina la probabilidad real a 47,3%. Cuantas más tiradas hacés, más seguro es que la banca se quede con todo."
+                    snapshot.copy(
+                        landedPocketIndex = targetPocketIndex,
+                        spinsUsed = nextSpinNumber,
+                        bonusChips = updatedChips,
+                        fakeLockedWinnings = (snapshot.fakeLockedWinnings - 2000).coerceAtLeast(0),
+                        elapsedMillis = totalElapsed,
+                        resultBannerText = "Salió 0 Verde • Gana la banca",
+                        algorithmStageTitle = "Etapa 3: Ventaja de la banca",
+                        algorithmExplanation = "El 0 Verde inclina la probabilidad a favor de la casa en el largo plazo."
+                    )
                 }
             }
 
+            onStateChange(nextState)
             HapticFeedbackHelper.vibrateShort(context, 45L)
             isSpinning = false
             showResultPopup = true
@@ -219,7 +282,7 @@ fun RouletteTrapGameScreen(
     }
 
     val sensorReading by rememberAccelerometerMonitor(
-        enabled = !isSpinning && !showResultPopup && spinsUsed < maxSpins,
+        enabled = !isSpinning && isLifecycleResumed && !showResultPopup && spinsUsed < maxSpins,
         shakeThresholdG = 1.42f,
         minIntervalMs = 600L
     ) {
@@ -267,7 +330,7 @@ fun RouletteTrapGameScreen(
                     Spacer(modifier = Modifier.width(6.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Juego 4: La Ruleta del 29",
+                            text = "La Ruleta del 29",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
@@ -296,7 +359,7 @@ fun RouletteTrapGameScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "🪙 Fichas: $bonusChips/$maxSpins",
+                        text = "Fichas: $bonusChips/$maxSpins",
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
@@ -462,32 +525,43 @@ fun RouletteTrapGameScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "1. Tocá para elegir tu apuesta:",
+                        text = "Elegí tu apuesta:",
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
                         color = Color.White
                     )
-                    Text(
-                        text = "Bono retenido: $$fakeLockedWinnings 🔒",
-                        fontFamily = SpaceGrotesk,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                        color = BordeMagenta
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Bono trabado: $$fakeLockedWinnings",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            color = BordeMagenta
+                        )
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "Bloqueado",
+                            tint = BordeMagenta,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Selector de modo: Pleno al Número vs Todo al Rojo vs Todo al Negro
+                // Selector de modo: Pleno al Número vs Rojo vs Negro
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     val modes = listOf(
-                        Triple("PLENO", "🎯 Pleno #${selectedPocket.number}", BordeCyan),
-                        Triple("ROJO", "🔴 Rojo x2", RojoAlerta),
-                        Triple("NEGRO", "⚫ Negro x2", Color(0xFF8A99AD))
+                        Triple("PLENO", "Pleno #${selectedPocket.number}", BordeCyan),
+                        Triple("ROJO", "Rojo x2", RojoAlerta),
+                        Triple("NEGRO", "Negro x2", Color(0xFF454E63))
                     )
                     modes.forEach { (modeKey, label, accent) ->
                         val isSelected = selectedBetMode == modeKey
@@ -497,7 +571,7 @@ fun RouletteTrapGameScreen(
                                 .height(33.dp)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(
-                                    if (isSelected) accent.copy(alpha = 0.25f)
+                                    if (isSelected) accent.copy(alpha = 0.28f)
                                     else Color(0xFF121722)
                                 )
                                 .border(
@@ -507,18 +581,37 @@ fun RouletteTrapGameScreen(
                                 )
                                 .clickable(enabled = !isSpinning && !showResultPopup) {
                                     SoundManager.playClick()
-                                    selectedBetMode = modeKey
+                                    onStateChange(
+                                        currentState.copy(
+                                            selectedBetMode = modeKey,
+                                            elapsedMillis = currentTotalElapsed()
+                                        )
+                                    )
                                 },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = label,
-                                fontFamily = SpaceGrotesk,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.5.sp,
-                                color = Color.White,
-                                maxLines = 1
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                if (modeKey == "ROJO" || modeKey == "NEGRO") {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(if (modeKey == "ROJO") Color(0xFFD32F2F) else Color(0xFF262B38))
+                                            .border(0.8.dp, Color.White.copy(alpha = 0.5f), CircleShape)
+                                    )
+                                }
+                                Text(
+                                    text = label,
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.5.sp,
+                                    color = Color.White,
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
                 }
@@ -526,7 +619,7 @@ fun RouletteTrapGameScreen(
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
-                    text = "2. Tocá cualquier casillero para cambiar el número a apostar:",
+                    text = "Tocá un número del paño para cambiar:",
                     fontFamily = SpaceGrotesk,
                     fontSize = 11.sp,
                     color = TextoSecundario,
@@ -556,23 +649,28 @@ fun RouletteTrapGameScreen(
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(pocket.pocketColor)
                                     .border(
-                                        width = if (isNumberSelected) 2.2.dp else 1.dp,
-                                        color = if (isNumberSelected) BordeCyan else Color.White.copy(alpha = 0.22f),
+                                        width = if (isNumberSelected) 2.5.dp else 1.dp,
+                                        color = if (isNumberSelected) Color.White else Color.White.copy(alpha = 0.22f),
                                         shape = RoundedCornerShape(8.dp)
                                     )
                                     .clickable(enabled = !isSpinning && !showResultPopup) {
                                         SoundManager.playClick()
-                                        selectedNumberIndex = actualIndex
-                                        selectedBetMode = "PLENO"
+                                        onStateChange(
+                                            currentState.copy(
+                                                selectedNumberIndex = actualIndex,
+                                                selectedBetMode = "PLENO",
+                                                elapsedMillis = currentTotalElapsed()
+                                            )
+                                        )
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = if (isNumberSelected) "🪙${pocket.number}" else "${pocket.number}",
+                                    text = "${pocket.number}",
                                     fontFamily = SpaceGrotesk,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
-                                    color = Color.White,
+                                    color = if (isNumberSelected) BordeCyan else Color.White,
                                     maxLines = 1
                                 )
                             }
@@ -610,13 +708,13 @@ fun RouletteTrapGameScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = if (isSpinning) {
-                                    "Girando la ruleta..."
+                                    "Girando..."
                                 } else {
-                                    "¡AGITÁ EL CELULAR O TOCÁ PARA GIRAR! ($bonusChips fichas)"
+                                    "Agitá o tocá para girar ($bonusChips)"
                                 },
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 12.5.sp,
+                                fontSize = 13.sp,
                                 color = Color.White,
                                 maxLines = 1
                             )
@@ -628,7 +726,7 @@ fun RouletteTrapGameScreen(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = "¡Se agotaron las 10 fichas! El casino te pide cargar plata real:",
+                            text = "Sin fichas de bono. El casino te pide cargar plata real:",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,
@@ -640,24 +738,31 @@ fun RouletteTrapGameScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(40.dp)
+                                .height(42.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(RojoAlerta.copy(alpha = 0.2f))
                                 .border(1.dp, RojoAlerta, RoundedCornerShape(12.dp))
                                 .clickable {
                                     SoundManager.playClick()
-                                    realMoneyLost += 5000
-                                    val elapsed = System.currentTimeMillis() - startTimeMillis
-                                    onGameFinished(false, spinsUsed, bonusChips, realMoneyLost, elapsed)
-                                },
+                                    hasFinished = true
+                                    onGameFinished(
+                                        false,
+                                        spinsUsed,
+                                        bonusChips,
+                                        realMoneyLost + 5000,
+                                        currentTotalElapsed()
+                                    )
+                                }
+                                .padding(horizontal = 10.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "⚠️ Cargar $5.000 de mis ahorros para seguir buscando el pleno",
+                                text = "Cargar $5.000 reales para seguir",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 11.5.sp,
-                                color = Color.White
+                                fontSize = 12.sp,
+                                color = Color.White,
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
@@ -679,14 +784,14 @@ fun RouletteTrapGameScreen(
                         .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
                         .clickable {
                             SoundManager.playClick()
-                            val elapsed = System.currentTimeMillis() - startTimeMillis
+                            hasFinished = true
                             val stoppedBeforeDrain = spinsUsed < maxSpins
                             onGameFinished(
                                 stoppedBeforeDrain,
                                 spinsUsed,
                                 bonusChips,
                                 realMoneyLost,
-                                elapsed
+                                currentTotalElapsed()
                             )
                         },
                     contentAlignment = Alignment.Center
@@ -695,19 +800,17 @@ fun RouletteTrapGameScreen(
                         Icon(
                             imageVector = Icons.Default.Shield,
                             contentDescription = null,
-                            tint = Color.Black
+                            tint = Color.Black,
+                            modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (spinsUsed < maxSpins) {
-                                "Plantarse a tiempo (No caer en la trampa)"
-                            } else {
-                                "Rechazar recarga y Cerrar Ruleta ($0 Deuda)"
-                            },
+                            text = if (spinsUsed < maxSpins) "Plantarse" else "Cerrar sin depositar",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = Color.Black
+                            fontSize = 14.5.sp,
+                            color = Color.Black,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
@@ -792,16 +895,17 @@ fun RouletteTrapGameScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
                         text = resultBannerText,
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 15.5.sp,
+                        fontSize = 16.sp,
                         lineHeight = 20.sp,
                         color = Color.White,
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -815,21 +919,13 @@ fun RouletteTrapGameScreen(
                             .padding(14.dp)
                     ) {
                         Text(
-                            text = "🔍 Cómo funciona la ventaja de la banca:",
-                            fontFamily = SpaceGrotesk,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
-                            color = BordeCyan
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
                             text = algorithmStageTitle,
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
                             color = stageColor
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = algorithmExplanation,
                             fontFamily = SpaceGrotesk,
@@ -854,15 +950,13 @@ fun RouletteTrapGameScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (spinsUsed < maxSpins) {
-                                "Seguir tirando ($bonusChips fichas restantes)"
-                            } else {
-                                "Continuar (Se agotaron las fichas)"
-                            },
+                            text = if (spinsUsed < maxSpins) "Seguir tirando" else "Cerrar",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp,
-                            color = Color.White
+                            fontSize = 14.sp,
+                            color = Color.White,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
 
@@ -878,23 +972,25 @@ fun RouletteTrapGameScreen(
                                 .clickable {
                                     SoundManager.playClick()
                                     showResultPopup = false
-                                    val elapsed = System.currentTimeMillis() - startTimeMillis
+                                    hasFinished = true
                                     onGameFinished(
                                         true,
                                         spinsUsed,
                                         bonusChips,
                                         realMoneyLost,
-                                        elapsed
+                                        currentTotalElapsed()
                                     )
                                 },
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "🛡️ Plantarse ahora y no caer en la trampa",
+                                text = "Plantarse",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 12.5.sp,
-                                color = VerdeExito
+                                fontSize = 13.5.sp,
+                                color = VerdeExito,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
                     }

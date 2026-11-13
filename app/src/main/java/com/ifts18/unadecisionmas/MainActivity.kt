@@ -16,6 +16,7 @@ class MainActivity : ComponentActivity() {
 
         // Inicializar gestor multimedia global y arrancar música de fondo
         SoundManager.init(this)
+        SoundManager.onAppForeground()
         SoundManager.startBgMusic()
 
         setContent {
@@ -25,16 +26,26 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        SoundManager.onAppForeground()
+    }
+
     override fun onResume() {
         super.onResume()
         // Reanudar sonido si la partida estaba activa
-        SoundManager.resumeBgMusic()
+        SoundManager.onAppForeground()
     }
 
     override fun onPause() {
         super.onPause()
         // Pausar audio para respetar el ciclo de vida y no consumir batería en segundo plano
-        SoundManager.pauseBgMusic()
+        SoundManager.onAppBackground()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        SoundManager.onAppBackground()
     }
 
     override fun onDestroy() {

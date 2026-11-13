@@ -31,6 +31,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.ifts18.unadecisionmas.ui.components.AchievementBadgeIcon
 import com.ifts18.unadecisionmas.ui.screens.GameDecisionScreen
 import com.ifts18.unadecisionmas.ui.screens.GameResultScreen
 import com.ifts18.unadecisionmas.ui.screens.LeaderboardScreen
@@ -51,6 +52,8 @@ fun AppNavigation(
     viewModel: GameViewModel = viewModel()
 ) {
     val gameState by viewModel.gameState.collectAsStateWithLifecycle()
+    val slotsState by viewModel.slotsState.collectAsStateWithLifecycle()
+    val rouletteState by viewModel.rouletteState.collectAsStateWithLifecycle()
     val rankingList by viewModel.rankingList.collectAsStateWithLifecycle()
     val isFirebaseOnline by viewModel.isFirebaseOnline.collectAsStateWithLifecycle()
     val firebaseStatusText by viewModel.firebaseStatusText.collectAsStateWithLifecycle()
@@ -135,6 +138,8 @@ fun AppNavigation(
 
             composable(route = Screen.SlotsTrapGame.route) {
                 SlotsTrapGameScreen(
+                    state = slotsState,
+                    onStateChange = { updated -> viewModel.updateSlotsProgress(updated) },
                     onBackToHub = {
                         navController.popBackStack()
                     },
@@ -155,6 +160,8 @@ fun AppNavigation(
 
             composable(route = Screen.RouletteTrapGame.route) {
                 RouletteTrapGameScreen(
+                    state = rouletteState,
+                    onStateChange = { updated -> viewModel.updateRouletteProgress(updated) },
                     onBackToHub = {
                         navController.popBackStack()
                     },
@@ -223,14 +230,14 @@ fun AppNavigation(
                     .padding(12.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = unlocked.iconEmoji,
-                        fontSize = 28.sp
+                    AchievementBadgeIcon(
+                        achievementId = unlocked.id,
+                        isUnlocked = true
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "¡MEDALLA DESBLOQUEADA! (${unlocked.codeNumber})",
+                            text = "MEDALLA DESBLOQUEADA (${unlocked.codeNumber})",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp,

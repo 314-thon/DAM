@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -57,6 +58,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -82,6 +84,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -89,8 +92,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.ifts18.unadecisionmas.R
 import com.ifts18.unadecisionmas.audio.SoundManager
 import com.ifts18.unadecisionmas.sensor.HapticFeedbackHelper
@@ -167,27 +173,28 @@ fun ScrollAdsGameScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
     val igStories = remember {
         listOf(
-            IgStoryItem(handle = "Tu historia", avatarResId = R.drawable.avatar_1, isOwnStory = true),
-            IgStoryItem(handle = "valen.musica", avatarResId = R.drawable.avatar_2),
-            IgStoryItem(handle = "lauti_bici", avatarResId = R.drawable.avatar_3),
-            IgStoryItem(handle = "camila.art", avatarResId = R.drawable.avatar_4),
-            IgStoryItem(handle = "tomas.voley", avatarResId = R.drawable.avatar_5),
-            IgStoryItem(handle = "mora.sketch", avatarResId = R.drawable.avatar_4),
-            IgStoryItem(handle = "fede_ok", avatarResId = R.drawable.avatar_1)
+            IgStoryItem(handle = "Tu historia", avatarResId = 0, isOwnStory = true),
+            IgStoryItem(handle = "valen.musica", avatarResId = 0),
+            IgStoryItem(handle = "lauti_bici", avatarResId = 0),
+            IgStoryItem(handle = "camila.art", avatarResId = 0),
+            IgStoryItem(handle = "tomas.voley", avatarResId = 0),
+            IgStoryItem(handle = "mora.sketch", avatarResId = 0),
+            IgStoryItem(handle = "fede_ok", avatarResId = 0)
         )
     }
 
     val igSuggestions = remember {
         listOf(
-            IgSuggestionItem("Julieta Paz", "julipaz.ok", R.drawable.avatar_4),
-            IgSuggestionItem("Mate & Código", "mateycodigo", R.drawable.avatar_3),
-            IgSuggestionItem("Bici Urbana BA", "biciurbanaba", R.drawable.avatar_5),
-            IgSuggestionItem("Cine Club 5B", "cineclub.5b", R.drawable.avatar_1)
+            IgSuggestionItem("Julieta Paz", "julipaz.ok", 0),
+            IgSuggestionItem("Mate & Código", "mateycodigo", 0),
+            IgSuggestionItem("Bici Urbana BA", "biciurbanaba", 0),
+            IgSuggestionItem("Cine Club 5B", "cineclub.5b", 0)
         )
     }
 
@@ -198,14 +205,14 @@ fun ScrollAdsGameScreen(
                 handle = "club.barrio_sur",
                 subLabel = "Audio original • Torneo 5.° Año",
                 isVerified = true,
-                avatarResId = R.drawable.avatar_3,
+                avatarResId = 0,
                 audioBadge = "REEL • 0:24",
                 likesBase = 1284,
                 commentsCount = 43,
                 sharesCount = 19,
                 likedByHandle = "lauti_bici",
                 likedOthersCount = "1.283",
-                caption = "Hoy se juega la semi en la cancha del club con toda la banda del curso, cero excusas ⚽🔥",
+                caption = "Hoy se juega la semi en la cancha del club con toda la banda del curso.",
                 hashtags = "#FutsalBarrioSur #PlanReal #SinTimba",
                 timeAgo = "Hace 2 horas",
                 visualTheme = 1
@@ -215,14 +222,14 @@ fun ScrollAdsGameScreen(
                 handle = "valen.musica",
                 subLabel = "Sugerencia para ti",
                 isVerified = false,
-                avatarResId = R.drawable.avatar_2,
+                avatarResId = 0,
                 audioBadge = "Lo-Fi Study Mix",
                 likesBase = 892,
                 commentsCount = 27,
                 sharesCount = 64,
                 likedByHandle = "camila.art",
                 likedOthersCount = "891",
-                caption = "Armé playlist nueva para meterle al TP sin distraerse ni caer en notificaciones truchas 📚🎧",
+                caption = "Armé playlist nueva para meterle al TP sin distraerse ni caer en notificaciones truchas.",
                 hashtags = "#MusicaParaEstudiar #Playlist5B #ModoFocus",
                 timeAgo = "Hace 4 horas",
                 visualTheme = 2
@@ -232,14 +239,14 @@ fun ScrollAdsGameScreen(
                 handle = "dato.claro",
                 subLabel = "Educación Digital • Carrusel",
                 isVerified = true,
-                avatarResId = R.drawable.avatar_1,
+                avatarResId = 0,
                 audioBadge = "1 / 4",
                 likesBase = 3410,
                 commentsCount = 118,
                 sharesCount = 405,
                 likedByHandle = "fede_ok",
                 likedOthersCount = "3.409",
-                caption = "Cuando un influencer muestra un retiro de $400k casi siempre usa 'cuenta demo' con saldo ficticio. Nadie sube las 20 pérdidas de la semana.",
+                caption = "Cuando un influencer muestra un retiro gigante casi siempre usa saldo ficticio. Nadie sube las 20 pérdidas de la semana.",
                 hashtags = "#OjoConElDemo #VentajaDeLaCasa #DatoReal",
                 timeAgo = "Hace 6 horas",
                 visualTheme = 3
@@ -249,14 +256,14 @@ fun ScrollAdsGameScreen(
                 handle = "camila.art",
                 subLabel = "Palermo, Buenos Aires",
                 isVerified = false,
-                avatarResId = R.drawable.avatar_4,
+                avatarResId = 0,
                 audioBadge = "Acústico • Café y Trazos",
                 likesBase = 645,
                 commentsCount = 19,
                 sharesCount = 12,
                 likedByHandle = "valen.musica",
                 likedOthersCount = "644",
-                caption = "Lo mejor de cuidar tus ahorros es poder disfrutar salidas reales, merienda con amigas y cero deuda en el bolsillo ☕✏️",
+                caption = "Lo mejor de cuidar tus ahorros es disfrutar salidas reales, merienda con amigas y cero deuda.",
                 hashtags = "#SalidasReales #Sketchbook #Cuidate",
                 timeAgo = "Hace 9 horas",
                 visualTheme = 4
@@ -266,14 +273,14 @@ fun ScrollAdsGameScreen(
                 handle = "espacio.joven141",
                 subLabel = "Información Pública • CABA",
                 isVerified = true,
-                avatarResId = R.drawable.ic_boti,
+                avatarResId = 0,
                 audioBadge = "Recurso Gratuito 24/7",
                 likesBase = 4920,
                 commentsCount = 95,
                 sharesCount = 812,
                 likedByHandle = "tomas.voley",
                 likedOthersCount = "4.919",
-                caption = "Si algún compañero la está pasando mal con apuestas o préstamos de cajeros, hablar a tiempo cambia todo. Línea 141 y Boti atienden gratis 24/7 🛡️",
+                caption = "Si algún compañero la está pasando mal con apuestas o préstamos de cajeros, hablar a tiempo cambia todo. Línea 141 y Boti atienden gratis 24/7.",
                 hashtags = "#Linea141 #BotiTeAyuda #JuegoLimpio",
                 timeAgo = "Hace 1 día",
                 visualTheme = 5
@@ -292,16 +299,16 @@ fun ScrollAdsGameScreen(
                 id = 1,
                 triggerProgress = 0.16f,
                 igUsername = "tomifitness.vip",
-                igSponsoredLabel = "Publicidad • B-Play VIP Casino",
-                avatarResId = R.drawable.avatar_5,
-                postImageResId = R.drawable.avatar_5,
-                imageBannerTag = "📲 RETIRO EN VIVO (CUENTA DEMO)",
-                imageOverlayHeadline = "+$450.000 EN 10 MINUTOS 💪",
-                imageOverlaySubtext = "«Empecé con $2.000 entre serie y serie en el gym»",
+                igSponsoredLabel = "Publicidad • B-Play VIP",
+                avatarResId = 0,
+                postImageResId = R.drawable.ad_fitness_casino,
+                imageBannerTag = "RETIRO EN VIVO",
+                imageOverlayHeadline = "Saqué 450K en 3 tiradas",
+                imageOverlaySubtext = "Empecé con $2.000 entre serie y serie",
                 likesCountText = "Les gusta a lucas_09 y 18.420 personas más",
-                bodyText = "Bro, dejá de scrollear gratis. Yo generé mi riqueza desde el gimnasio apostando $2.000. El primer tiro tiene ganancia asegurada.",
-                hashtags = "#FitnessMillionaire #CasinoVIP #GanarFacil #BonoGratis",
-                trapButtonText = "Instalar App y Apostar $4.000",
+                bodyText = "Dejá de scrollear gratis. Yo levanté esto entre serie y serie en el gym. El primer tiro viene con premio.",
+                hashtags = "#BPlayVIP #RetiroEnVivo #CasinoOnline",
+                trapButtonText = "Instalar App",
                 accentColor = BordeMagenta
             ),
             InvasiveAdSpec(
@@ -309,47 +316,47 @@ fun ScrollAdsGameScreen(
                 triggerProgress = 0.42f,
                 igUsername = "cajero.express24",
                 igSponsoredLabel = "Publicidad • Crédito al Toque",
-                avatarResId = R.drawable.avatar_2,
-                postImageResId = R.drawable.avatar_2,
-                imageBannerTag = "⚡ BILLETERA SIN RECIBO NI FIRMA",
-                imageOverlayHeadline = "¡PRÉSTAMO DE $20.000 AL INSTANTE! 💸",
-                imageOverlaySubtext = "Acreditación en 1 clic • Devolvelo cuando ganes",
+                avatarResId = 0,
+                postImageResId = R.drawable.ad_prestamo_express,
+                imageBannerTag = "SIN RECIBO NI FIRMA",
+                imageOverlayHeadline = "$20.000 en tu cuenta en 1 minuto",
+                imageOverlaySubtext = "Cargás fichas ahora y pagás cuando ganás",
                 likesCountText = "Les gusta a nico.apuestas y 9.150 personas más",
-                bodyText = "Te acreditamos $20.000 ahora mismo sin recibo ni firma de tus padres. Cargá fichas ya en la ruleta nocturna.",
-                hashtags = "#PrestamoAlToque #Cajero24hs #FichasFiadas #SinLimite",
-                trapButtonText = "Aceptar Préstamo de $20.000",
+                bodyText = "Te acreditamos $20.000 ahora mismo sin recibo ni garantes. Entrá a la mesa VIP hoy.",
+                hashtags = "#PrestamoAlToque #Cajero24hs #SinLimite",
+                trapButtonText = "Pedir crédito",
                 accentColor = Color(0xFFFFB300)
             ),
             InvasiveAdSpec(
                 id = 3,
                 triggerProgress = 0.68f,
                 igUsername = "fijas.superclasico",
-                igSponsoredLabel = "Publicidad • Apuestas Deportivas",
-                avatarResId = R.drawable.avatar_4,
-                postImageResId = R.drawable.captura,
-                imageBannerTag = "⚽ COMBINADA VIP • CUOTA X10.5",
-                imageOverlayHeadline = "¡TODOS TUS AMIGOS YA ENTRARON!",
-                imageOverlaySubtext = "Pozo acumulado del Superclásico • Cierra en 5s",
+                igSponsoredLabel = "Publicidad • Apuestas en Vivo",
+                avatarResId = 0,
+                postImageResId = R.drawable.ad_superclasico_bet,
+                imageBannerTag = "CUOTA X10.5 HOY",
+                imageOverlayHeadline = "La combinada fija del Superclásico",
+                imageOverlaySubtext = "Últimos cupos antes del pitazo inicial",
                 likesCountText = "Les gusta a mati_futbol y 24.300 personas más",
-                bodyText = "Mirá el ticket ganador que acaban de pasar al grupo. Si no transferís ahora te quedás afuera de la combinada.",
-                hashtags = "#Superclasico #FijaDelDia #CuotaX10 #TimbaDeportiva",
-                trapButtonText = "Transferir $4.000 al Cajero",
+                bodyText = "Mirá la cuota que se está por cerrar antes del partido. Si entrás ahora multiplicás tu entrada por diez.",
+                hashtags = "#Superclasico #FijaDelDia #CuotaX10",
+                trapButtonText = "Apostar $4.000",
                 accentColor = RojoAlerta
             ),
             InvasiveAdSpec(
                 id = 4,
                 triggerProgress = 0.88f,
                 igUsername = "casino.nocturno.bet",
-                igSponsoredLabel = "Publicidad • Bono Bienvenida",
-                avatarResId = R.drawable.avatar_1,
-                postImageResId = R.drawable.juego_limpio_logo_transparent,
-                imageBannerTag = "🎰 GIRO GRATIS PENDIENTE • NO CIERRES",
-                imageOverlayHeadline = "¡RECLAMÁ $50.000 EN FICHAS DE BONO!",
-                imageOverlaySubtext = "El botón 'X' está bloqueado • Sacudí para salir",
+                igSponsoredLabel = "Publicidad • Sala Nocturna",
+                avatarResId = 0,
+                postImageResId = R.drawable.ad_casino_nocturno,
+                imageBannerTag = "BONO BIENVENIDA",
+                imageOverlayHeadline = "Reclamá $50.000 en fichas gratis",
+                imageOverlaySubtext = "Giro VIP habilitado solo por esta noche",
                 likesCountText = "Les gusta a cajero_nocturno y 31.900 personas más",
-                bodyText = "Tenés un Jackpot pre-asignado esperando tu depósito mínimo de $4.000. ¡No pierdas tu racha!",
-                hashtags = "#JackpotVIP #SlotsOnline #RuletaEnVivo #BonoCebo",
-                trapButtonText = "Reclamar Bono Trampa ($4.000)",
+                bodyText = "Tenés un tiro VIP esperando con recarga mínima de $4.000. Aprovechá antes que expire.",
+                hashtags = "#JackpotVIP #SlotsOnline #RuletaEnVivo",
+                trapButtonText = "Reclamar bono",
                 accentColor = BordeCyan
             )
         )
@@ -360,9 +367,39 @@ fun ScrollAdsGameScreen(
     var shakeProgress by remember { mutableFloatStateOf(0f) }
     var adsShakenCount by remember { mutableIntStateOf(0) }
     var trapsClickedCount by remember { mutableIntStateOf(0) }
-    var startTimeMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var remainingSeconds by remember { mutableIntStateOf(60) }
     val shakeWobble = remember { Animatable(0f) }
+
+    var isLifecycleResumed by remember { mutableStateOf(true) }
+    var sessionOpenedAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var accumulatedElapsedMillis by remember { mutableLongStateOf(0L) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    isLifecycleResumed = true
+                    sessionOpenedAt = System.currentTimeMillis()
+                }
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
+                    if (isLifecycleResumed) {
+                        accumulatedElapsedMillis += (System.currentTimeMillis() - sessionOpenedAt).coerceAtLeast(0L)
+                        isLifecycleResumed = false
+                    }
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    fun currentForegroundElapsed(): Long {
+        val extra = if (isLifecycleResumed) (System.currentTimeMillis() - sessionOpenedAt).coerceAtLeast(0L) else 0L
+        return accumulatedElapsedMillis + extra
+    }
 
     val scrollFraction by remember {
         derivedStateOf {
@@ -373,11 +410,11 @@ fun ScrollAdsGameScreen(
 
     // Monitoreo del Acelerómetro en tiempo real respetando el ciclo de vida
     val sensorReading by rememberAccelerometerMonitor(
-        enabled = true,
+        enabled = isLifecycleResumed,
         shakeThresholdG = 1.38f,
         minIntervalMs = 95L
     ) { gForce ->
-        if (activeAd != null) {
+        if (activeAd != null && isLifecycleResumed) {
             HapticFeedbackHelper.vibrateShort(context, 35L)
             SoundManager.playClick()
             val increment = ((gForce - 1.15f) * 0.24f).coerceIn(0.18f, 0.36f)
@@ -407,20 +444,33 @@ fun ScrollAdsGameScreen(
                 triggeredAdIds.add(nextAd.id)
                 shakeProgress = 0f
                 activeAd = nextAd
-                HapticFeedbackHelper.vibrateAlertPattern(context)
+                if (isLifecycleResumed) {
+                    HapticFeedbackHelper.vibrateAlertPattern(context)
+                }
             }
         }
     }
 
-    // Reloj de cuenta regresiva del juego
+    // Reloj de cuenta regresiva del juego (se congela en segundo plano)
     LaunchedEffect(Unit) {
-        startTimeMillis = System.currentTimeMillis()
+        sessionOpenedAt = System.currentTimeMillis()
         while (remainingSeconds > 0) {
-            delay(1000L)
-            remainingSeconds--
+            var waitRemaining = 1000L
+            while (waitRemaining > 0L) {
+                while (!isLifecycleResumed) {
+                    delay(100L)
+                }
+                val chunk = minOf(100L, waitRemaining)
+                delay(chunk)
+                if (isLifecycleResumed) {
+                    waitRemaining -= chunk
+                }
+            }
+            if (isLifecycleResumed) {
+                remainingSeconds--
+            }
         }
-        val elapsed = System.currentTimeMillis() - startTimeMillis
-        onGameFinished(adsShakenCount, trapsClickedCount, elapsed)
+        onGameFinished(adsShakenCount, trapsClickedCount, currentForegroundElapsed())
     }
 
     val animatedReadProgress by animateFloatAsState(
@@ -469,14 +519,14 @@ fun ScrollAdsGameScreen(
                         Spacer(modifier = Modifier.width(6.dp))
                         Column {
                             Text(
-                                text = "Juego 2: Scroll sin Caer",
+                                text = "Scroll sin Caer",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp,
                                 color = Color.White
                             )
                             Text(
-                                text = "Scrolleá el feed • Agitá el celu si salta spam",
+                                text = "Scrolleá el feed • Agitá si salta publicidad",
                                 fontFamily = SpaceGrotesk,
                                 fontSize = 11.5.sp,
                                 color = BordeCyan
@@ -486,15 +536,23 @@ fun ScrollAdsGameScreen(
 
                     // Reloj y Contador de Ads destruidos
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Box(
+                        Row(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(VerdeExito.copy(alpha = 0.18f))
                                 .border(1.dp, VerdeExito.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
+                            Icon(
+                                imageVector = Icons.Default.Vibration,
+                                contentDescription = null,
+                                tint = VerdeExito,
+                                modifier = Modifier.size(13.dp)
+                            )
                             Text(
-                                text = "📳 $adsShakenCount/4",
+                                text = "$adsShakenCount/4",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp,
@@ -636,8 +694,7 @@ fun ScrollAdsGameScreen(
                         .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
                         .clickable(enabled = activeAd == null) {
                             SoundManager.playClick()
-                            val elapsed = System.currentTimeMillis() - startTimeMillis
-                            onGameFinished(adsShakenCount, trapsClickedCount, elapsed)
+                            onGameFinished(adsShakenCount, trapsClickedCount, currentForegroundElapsed())
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -649,7 +706,7 @@ fun ScrollAdsGameScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Terminar Feed sin Caer y Ver Puntaje",
+                            text = "Terminar feed",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.5.sp,
@@ -691,7 +748,7 @@ fun ScrollAdsGameScreen(
                         .background(Color(0xFF121318))
                         .border(2.dp, ad.accentColor, RoundedCornerShape(20.dp))
                 ) {
-                    // A. CABECERA DE POST DE INSTAGRAM (Avatar con aro Story + Usuario Verificado + Publicidad)
+                    // A. CABECERA DE POST DE INSTAGRAM
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -707,13 +764,9 @@ fun ScrollAdsGameScreen(
                                     .border(2.dp, igRingGradient, CircleShape)
                                     .padding(2.dp)
                             ) {
-                                Image(
-                                    painter = painterResource(id = ad.avatarResId),
-                                    contentDescription = ad.igUsername,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clip(CircleShape)
+                                IgProfileAvatar(
+                                    handle = ad.igUsername,
+                                    size = 34.dp
                                 )
                             }
                             Spacer(modifier = Modifier.width(8.dp))
@@ -727,12 +780,11 @@ fun ScrollAdsGameScreen(
                                         color = Color.White
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "✓",
-                                        fontFamily = SpaceGrotesk,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp,
-                                        color = Color(0xFF3897F0)
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = "Verificado",
+                                        tint = Color(0xFF3897F0),
+                                        modifier = Modifier.size(13.dp)
                                     )
                                 }
                                 Text(
@@ -744,21 +796,12 @@ fun ScrollAdsGameScreen(
                             }
                         }
 
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "[X Bloqueado]",
-                                fontFamily = SpaceGrotesk,
-                                fontSize = 10.sp,
-                                color = TextoSecundario
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.7f),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
 
                     // B. IMAGEN VISUAL DEL POST DE INSTAGRAM CON STICKERS Y OVERLAY PUBLICITARIO
@@ -834,7 +877,7 @@ fun ScrollAdsGameScreen(
                         }
                     }
 
-                    // C. BARRA CTA DE INSTAGRAM ADS (TRAMPA: SI EL JUGADOR LA TOCA, SUMA DEUDA)
+                    // C. BARRA CTA DE INSTAGRAM ADS
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -850,18 +893,17 @@ fun ScrollAdsGameScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "⚠️ ${ad.trapButtonText} (Trampa)",
+                            text = ad.trapButtonText,
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp,
+                            fontSize = 13.sp,
                             color = Color.White
                         )
-                        Text(
-                            text = "➔",
-                            fontFamily = SpaceGrotesk,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = ad.accentColor
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = ad.accentColor,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
 
@@ -957,7 +999,7 @@ fun ScrollAdsGameScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "¡AGITÁ EL CELULAR PARA CERRAR EL POST!",
+                                    text = "Agitá el celular para cerrar el anuncio",
                                     fontFamily = SpaceGrotesk,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.5.sp,
@@ -985,7 +1027,7 @@ fun ScrollAdsGameScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Resistencia al Spam: ${(shakeProgress * 100).toInt()}%",
+                                    text = "Bloqueo: ${(shakeProgress * 100).toInt()}%",
                                     fontFamily = SpaceGrotesk,
                                     fontWeight = FontWeight.Medium,
                                     fontSize = 11.sp,
@@ -993,7 +1035,7 @@ fun ScrollAdsGameScreen(
                                 )
 
                                 Text(
-                                    text = "[Simular sacudida]",
+                                    text = "Probar sacudida",
                                     fontFamily = SpaceGrotesk,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp,
@@ -1106,13 +1148,9 @@ private fun IgStoriesStrip(stories: List<IgStoryItem>) {
                             )
                             .padding(3.dp)
                     ) {
-                        Image(
-                            painter = painterResource(id = story.avatarResId),
-                            contentDescription = story.handle,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
+                        IgProfileAvatar(
+                            handle = story.handle,
+                            size = 58.dp
                         )
                     }
 
@@ -1189,13 +1227,9 @@ private fun IgFeedPostCard(
                         .border(1.5.dp, IgStoryRingGradient, CircleShape)
                         .padding(2.dp)
                 ) {
-                    Image(
-                        painter = painterResource(id = post.avatarResId),
-                        contentDescription = post.handle,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape)
+                    IgProfileAvatar(
+                        handle = post.handle,
+                        size = 32.dp
                     )
                 }
 
@@ -1422,147 +1456,78 @@ private fun IgFeedPostCard(
 }
 
 /**
- * Pieza gráfica estilo Reel/Post de Instagram con ilustraciones vectoriales y botón de silencio.
+ * Pieza fotográfica dedicada para cada publicación del feed de Instagram.
  */
 @Composable
 private fun IgPostVisualMedia(
     theme: Int,
     audioBadge: String
 ) {
-    val bgColors = when (theme) {
-        1 -> listOf(Color(0xFF0A2E2A), Color(0xFF0D1B2A))
-        2 -> listOf(Color(0xFF28123D), Color(0xFF121629))
-        3 -> listOf(Color(0xFF141E30), Color(0xFF0B0F17))
-        4 -> listOf(Color(0xFF3A1C32), Color(0xFF1A1726))
-        else -> listOf(Color(0xFF0D2836), Color(0xFF111827))
+    val imageResId = when (theme) {
+        1 -> R.drawable.ig_post_futsal
+        2 -> R.drawable.ig_post_lofi_study
+        3 -> R.drawable.ig_post_dato_claro
+        4 -> R.drawable.ig_post_merienda_arte
+        else -> R.drawable.ig_post_ayuda_141
     }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(220.dp)
-            .background(Brush.linearGradient(bgColors))
+            .height(225.dp)
+            .background(Color(0xFF0A0D14))
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            when (theme) {
-                1 -> {
-                    // Cancha de futsal estilizada
-                    drawRect(
-                        color = VerdeExito.copy(alpha = 0.35f),
-                        topLeft = Offset(32f, 24f),
-                        size = Size(w - 64f, h - 48f),
-                        style = Stroke(width = 4f)
-                    )
-                    drawLine(
-                        color = VerdeExito.copy(alpha = 0.35f),
-                        start = Offset(w / 2f, 24f),
-                        end = Offset(w / 2f, h - 24f),
-                        strokeWidth = 3f
-                    )
-                    drawCircle(
-                        color = VerdeExito.copy(alpha = 0.35f),
-                        radius = h * 0.22f,
-                        center = Offset(w / 2f, h / 2f),
-                        style = Stroke(width = 3f)
-                    )
-                }
-                2 -> {
-                    // Barras de ecualizador Lo-Fi
-                    val barCount = 14
-                    val step = (w - 80f) / barCount
-                    for (i in 0 until barCount) {
-                        val factor = ((i * 3 + 2) % 5 + 2) / 7f
-                        val barH = h * 0.52f * factor
-                        drawRoundRect(
-                            color = if (i % 2 == 0) BordeMagenta.copy(alpha = 0.5f) else BordeCyan.copy(alpha = 0.45f),
-                            topLeft = Offset(44f + i * step, (h - barH) / 2f),
-                            size = Size(step * 0.56f, barH),
-                            cornerRadius = CornerRadius(8f, 8f)
-                        )
-                    }
-                }
-                3 -> {
-                    // Gráfico comparativo: ventaja matemática de la casa vs ahorro real
-                    val pathDown = Path().apply {
-                        moveTo(40f, h * 0.30f)
-                        lineTo(w * 0.35f, h * 0.24f)
-                        lineTo(w * 0.65f, h * 0.62f)
-                        lineTo(w - 40f, h * 0.80f)
-                    }
-                    drawPath(path = pathDown, color = RojoAlerta.copy(alpha = 0.78f), style = Stroke(width = 6f))
-                    val pathSteady = Path().apply {
-                        moveTo(40f, h * 0.55f)
-                        lineTo(w * 0.45f, h * 0.48f)
-                        lineTo(w - 40f, h * 0.32f)
-                    }
-                    drawPath(path = pathSteady, color = VerdeExito.copy(alpha = 0.8f), style = Stroke(width = 5f))
-                }
-                4 -> {
-                    // Círculos cálidos de boceto urbano
-                    drawCircle(
-                        color = Color(0xFFFF8A65).copy(alpha = 0.22f),
-                        radius = h * 0.34f,
-                        center = Offset(w * 0.72f, h * 0.36f)
-                    )
-                    drawCircle(
-                        color = BordeMagenta.copy(alpha = 0.18f),
-                        radius = h * 0.25f,
-                        center = Offset(w * 0.28f, h * 0.64f)
-                    )
-                }
-                else -> {
-                    // Ondas de resguardo y acompañamiento
-                    drawCircle(
-                        color = BordeCyan.copy(alpha = 0.16f),
-                        radius = h * 0.44f,
-                        center = Offset(w / 2f, h / 2f),
-                        style = Stroke(width = 3f)
-                    )
-                    drawCircle(
-                        color = VerdeExito.copy(alpha = 0.24f),
-                        radius = h * 0.28f,
-                        center = Offset(w / 2f, h / 2f),
-                        style = Stroke(width = 4f)
-                    )
-                }
-            }
-        }
+        Image(
+            painter = painterResource(id = imageResId),
+            contentDescription = audioBadge,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
 
-        // Centro visual del post según temática
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.Black.copy(alpha = 0.20f),
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.78f)
+                        )
+                    )
+                )
+        )
+
         Column(
             modifier = Modifier
-                .align(Alignment.Center)
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
             when (theme) {
                 1 -> {
                     Text(
-                        text = "⚽ SEMIFINAL 5.° AÑO",
+                        text = "SEMIFINAL 5.° AÑO",
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 19.sp,
+                        fontSize = 17.sp,
                         color = Color.White
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Cancha Barrio Sur • 18:30 hs",
                         fontFamily = SpaceGrotesk,
-                        fontSize = 13.sp,
+                        fontSize = 12.5.sp,
                         color = VerdeExito
                     )
                 }
                 2 -> {
                     Text(
-                        text = "🎧 LO-FI PARA ESTUDIAR",
+                        text = "LO-FI PARA ESTUDIAR",
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
+                        fontSize = 17.sp,
                         color = Color.White
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "42 min sin publicidad • Modo foco",
                         fontFamily = SpaceGrotesk,
@@ -1572,35 +1537,22 @@ private fun IgPostVisualMedia(
                 }
                 3 -> {
                     Text(
-                        text = "📊 ¿CUENTA REAL O CUENTA DEMO?",
+                        text = "¿CUENTA REAL O CUENTA DEMO?",
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 16.5.sp,
-                        color = Color.White,
-                        textAlign = TextAlign.Center
+                        fontSize = 16.sp,
+                        color = Color.White
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "1 ticket ganador en el grupo oculta las 19 recargas perdidas.",
+                        text = "Un ticket ganado oculta las 19 recargas perdidas.",
                         fontFamily = SpaceGrotesk,
-                        fontSize = 12.5.sp,
-                        color = Color.White.copy(alpha = 0.88f),
-                        textAlign = TextAlign.Center
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.90f)
                     )
                 }
                 4 -> {
-                    Image(
-                        painter = painterResource(id = R.drawable.avatar_4),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(CircleShape)
-                            .border(2.dp, Color.White.copy(alpha = 0.7f), CircleShape)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "☕ Tarde de merienda y bocetos",
+                        text = "Tarde de merienda y bocetos",
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
@@ -1608,30 +1560,18 @@ private fun IgPostVisualMedia(
                     )
                 }
                 else -> {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_boti),
-                        contentDescription = "Boti",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(58.dp)
-                            .clip(CircleShape)
-                            .border(2.dp, BordeCyan, CircleShape)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "🛡️ LÍNEA 141 Y BOTI 24/7",
+                        text = "LÍNEA 141 Y BOTI 24/7",
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.5.sp,
                         color = Color.White
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "Escucha gratuita y confidencial si necesitás hablar",
                         fontFamily = SpaceGrotesk,
                         fontSize = 12.sp,
-                        color = BordeCyan,
-                        textAlign = TextAlign.Center
+                        color = BordeCyan
                     )
                 }
             }
@@ -1750,14 +1690,10 @@ private fun IgSuggestionsCarousel(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Spacer(modifier = Modifier.height(4.dp))
-                        Image(
-                            painter = painterResource(id = item.avatarResId),
-                            contentDescription = item.displayName,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(60.dp)
-                                .clip(CircleShape)
-                                .border(1.5.dp, Color.White.copy(alpha = 0.25f), CircleShape)
+                        IgProfileAvatar(
+                            handle = item.handle,
+                            size = 60.dp,
+                            modifier = Modifier.border(1.5.dp, Color.White.copy(alpha = 0.25f), CircleShape)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -1809,5 +1745,48 @@ private fun IgSuggestionsCarousel(
                 }
             }
         }
+    }
+}
+
+/**
+ * Avatar estilizado con iniciales y gradiente propio para cuentas de Instagram,
+ * evitando reutilizar los avatares de personajes de La Semana.
+ */
+@Composable
+private fun IgProfileAvatar(
+    handle: String,
+    size: Dp,
+    modifier: Modifier = Modifier
+) {
+    val palette = listOf(
+        listOf(Color(0xFFE1306C), Color(0xFF833AB4)),
+        listOf(Color(0xFF00C6FF), Color(0xFF0072FF)),
+        listOf(Color(0xFF00B09B), Color(0xFF96C93D)),
+        listOf(Color(0xFFFF512F), Color(0xFFF09819)),
+        listOf(Color(0xFF6A11CB), Color(0xFF2575FC))
+    )
+    val colors = palette[(handle.hashCode().let { if (it < 0) -it else it }) % palette.size]
+    val initials = handle
+        .split(".", "_", " ")
+        .filter { it.isNotBlank() }
+        .take(2)
+        .mapNotNull { it.firstOrNull()?.uppercaseChar() }
+        .joinToString("")
+        .ifEmpty { "IG" }
+
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(Brush.linearGradient(colors)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = initials,
+            fontFamily = SpaceGrotesk,
+            fontWeight = FontWeight.Bold,
+            fontSize = (size.value * 0.36f).sp,
+            color = Color.White
+        )
     }
 }

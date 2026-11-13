@@ -95,7 +95,7 @@ fun LeaderboardScreen(
             if (unlocked) {
                 Toast.makeText(
                     context,
-                    "👾 ¡EASTER EGG 'SIXSEVEN' (#67) DESBLOQUEADO!",
+                    "Medalla secreta desbloqueada: SixSeven (#67)",
                     Toast.LENGTH_LONG
                 ).show()
                 selectedTab = 1
@@ -113,7 +113,7 @@ fun LeaderboardScreen(
         SoundManager.playClick()
         val options = ScanOptions().apply {
             setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-            setPrompt("Apuntá al QR de la pantalla final de otro compañero para desbloquear SIXSEVEN (#67)")
+            setPrompt("Apuntá al código QR de otro jugador")
             setBeepEnabled(true)
             setOrientationLocked(false)
         }
@@ -202,7 +202,7 @@ fun LeaderboardScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                val tabs = listOf("🏆 Ranking Firebase", "👾 Medallas & QR (#67)")
+                val tabs = listOf("Ranking Global", "Medallas")
                 tabs.forEachIndexed { index, title ->
                     val isSelected = selectedTab == index
                     Box(
@@ -355,28 +355,24 @@ fun LeaderboardScreen(
                                     .padding(12.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(46.dp)
-                                            .clip(CircleShape)
-                                            .background(
-                                                if (isUnlocked) VerdeExito.copy(alpha = 0.2f)
-                                                else Color.Black.copy(alpha = 0.4f)
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = if (isUnlocked) achievement.iconEmoji else "🔒",
-                                            fontSize = 24.sp
-                                        )
-                                    }
+                                    val isHiddenSecret = achievement.isSecret && !isUnlocked
+                                    com.ifts18.unadecisionmas.ui.components.AchievementBadgeIcon(
+                                        achievementId = achievement.id,
+                                        isUnlocked = isUnlocked,
+                                        containerSize = 46.dp,
+                                        iconSize = 22.dp
+                                    )
 
                                     Spacer(modifier = Modifier.width(12.dp))
 
                                     Column(modifier = Modifier.weight(1f)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(
-                                                text = "${achievement.codeNumber} • ${achievement.title}",
+                                                text = if (isHiddenSecret) {
+                                                    "Medalla oculta"
+                                                } else {
+                                                    "${achievement.codeNumber} • ${achievement.title}"
+                                                },
                                                 fontFamily = SpaceGrotesk,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 14.5.sp,
@@ -385,7 +381,11 @@ fun LeaderboardScreen(
                                         }
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = achievement.description,
+                                            text = if (isHiddenSecret) {
+                                                "Seguí jugando y explorando la app para descubrirla."
+                                            } else {
+                                                achievement.description
+                                            },
                                             fontFamily = SpaceGrotesk,
                                             fontSize = 12.sp,
                                             lineHeight = 16.sp,
@@ -396,7 +396,7 @@ fun LeaderboardScreen(
                                     Spacer(modifier = Modifier.width(8.dp))
 
                                     Text(
-                                        text = "+${achievement.bonusPoints} pts",
+                                        text = if (isHiddenSecret) "?? pts" else "+${achievement.bonusPoints} pts",
                                         fontFamily = SpaceGrotesk,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp,
@@ -425,12 +425,7 @@ private fun RankingRowItem(
     entry: RankingEntry,
     isCurrentPlayer: Boolean
 ) {
-    val medalEmoji = when (position) {
-        1 -> "🥇"
-        2 -> "🥈"
-        3 -> "🥉"
-        else -> "#$position"
-    }
+    val medalEmoji = "#$position"
     val secondsFormatted = "%.1fs".format(entry.totalTimeMillis / 1000f)
 
     Row(
@@ -499,7 +494,7 @@ private fun RankingRowItem(
                                 .padding(horizontal = 5.dp, vertical = 1.dp)
                         ) {
                             Text(
-                                text = "👾 67",
+                                text = "67",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 10.sp,
@@ -509,7 +504,7 @@ private fun RankingRowItem(
                     }
                 }
                 Text(
-                    text = "${entry.gameMode} • ⏱ $secondsFormatted • Deuda $${entry.debt}",
+                    text = "${entry.gameMode} • $secondsFormatted • Deuda $${entry.debt}",
                     fontFamily = SpaceGrotesk,
                     fontSize = 11.5.sp,
                     color = TextoSecundario
@@ -562,7 +557,7 @@ fun SixSevenQrDialog(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "👾 CÓDIGO QR SECRETO: SIXSEVEN",
+                text = "Código QR de jugador",
                 fontFamily = SpaceGrotesk,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp,
@@ -573,7 +568,7 @@ fun SixSevenQrDialog(
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = "Si otro compañero escanea este QR desde su app Juego Limpio, desbloquea la medalla oculta 'SIXSEVEN (#67)' y +2.500 pts.",
+                text = "Mostrale este código a otra persona que tenga la app o escaneá el suyo.",
                 fontFamily = SpaceGrotesk,
                 fontSize = 12.5.sp,
                 lineHeight = 17.sp,
@@ -595,7 +590,7 @@ fun SixSevenQrDialog(
                 ) {
                     Image(
                         bitmap = qrBitmap,
-                        contentDescription = "QR Easter Egg SIXSEVEN",
+                        contentDescription = "Código QR de jugador",
                         modifier = Modifier.fillMaxSize()
                     )
                 }

@@ -29,9 +29,13 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -49,6 +53,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
@@ -188,7 +193,7 @@ fun WelcomeScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Ranking & QR ($unlockedAchievementsCount/7)",
+                            text = "Ranking y medallas ($unlockedAchievementsCount/7)",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.5.sp,
@@ -388,7 +393,7 @@ fun WelcomeScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "💾 Continuar Partida Guardada (Room)",
+                                text = "Continuar partida guardada",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
@@ -426,10 +431,11 @@ fun WelcomeScreen(
 
                 // JUEGO 1: LA SEMANA (MODO HISTORIA PRINCIPAL)
                 GameLaunchCard(
-                    badge = "JUEGO 1 • MODO HISTORIA (7 DÍAS)",
+                    badge = "HISTORIA • 7 DÍAS",
                     title = "La Semana: Una Decisión Más",
-                    description = "Novela interactiva contrarreloj (25s), ahorros, amigos y desafíos cotidianos.",
-                    emoji = "💬",
+                    description = "Respondé mensajes en 25s y cuidá tu balance semanal.",
+                    icon = Icons.Default.Forum,
+                    iconTint = BordeCyan,
                     isPrimary = true,
                     onClick = {
                         playClickFeedback()
@@ -440,10 +446,11 @@ fun WelcomeScreen(
 
                 // JUEGO 2: SCROLL SIN CAER (INSTAGRAM FEED + ADS + ACELERÓMETRO)
                 GameLaunchCard(
-                    badge = "JUEGO 2 • SENSOR ACELERÓMETRO",
-                    title = "Scroll sin Caer: Spam en Instagram",
-                    description = "Scrolleá tu feed de Instagram sin caer y agitá el celu para bloquear las promos truchas de casinos.",
-                    emoji = "📸",
+                    badge = "FEED • ACELERÓMETRO",
+                    title = "Scroll sin Caer",
+                    description = "Navegá el feed y agitá el celular para frenar avisos engañosos.",
+                    icon = Icons.Default.PhotoLibrary,
+                    iconTint = BordeMagenta,
                     isPrimary = false,
                     onClick = {
                         playClickFeedback()
@@ -458,10 +465,11 @@ fun WelcomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     CompactMiniGameCard(
-                        badge = "JUEGO 3 • SENSOR",
+                        badge = "TRAGAMONEDAS • SENSOR",
                         title = "Tragamonedas",
-                        subtitle = "Los 3 emojis y el algoritmo por dentro.",
-                        emoji = "🎰",
+                        subtitle = "Probá los rodillos y mirá el algoritmo por dentro.",
+                        icon = Icons.Default.Casino,
+                        iconTint = BordeCyan,
                         onClick = {
                             playClickFeedback()
                             keyboardController?.hide()
@@ -471,10 +479,11 @@ fun WelcomeScreen(
                     )
 
                     CompactMiniGameCard(
-                        badge = "JUEGO 4 • SENSOR",
+                        badge = "RULETA • SENSOR",
                         title = "La Ruleta del 29",
-                        subtitle = "Elegí tu número o color y agitá el celu.",
-                        emoji = "🎡",
+                        subtitle = "Elegí número o color y agitá el celular.",
+                        icon = Icons.Default.TrackChanges,
+                        iconTint = BordeMagenta,
                         onClick = {
                             playClickFeedback()
                             keyboardController?.hide()
@@ -493,7 +502,8 @@ private fun GameLaunchCard(
     badge: String,
     title: String,
     description: String,
-    emoji: String,
+    icon: ImageVector,
+    iconTint: Color,
     isPrimary: Boolean,
     onClick: () -> Unit
 ) {
@@ -528,7 +538,12 @@ private fun GameLaunchCard(
                     .background(Color.Black.copy(alpha = 0.35f)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(text = emoji, fontSize = 22.sp)
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(22.dp)
+                )
             }
 
             Spacer(modifier = Modifier.width(10.dp))
@@ -566,7 +581,8 @@ private fun CompactMiniGameCard(
     badge: String,
     title: String,
     subtitle: String,
-    emoji: String,
+    icon: ImageVector,
+    iconTint: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -593,7 +609,12 @@ private fun CompactMiniGameCard(
                         .background(Color.Black.copy(alpha = 0.35f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = emoji, fontSize = 18.sp)
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = iconTint,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {

@@ -7,6 +7,7 @@ import com.ifts18.unadecisionmas.R
 import com.ifts18.unadecisionmas.audio.SoundManager
 import com.ifts18.unadecisionmas.data.local.AchievementEntity
 import com.ifts18.unadecisionmas.data.local.AppDatabase
+import com.ifts18.unadecisionmas.data.local.MinigameProgressEntity
 import com.ifts18.unadecisionmas.data.local.SavedGameEntity
 import com.ifts18.unadecisionmas.data.model.AchievementDef
 import com.ifts18.unadecisionmas.data.model.AchievementsCatalog
@@ -16,6 +17,9 @@ import com.ifts18.unadecisionmas.data.model.GameScenario
 import com.ifts18.unadecisionmas.data.model.GameState
 import com.ifts18.unadecisionmas.data.model.PlayerProfile
 import com.ifts18.unadecisionmas.data.model.RankingEntry
+import com.ifts18.unadecisionmas.data.model.RouletteGameState
+import com.ifts18.unadecisionmas.data.model.SlotSymbol
+import com.ifts18.unadecisionmas.data.model.SlotsGameState
 import com.ifts18.unadecisionmas.data.remote.FirebaseRankingRepository
 import com.ifts18.unadecisionmas.data.repository.GameScenariosRepository
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +38,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val _gameState = MutableStateFlow(GameState())
     val gameState: StateFlow<GameState> = _gameState.asStateFlow()
 
+    private val _slotsState = MutableStateFlow(SlotsGameState())
+    val slotsState: StateFlow<SlotsGameState> = _slotsState.asStateFlow()
+
+    private val _rouletteState = MutableStateFlow(RouletteGameState())
+    val rouletteState: StateFlow<RouletteGameState> = _rouletteState.asStateFlow()
+
     val rankingList: StateFlow<List<RankingEntry>> = rankingRepository.rankingList
     val isFirebaseOnline: StateFlow<Boolean> = rankingRepository.isOnlineSynced
     val firebaseStatusText: StateFlow<String> = rankingRepository.connectionStatusMessage
@@ -45,6 +55,39 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun observeRoomState() {
+        viewModelScope.launch(Dispatchers.IO) {
+            gameDao.getMinigameProgress(KEY_SLOTS)?.let { saved ->
+                _slotsState.value = SlotsGameState(
+                    reel1 = runCatching { SlotSymbol.valueOf(saved.reel1Name) }.getOrDefault(SlotSymbol.SEVEN),
+                    reel2 = runCatching { SlotSymbol.valueOf(saved.reel2Name) }.getOrDefault(SlotSymbol.DIAMOND),
+                    reel3 = runCatching { SlotSymbol.valueOf(saved.reel3Name) }.getOrDefault(SlotSymbol.CHERRY),
+                    spinsUsed = saved.spinsUsed,
+                    bonusChips = saved.bonusChips,
+                    fakeLockedWinnings = saved.fakeLockedWinnings,
+                    realMoneyLost = saved.realMoneyLost,
+                    elapsedMillis = saved.elapsedMillis,
+                    algorithmStageTitle = saved.stageTitle.ifBlank { "Tenés ${saved.bonusChips} fichas de bono" },
+                    algorithmExplanation = saved.stageExplanation.ifBlank { "Agitá o tocá Girar para seguir." },
+                    spinStatusBanner = saved.statusBanner.ifBlank { "3 iguales suman saldo de bono" }
+                )
+            }
+            gameDao.getMinigameProgress(KEY_ROULETTE)?.let { saved ->
+                _rouletteState.value = RouletteGameState(
+                    selectedNumberIndex = saved.selectedNumberIndex.coerceIn(0, 11),
+                    selectedBetMode = saved.selectedBetMode.ifBlank { "PLENO" },
+                    landedPocketIndex = saved.landedPocketIndex.coerceIn(0, 11),
+                    spinsUsed = saved.spinsUsed,
+                    bonusChips = saved.bonusChips,
+                    fakeLockedWinnings = saved.fakeLockedWinnings,
+                    realMoneyLost = saved.realMoneyLost,
+                    elapsedMillis = saved.elapsedMillis,
+                    resultBannerText = saved.statusBanner.ifBlank { "Elegí tu apuesta y agitá para girar" },
+                    algorithmStageTitle = saved.stageTitle.ifBlank { "${saved.bonusChips} fichas activas" },
+                    algorithmExplanation = saved.stageExplanation.ifBlank { "Probá el paño y mirá qué pasa." }
+                )
+            }
+        }
+
         viewModelScope.launch {
             gameDao.observeSavedGame().collect { saved ->
                 val dayName = if (saved != null) {
@@ -281,13 +324,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val shouldTriggerPunishment = caughtMomTransferOnFriday || brokeAndInDebt
 
         val punishmentTitle = when {
-            caughtMomTransferOnFriday -> "📵 ¡SALTÓ LA FICHA! TE SACARON EL CELULAR"
-            brokeAndInDebt -> "📵 ¡TE QUEDASTE EN CERO Y SALTÓ LA ALERTA!"
+            caughtMomTransferOnFriday -> "Saltó la ficha: sin celu"
+            brokeAndInDebt -> "Te quedaste en cero"
             else -> ""
         }
         val punishmentBody = when {
-            caughtMomTransferOnFriday -> "Llegó el viernes y tu mamá pidió el comprobante de la fotocopiadora. Vieron en la billetera que habías transferido los $72.000 a un cajero de casino. Te pusieron en penitencia sin celular todo el fin de semana."
-            brokeAndInDebt -> "Te patinaste todos tus ahorros ($0) hasta quedarte sin plata para la SUBE y con $$newDebt de deuda. En tu casa se dieron cuenta y te sacaron el celular hasta el próximo lunes."
+            caughtMomTransferOnFriday -> "Tu mamá pidió el comprobante de las copias y vio la transferencia de $72.000 al cajero. Te sacaron el celular todo el finde."
+            brokeAndInDebt -> "Gastaste tus ahorros ($0) hasta quedarte sin SUBE y con $$newDebt de deuda. En tu casa te sacaron el celular hasta el lunes."
             else -> ""
         }
 
@@ -472,9 +515,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 (sessionEarned.size * 600)
 
         val summary = if (adTrapsClicked == 0) {
-            "¡Terminaste el feed! Destruiste $adsShakenOff anuncios en Instagram agitando el celu sin caer en ninguna trampa."
+            "Terminaste el feed y frenaste $adsShakenOff anuncios sin caer en trampas."
         } else {
-            "Terminaste el feed tras sacudir $adsShakenOff anuncios, pero tocaste $adTrapsClicked publicidades trampa ($$addedDebt de deuda)."
+            "Sacudiste $adsShakenOff anuncios, pero abriste $adTrapsClicked trampas ($$addedDebt de deuda)."
         }
 
         _gameState.update { state ->
@@ -497,8 +540,52 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         submitCurrentStateToRanking(modeName = "Scroll sin Caer", customScore = score.coerceAtLeast(250))
     }
 
+    fun updateSlotsProgress(state: SlotsGameState) {
+        _slotsState.value = state
+        viewModelScope.launch(Dispatchers.IO) {
+            gameDao.saveMinigameProgress(
+                MinigameProgressEntity(
+                    gameKey = KEY_SLOTS,
+                    spinsUsed = state.spinsUsed,
+                    bonusChips = state.bonusChips,
+                    fakeLockedWinnings = state.fakeLockedWinnings,
+                    realMoneyLost = state.realMoneyLost,
+                    elapsedMillis = state.elapsedMillis,
+                    reel1Name = state.reel1.name,
+                    reel2Name = state.reel2.name,
+                    reel3Name = state.reel3.name,
+                    statusBanner = state.spinStatusBanner,
+                    stageTitle = state.algorithmStageTitle,
+                    stageExplanation = state.algorithmExplanation
+                )
+            )
+        }
+    }
+
+    fun updateRouletteProgress(state: RouletteGameState) {
+        _rouletteState.value = state
+        viewModelScope.launch(Dispatchers.IO) {
+            gameDao.saveMinigameProgress(
+                MinigameProgressEntity(
+                    gameKey = KEY_ROULETTE,
+                    spinsUsed = state.spinsUsed,
+                    bonusChips = state.bonusChips,
+                    fakeLockedWinnings = state.fakeLockedWinnings,
+                    realMoneyLost = state.realMoneyLost,
+                    elapsedMillis = state.elapsedMillis,
+                    selectedNumberIndex = state.selectedNumberIndex,
+                    selectedBetMode = state.selectedBetMode,
+                    landedPocketIndex = state.landedPocketIndex,
+                    statusBanner = state.resultBannerText,
+                    stageTitle = state.algorithmStageTitle,
+                    stageExplanation = state.algorithmExplanation
+                )
+            )
+        }
+    }
+
     /**
-     * Registra la finalización del Juego 3: "La Trampa del Jackpot" (Tragamonedas 3 Emojis con sensor).
+     * Registra la finalización del Juego 3: "La Trampa del Jackpot" (Tragamonedas con sensor).
      */
     fun completeSlotsTrapGame(
         stoppedEarly: Boolean,
@@ -519,9 +606,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 (sessionEarned.size * 600)
 
         val summary = if (stoppedEarly) {
-            "¡Te plantaste a tiempo en el tiro $spinsUsed/10! Descubriste el gancho del tragamonedas antes de que la casa vaciara tus fichas."
+            "Te plantaste en el tiro $spinsUsed/10 y frenaste antes de que la casa vaciara tus fichas."
         } else {
-            "Completaste los $spinsUsed tiros del tragamonedas: viste en vivo cómo el algoritmo dio un premio cebo al inicio, 'casi-aciertos' al medio y te vació al final."
+            "Completaste los $spinsUsed tiros del tragamonedas: viste el gancho inicial, los casi-aciertos y la pérdida del final."
+        }
+
+        _slotsState.value = SlotsGameState()
+        viewModelScope.launch(Dispatchers.IO) {
+            gameDao.clearMinigameProgress(KEY_SLOTS)
         }
 
         _gameState.update { state ->
@@ -566,9 +658,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 (sessionEarned.size * 600)
 
         val summary = if (stoppedEarly) {
-            "¡Te retiraste de la ruleta en la tirada $spinsUsed/10! Comprobaste cómo el Cero Verde y los casi-aciertos inclinan la probabilidad a favor de la banca."
+            "Te plantaste en la tirada $spinsUsed/10 antes de que la banca vaciara tus fichas."
         } else {
-            "Completaste las $spinsUsed tiradas de ruleta: viste cómo la ventaja matemática del 0 Verde garantiza que la banca siempre gane a largo plazo."
+            "Completaste las $spinsUsed tiradas de ruleta y comprobaste cómo el 0 Verde inclina la ventaja."
+        }
+
+        _rouletteState.value = RouletteGameState()
+        viewModelScope.launch(Dispatchers.IO) {
+            gameDao.clearMinigameProgress(KEY_ROULETTE)
         }
 
         _gameState.update { state ->
@@ -687,5 +784,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 isGameOver = false
             )
         }
+    }
+
+    companion object {
+        private const val KEY_SLOTS = "SLOTS"
+        private const val KEY_ROULETTE = "ROULETTE"
     }
 }

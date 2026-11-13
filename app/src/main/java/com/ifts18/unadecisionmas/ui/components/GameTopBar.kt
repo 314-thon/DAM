@@ -98,11 +98,20 @@ fun GameTopBar(
                         color = Color.White
                     )
                     Text(
-                        text = "$currentDayName (${gameState.currentDayIndex + 1}/$totalDays) • ★${gameState.wellbeingPoints}",
+                        text = "$currentDayName (${gameState.currentDayIndex + 1}/$totalDays)",
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.Medium,
                         fontSize = 11.5.sp,
-                        color = BordeCyan
+                        color = BordeCyan,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = "Bienestar ${gameState.wellbeingPoints}",
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 10.5.sp,
+                        color = TextoSecundario,
+                        maxLines = 1
                     )
                 }
             }

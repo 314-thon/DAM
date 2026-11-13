@@ -435,7 +435,7 @@ fun FirstDecisionScreen(
                 ) {
                     ChatMessageBubble(
                         sender = "Lucas",
-                        message = "¡Che $playerName! Me pasaron una fija imperdible para el partido de hoy 🔥",
+                        message = "Che $playerName, me pasaron una fija para el partido de hoy.",
                         isDelivered = true
                     )
                 }

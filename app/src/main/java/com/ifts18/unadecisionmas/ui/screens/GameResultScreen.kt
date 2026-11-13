@@ -33,9 +33,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Warning
+import com.ifts18.unadecisionmas.ui.components.AchievementBadgeIcon
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,6 +46,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -80,6 +84,7 @@ import com.ifts18.unadecisionmas.ui.theme.VerdeExito
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun GameResultScreen(
@@ -92,6 +97,7 @@ fun GameResultScreen(
     val context = LocalContext.current
     val view = LocalView.current
     val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
 
     val isWon = gameState.currentDebt == 0
     var isContentVisible by remember { mutableStateOf(false) }
@@ -104,7 +110,7 @@ fun GameResultScreen(
             if (unlocked) {
                 Toast.makeText(
                     context,
-                    "👾 ¡MEDALLA SECRETA 'SIXSEVEN (#67)' DESBLOQUEADA!",
+                    "Medalla secreta desbloqueada: SixSeven (#67)",
                     Toast.LENGTH_LONG
                 ).show()
             } else {
@@ -185,15 +191,19 @@ fun GameResultScreen(
         }
 
         Column(modifier = Modifier.fillMaxSize()) {
-            // ÁREA SUPERIOR Y MEDIA (Scrollable)
-            Column(
+            // ÁREA SUPERIOR Y MEDIA (Scrollable con indicador claro si hay más contenido)
+            Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(9.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(scrollState),
+                    verticalArrangement = Arrangement.spacedBy(7.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                 // BLOQUE 1: AVISO / RESULTADO Y PUNTAJE RANKING
                 AnimatedVisibility(
                     visible = isContentVisible,
@@ -212,10 +222,13 @@ fun GameResultScreen(
                             .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = if (isWon) "🎉" else "⚠️",
-                            fontSize = 28.sp,
-                            modifier = Modifier.padding(end = 10.dp)
+                        Icon(
+                            imageVector = if (isWon) Icons.Default.EmojiEvents else Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = if (isWon) VerdeExito else RojoAlerta,
+                            modifier = Modifier
+                                .padding(end = 10.dp)
+                                .size(28.dp)
                         )
 
                         Column(modifier = Modifier.weight(1f)) {
@@ -271,14 +284,17 @@ fun GameResultScreen(
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp,
-                                color = Color.White
+                                color = Color.White,
+                                modifier = Modifier.weight(1f)
                             )
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "⏱ ${"%.1f".format(gameState.totalDecisionTimeMillis / 1000f)}s • 🏅 ${gameState.sessionAchievementIds.size} en partida",
+                                text = "${"%.1f".format(gameState.totalDecisionTimeMillis / 1000f)}s • ${gameState.sessionAchievementIds.size} med.",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 11.5.sp,
-                                color = BordeCyan
+                                color = BordeCyan,
+                                maxLines = 1
                             )
                         }
 
@@ -297,7 +313,7 @@ fun GameResultScreen(
                             )
                             MetricMiniCard(
                                 label = "Bienestar",
-                                value = "★ ${gameState.wellbeingPoints}",
+                                value = "${gameState.wellbeingPoints}",
                                 accentColor = VerdeExito,
                                 modifier = Modifier.weight(1f)
                             )
@@ -359,7 +375,7 @@ fun GameResultScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "🏅 Trofeos de esta Partida (${sessionUnlockedDefs.size})",
+                                    text = "Medallas de esta partida (${sessionUnlockedDefs.size})",
                                     fontFamily = SpaceGrotesk,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
@@ -395,7 +411,12 @@ fun GameResultScreen(
                                             verticalAlignment = Alignment.CenterVertically,
                                             modifier = Modifier.weight(1f)
                                         ) {
-                                            Text(text = trophy.iconEmoji, fontSize = 16.sp)
+                                            AchievementBadgeIcon(
+                                                achievementId = trophy.id,
+                                                isUnlocked = true,
+                                                containerSize = 24.dp,
+                                                iconSize = 14.dp
+                                            )
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
                                                 text = "${trophy.codeNumber} • ${trophy.title}",
@@ -443,14 +464,18 @@ fun GameResultScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = if (hasSixSeven) "👾 Medalla SIXSEVEN (#67) Activa" else "👾 Easter Egg QR: Medalla SIXSEVEN",
+                                    text = if (hasSixSeven) "Medalla SixSeven (#67) desbloqueada" else "Pase QR entre jugadores",
                                     fontFamily = SpaceGrotesk,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.5.sp,
                                     color = BordeCyan
                                 )
                                 Text(
-                                    text = "Mostrá tu QR o escaneá el de otro compañero para destrabar 'SIXSEVEN'.",
+                                    text = if (hasSixSeven) {
+                                        "Ya desbloqueaste la medalla oculta compartiendo código con otro jugador."
+                                    } else {
+                                        "Mostrá tu código o escaneá el de otra persona con la app."
+                                    },
                                     fontFamily = SpaceGrotesk,
                                     fontSize = 11.sp,
                                     color = TextoSecundario
@@ -486,7 +511,7 @@ fun GameResultScreen(
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "Mostrar QR #67",
+                                        text = "Mi código QR",
                                         fontFamily = SpaceGrotesk,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp,
@@ -505,7 +530,7 @@ fun GameResultScreen(
                                         playClickFeedback()
                                         val options = ScanOptions().apply {
                                             setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                                            setPrompt("Escaneá el QR de otro compañero para desbloquear SIXSEVEN (#67)")
+                                            setPrompt("Apuntá al QR de otro jugador")
                                             setBeepEnabled(true)
                                             setOrientationLocked(false)
                                         }
@@ -533,9 +558,54 @@ fun GameResultScreen(
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(6.dp))
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+                if (scrollState.canScrollForward) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height(36.dp)
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color.Transparent, FondoGeneral.copy(alpha = 0.94f))
+                                )
+                            )
+                    )
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 3.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(Color(0xFF1A2234))
+                            .border(1.dp, BordeCyan.copy(alpha = 0.65f), RoundedCornerShape(50))
+                            .clickable {
+                                scope.launch { scrollState.animateScrollTo(scrollState.maxValue) }
+                            }
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Bajar",
+                            tint = BordeCyan,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = "Deslizá para ver más",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 10.5.sp,
+                            color = BordeCyan
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
 
             // BLOQUE 3: ZONA DEL PULGAR FIJA EN LA BASE
             Column(
@@ -726,7 +796,7 @@ private fun HelpButton(
 
     Box(
         modifier = modifier
-            .height(84.dp)
+            .height(70.dp)
             .border(
                 width = 1.2.dp,
                 color = if (lottieRawRes != null) BordeCyan.copy(alpha = 0.40f) else Color.White.copy(alpha = 0.22f),
@@ -747,20 +817,20 @@ private fun HelpButton(
                 LottieAnimation(
                     composition = composition,
                     iterations = LottieConstants.IterateForever,
-                    modifier = Modifier.size(44.dp)
+                    modifier = Modifier.size(36.dp)
                 )
             } else if (imageRes != null) {
                 Image(
                     painter = painterResource(id = imageRes),
                     contentDescription = title,
-                    modifier = Modifier.size(30.dp)
+                    modifier = Modifier.size(26.dp)
                 )
             } else if (icon != null) {
                 Icon(
                     imageVector = icon,
                     contentDescription = title,
                     tint = Color.White,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(24.dp)
                 )
             }
 
@@ -769,11 +839,11 @@ private fun HelpButton(
             Text(
                 text = title,
                 fontFamily = SpaceGrotesk,
-                fontSize = 11.5.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
                 textAlign = TextAlign.Center,
-                lineHeight = 13.5.sp
+                lineHeight = 13.sp
             )
         }
     }

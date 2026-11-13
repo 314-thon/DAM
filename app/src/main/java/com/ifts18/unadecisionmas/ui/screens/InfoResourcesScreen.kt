@@ -329,7 +329,7 @@ fun InfoResourcesScreen(
             ) {
                 // TITULO DE RESULTADO GRANDE (Único elemento con color de acento)
                 Text(
-                    text = if (didBet) "¡Fallaste!" else "¡Felicitaciones! 🎉",
+                    text = if (didBet) "Fallaste" else "Felicitaciones",
                     fontFamily = SpaceGrotesk,
                     fontWeight = FontWeight.Bold,
                     fontSize = 36.sp,

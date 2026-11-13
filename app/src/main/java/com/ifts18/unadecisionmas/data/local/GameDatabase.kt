@@ -106,6 +106,30 @@ data class LocalScoreEntity(
     val isSynced: Boolean = false
 )
 
+/**
+ * Entidad Room para conservar el progreso en curso de los minijuegos (Tragamonedas y Ruleta)
+ * al salir al menú principal o cerrar la app.
+ */
+@Entity(tableName = "minigame_progress")
+data class MinigameProgressEntity(
+    @PrimaryKey val gameKey: String,
+    val spinsUsed: Int,
+    val bonusChips: Int,
+    val fakeLockedWinnings: Int,
+    val realMoneyLost: Int,
+    val elapsedMillis: Long,
+    val reel1Name: String = "SEVEN",
+    val reel2Name: String = "DIAMOND",
+    val reel3Name: String = "CHERRY",
+    val selectedNumberIndex: Int = 8,
+    val selectedBetMode: String = "PLENO",
+    val landedPocketIndex: Int = 8,
+    val statusBanner: String = "",
+    val stageTitle: String = "",
+    val stageExplanation: String = "",
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
 @Dao
 interface GameDao {
 
@@ -120,6 +144,15 @@ interface GameDao {
 
     @Query("DELETE FROM saved_game")
     suspend fun clearSavedGame()
+
+    @Query("SELECT * FROM minigame_progress WHERE gameKey = :gameKey LIMIT 1")
+    suspend fun getMinigameProgress(gameKey: String): MinigameProgressEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveMinigameProgress(entity: MinigameProgressEntity)
+
+    @Query("DELETE FROM minigame_progress WHERE gameKey = :gameKey")
+    suspend fun clearMinigameProgress(gameKey: String)
 
     @Query("SELECT * FROM achievements")
     fun observeAchievements(): Flow<List<AchievementEntity>>
@@ -147,9 +180,10 @@ interface GameDao {
     entities = [
         SavedGameEntity::class,
         AchievementEntity::class,
-        LocalScoreEntity::class
+        LocalScoreEntity::class,
+        MinigameProgressEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
