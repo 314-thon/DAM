@@ -74,9 +74,25 @@ fun AppNavigation(
             composable(route = Screen.Welcome.route) {
                 WelcomeScreen(
                     initialPlayerName = gameState.profile.name,
+                    initialAvatarResId = gameState.profile.avatarResId,
                     hasSavedGame = gameState.hasSavedGameInRoom,
                     savedGameDayName = gameState.savedGameDayName,
                     unlockedAchievementsCount = gameState.unlockedAchievementIds.size,
+                    bestScoresByMode = gameState.bestScoresByMode,
+                    isTutorialCompleted = gameState.isTutorialCompleted,
+                    hasPlayedIntroSplash = gameState.hasPlayedIntroSplash,
+                    onProfileChanged = { playerName, avatarResId ->
+                        viewModel.setPlayerProfile(playerName, avatarResId)
+                    },
+                    onIntroSplashCompleted = {
+                        viewModel.markIntroSplashCompleted()
+                    },
+                    onTutorialCompleted = {
+                        viewModel.markTutorialCompleted()
+                    },
+                    onRestartTutorial = {
+                        viewModel.restartTutorial()
+                    },
                     onStartWeekGame = { playerName, avatarResId ->
                         viewModel.startNewWeekGame(playerName, avatarResId)
                         navController.navigate(Screen.GameDecision.route)

@@ -1,6 +1,7 @@
 package com.ifts18.unadecisionmas.ui.viewmodel
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ifts18.unadecisionmas.R
@@ -34,8 +35,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getInstance(application)
     private val gameDao = database.gameDao()
     private val rankingRepository = FirebaseRankingRepository(application, gameDao)
+    private val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    private val _gameState = MutableStateFlow(GameState())
+    private val _gameState = MutableStateFlow(loadInitialGameState())
     val gameState: StateFlow<GameState> = _gameState.asStateFlow()
 
     private val _slotsState = MutableStateFlow(SlotsGameState())
@@ -48,10 +50,22 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     val isFirebaseOnline: StateFlow<Boolean> = rankingRepository.isOnlineSynced
     val firebaseStatusText: StateFlow<String> = rankingRepository.connectionStatusMessage
 
-    private var scenarios: List<GameScenario> = GameScenariosRepository.getScenarios("Mateo")
+    private var scenarios: List<GameScenario> = GameScenariosRepository.getScenarios(_gameState.value.profile.name)
 
     init {
         observeRoomState()
+    }
+
+    private fun loadInitialGameState(): GameState {
+        val savedName = prefs.getString(KEY_PREF_PLAYER_NAME, "Mateo")?.ifBlank { "Mateo" } ?: "Mateo"
+        val savedAvatarIndex = prefs.getInt(KEY_PREF_AVATAR_INDEX, 1)
+        val savedAvatarRes = FirebaseRankingRepository.indexToAvatarRes(savedAvatarIndex)
+        val tutorialDone = prefs.getBoolean(KEY_PREF_TUTORIAL_COMPLETED, false)
+        return GameState(
+            profile = PlayerProfile(name = savedName, avatarResId = savedAvatarRes),
+            isTutorialCompleted = tutorialDone,
+            hasPlayedIntroSplash = false
+        )
     }
 
     private fun observeRoomState() {
@@ -112,19 +126,49 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+
+        viewModelScope.launch {
+            gameDao.observeTopScores().collect { scores ->
+                val bestByMode = scores
+                    .groupBy { it.gameMode }
+                    .mapValues { (_, list) -> list.maxOfOrNull { it.score } ?: 0 }
+                _gameState.update { current ->
+                    current.copy(bestScoresByMode = bestByMode)
+                }
+            }
+        }
     }
 
     fun setPlayerProfile(name: String, avatarResId: Int) {
         val cleanName = name.trim().ifEmpty { "Mateo" }
+        val resolvedAvatar = if (avatarResId != 0) avatarResId else R.drawable.avatar_1
         scenarios = GameScenariosRepository.getScenarios(cleanName)
+        prefs.edit()
+            .putString(KEY_PREF_PLAYER_NAME, cleanName)
+            .putInt(KEY_PREF_AVATAR_INDEX, FirebaseRankingRepository.avatarResToIndex(resolvedAvatar))
+            .apply()
         _gameState.update { current ->
             current.copy(
                 profile = PlayerProfile(
                     name = cleanName,
-                    avatarResId = if (avatarResId != 0) avatarResId else R.drawable.avatar_1
+                    avatarResId = resolvedAvatar
                 )
             )
         }
+    }
+
+    fun markIntroSplashCompleted() {
+        _gameState.update { it.copy(hasPlayedIntroSplash = true) }
+    }
+
+    fun markTutorialCompleted() {
+        prefs.edit().putBoolean(KEY_PREF_TUTORIAL_COMPLETED, true).apply()
+        _gameState.update { it.copy(isTutorialCompleted = true) }
+    }
+
+    fun restartTutorial() {
+        prefs.edit().putBoolean(KEY_PREF_TUTORIAL_COMPLETED, false).apply()
+        _gameState.update { it.copy(isTutorialCompleted = false) }
     }
 
     /**
@@ -789,5 +833,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         private const val KEY_SLOTS = "SLOTS"
         private const val KEY_ROULETTE = "ROULETTE"
+        private const val PREFS_NAME = "juego_limpio_prefs"
+        private const val KEY_PREF_PLAYER_NAME = "player_name"
+        private const val KEY_PREF_AVATAR_INDEX = "avatar_index"
+        private const val KEY_PREF_TUTORIAL_COMPLETED = "tutorial_completed"
     }
 }

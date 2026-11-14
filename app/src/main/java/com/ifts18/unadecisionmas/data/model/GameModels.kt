@@ -246,7 +246,10 @@ data class GameState(
     val punishmentReasonTitle: String = "",
     val punishmentReasonBody: String = "",
     val isGameOver: Boolean = false,
-    val isPlayingSound: Boolean = true
+    val isPlayingSound: Boolean = true,
+    val bestScoresByMode: Map<String, Int> = emptyMap(),
+    val isTutorialCompleted: Boolean = true,
+    val hasPlayedIntroSplash: Boolean = false
 ) {
     /**
      * Calcula el puntaje competitivo combinando ahorro conservado, ausencia de deuda,

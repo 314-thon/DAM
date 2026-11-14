@@ -32,6 +32,7 @@ object SoundManager {
     private var slotIntrigueSoundId: Int = 0
     private var slotWinSoundId: Int = 0
     private var slotNearMissSoundId: Int = 0
+    private var casinoSplashSoundId: Int = 0
 
     @Volatile
     private var activeReelsMoveStreamId: Int = 0
@@ -402,6 +403,26 @@ object SoundManager {
         } catch (_: Exception) {}
     }
 
+    fun playCasinoSplashSound() {
+        if (_isMutedState.value || !isAppInForeground) return
+        try {
+            if (casinoSplashSoundId != 0) {
+                soundPool?.play(casinoSplashSoundId, 0.85f, 0.85f, 2, 0, 1.0f)
+            } else if (slotWinSoundId != 0) {
+                soundPool?.play(slotWinSoundId, 0.80f, 0.80f, 2, 0, 1.0f)
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun playCasinoSplashChime() {
+        if (_isMutedState.value || !isAppInForeground) return
+        try {
+            if (casinoSplashSoundId != 0) {
+                soundPool?.play(casinoSplashSoundId, 0.85f, 0.85f, 2, 0, 1.0f)
+            }
+        } catch (_: Exception) {}
+    }
+
     private fun initSlotSounds(context: Context) {
         val sampleRate = 22050
         val cacheDir = File(context.cacheDir, "slot_sfx").apply { mkdirs() }
@@ -481,6 +502,30 @@ object SoundManager {
             val localProg = if (progress < 0.45) progress / 0.45 else (progress - 0.45) / 0.55
             val env = (localProg * 10.0).coerceAtMost(1.0) * exp(-3.2 * localProg)
             (sin(2.0 * PI * freq * t) * 0.75 + sin(2.0 * PI * (freq * 1.5) * t) * 0.25) * env
+        }
+
+        // Splash de carga estilo casino: cascada de fichas/monedas + arpegio brillante Do9/Sol
+        casinoSplashSoundId = buildAndLoad("casino_splash_jackpot.wav", 780) { t, progress, _ ->
+            val notes = doubleArrayOf(523.25, 659.25, 783.99, 987.77, 1046.50, 1318.51, 1567.98)
+            val stepCount = notes.size
+            val scaled = progress * stepCount
+            val stepIdx = scaled.toInt().coerceIn(0, stepCount - 1)
+            val localProg = scaled - stepIdx
+
+            // Arpegio ascendente con decaimiento largo hacia el final
+            val noteEnv = (localProg * 14.0).coerceAtMost(1.0) * exp(-1.8 * localProg)
+            val freq = notes[stepIdx]
+            val chordBody = sin(2.0 * PI * freq * t) * 0.58 +
+                sin(2.0 * PI * (freq * 2.0) * t) * 0.26 +
+                sin(2.0 * PI * 1046.50 * t) * 0.16 * exp(-2.2 * progress)
+
+            // Tintineo agudo metálico de monedas de casino (pulsos rápidos en agudos)
+            val coinCycle = (t * 16.0) % 1.0
+            val coinEnv = exp(-7.5 * coinCycle) * (1.0 - progress * 0.35)
+            val coinShimmer = (sin(2.0 * PI * 2637.02 * t) * 0.55 + sin(2.0 * PI * 3135.96 * t) * 0.45) * coinEnv * 0.42
+
+            val masterTail = if (progress > 0.85) (1.0 - progress) / 0.15 else 1.0
+            ((chordBody * noteEnv) + coinShimmer) * masterTail
         }
     }
 

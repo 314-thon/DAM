@@ -3,7 +3,6 @@ package com.ifts18.unadecisionmas.ui.screens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -36,7 +35,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.ChatBubbleOutline
@@ -54,7 +52,6 @@ import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.outlined.AddBox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -95,6 +92,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.ifts18.unadecisionmas.R
@@ -104,7 +102,6 @@ import com.ifts18.unadecisionmas.sensor.rememberAccelerometerMonitor
 import com.ifts18.unadecisionmas.ui.theme.BordeCyan
 import com.ifts18.unadecisionmas.ui.theme.BordeMagenta
 import com.ifts18.unadecisionmas.ui.theme.BurbujaChat
-import com.ifts18.unadecisionmas.ui.theme.FondoGeneral
 import com.ifts18.unadecisionmas.ui.theme.RojoAlerta
 import com.ifts18.unadecisionmas.ui.theme.SpaceGrotesk
 import com.ifts18.unadecisionmas.ui.theme.TextoSecundario
@@ -168,7 +165,7 @@ private data class IgFeedPostItem(
 @Composable
 fun ScrollAdsGameScreen(
     playerName: String,
-    onBackToHub: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onBackToHub: () -> Unit,
     onGameFinished: (adsShakenOff: Int, adTrapsClicked: Int, elapsedMillis: Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -368,6 +365,7 @@ fun ScrollAdsGameScreen(
     var adsShakenCount by remember { mutableIntStateOf(0) }
     var trapsClickedCount by remember { mutableIntStateOf(0) }
     var remainingSeconds by remember { mutableIntStateOf(60) }
+    var showIntroPopup by remember { mutableStateOf(true) }
     val shakeWobble = remember { Animatable(0f) }
 
     var isLifecycleResumed by remember { mutableStateOf(true) }
@@ -382,10 +380,10 @@ fun ScrollAdsGameScreen(
                     sessionOpenedAt = System.currentTimeMillis()
                 }
                 Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
-                    if (isLifecycleResumed) {
+                    if (isLifecycleResumed && !showIntroPopup) {
                         accumulatedElapsedMillis += (System.currentTimeMillis() - sessionOpenedAt).coerceAtLeast(0L)
-                        isLifecycleResumed = false
                     }
+                    isLifecycleResumed = false
                 }
                 else -> {}
             }
@@ -397,8 +395,17 @@ fun ScrollAdsGameScreen(
     }
 
     fun currentForegroundElapsed(): Long {
+        if (showIntroPopup) return accumulatedElapsedMillis
         val extra = if (isLifecycleResumed) (System.currentTimeMillis() - sessionOpenedAt).coerceAtLeast(0L) else 0L
         return accumulatedElapsedMillis + extra
+    }
+
+    fun dismissIntroPopup() {
+        if (showIntroPopup) {
+            SoundManager.playClick()
+            sessionOpenedAt = System.currentTimeMillis()
+            showIntroPopup = false
+        }
     }
 
     val scrollFraction by remember {
@@ -409,12 +416,12 @@ fun ScrollAdsGameScreen(
     }
 
     // Monitoreo del Acelerómetro en tiempo real respetando el ciclo de vida
-    val sensorReading by rememberAccelerometerMonitor(
-        enabled = isLifecycleResumed,
+    rememberAccelerometerMonitor(
+        enabled = isLifecycleResumed && !showIntroPopup,
         shakeThresholdG = 1.38f,
         minIntervalMs = 95L
     ) { gForce ->
-        if (activeAd != null && isLifecycleResumed) {
+        if (activeAd != null && isLifecycleResumed && !showIntroPopup) {
             HapticFeedbackHelper.vibrateShort(context, 35L)
             SoundManager.playClick()
             val increment = ((gForce - 1.15f) * 0.24f).coerceIn(0.18f, 0.36f)
@@ -436,7 +443,7 @@ fun ScrollAdsGameScreen(
 
     // Disparar anuncio invasivo según el progreso de scroll del feed de Instagram
     LaunchedEffect(scrollFraction) {
-        if (activeAd == null) {
+        if (activeAd == null && !showIntroPopup) {
             val nextAd = adsCatalog.firstOrNull { ad ->
                 scrollFraction >= ad.triggerProgress && !triggeredAdIds.contains(ad.id)
             }
@@ -451,272 +458,130 @@ fun ScrollAdsGameScreen(
         }
     }
 
-    // Reloj de cuenta regresiva del juego (se congela en segundo plano)
+    // Reloj de cuenta regresiva del juego (se congela en segundo plano y mientras está el pop-up inicial)
     LaunchedEffect(Unit) {
+        while (showIntroPopup) {
+            delay(100L)
+        }
         sessionOpenedAt = System.currentTimeMillis()
         while (remainingSeconds > 0) {
             var waitRemaining = 1000L
             while (waitRemaining > 0L) {
-                while (!isLifecycleResumed) {
+                while (!isLifecycleResumed || showIntroPopup) {
                     delay(100L)
                 }
                 val chunk = minOf(100L, waitRemaining)
                 delay(chunk)
-                if (isLifecycleResumed) {
+                if (isLifecycleResumed && !showIntroPopup) {
                     waitRemaining -= chunk
                 }
             }
-            if (isLifecycleResumed) {
+            if (isLifecycleResumed && !showIntroPopup) {
                 remainingSeconds--
             }
         }
         onGameFinished(adsShakenCount, trapsClickedCount, currentForegroundElapsed())
     }
 
-    val animatedReadProgress by animateFloatAsState(
-        targetValue = scrollFraction,
-        animationSpec = tween(200),
-        label = "readProgress"
-    )
+    val isFeedInteractive = activeAd == null && !showIntroPopup
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(FondoGeneral)
+            .background(Color(0xFF060709))
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
+        // REPLICA DE FEED DE INSTAGRAM EN MODO OSCURO (SCROLLEABLE)
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 10.dp)
-        ) {
-            // 1. HEADER CON PROGRESO DEL FEED Y TELEMETRÍA DEL SENSOR
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF161922))
-                    .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(16.dp))
-                    .padding(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(
-                            onClick = onBackToHub,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.ArrowBack,
-                                contentDescription = "Volver",
-                                tint = Color.White
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Column {
-                            Text(
-                                text = "Scroll sin Caer",
-                                fontFamily = SpaceGrotesk,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                color = Color.White
-                            )
-                            Text(
-                                text = "Scrolleá el feed • Agitá si salta publicidad",
-                                fontFamily = SpaceGrotesk,
-                                fontSize = 11.5.sp,
-                                color = BordeCyan
-                            )
-                        }
-                    }
-
-                    // Reloj y Contador de Ads destruidos
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(VerdeExito.copy(alpha = 0.18f))
-                                .border(1.dp, VerdeExito.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Vibration,
-                                contentDescription = null,
-                                tint = VerdeExito,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Text(
-                                text = "$adsShakenCount/4",
-                                fontFamily = SpaceGrotesk,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                color = VerdeExito
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(
-                                    if (remainingSeconds <= 12) RojoAlerta.copy(alpha = 0.25f)
-                                    else BordeMagenta.copy(alpha = 0.18f)
-                                )
-                                .border(
-                                    1.dp,
-                                    if (remainingSeconds <= 12) RojoAlerta else BordeMagenta,
-                                    RoundedCornerShape(8.dp)
-                                )
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "${remainingSeconds}s",
-                                fontFamily = SpaceGrotesk,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                color = Color.White
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Barra de progreso de recorrido del feed y estado del Acelerómetro en vivo
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "Recorrido del Feed: ${(animatedReadProgress * 100).toInt()}%",
-                        fontFamily = SpaceGrotesk,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 11.5.sp,
-                        color = Color.White
-                    )
-                    Text(
-                        text = "Acelerómetro: ${"%.2f".format(sensorReading.gForce)} G",
-                        fontFamily = SpaceGrotesk,
-                        fontSize = 11.sp,
-                        color = if (sensorReading.gForce > 1.35f) VerdeExito else TextoSecundario
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(5.dp))
-
-                LinearProgressIndicator(
-                    progress = { animatedReadProgress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(7.dp)
-                        .clip(RoundedCornerShape(4.dp)),
-                    color = BordeCyan,
-                    trackColor = Color.White.copy(alpha = 0.12f)
+                .background(Color(0xFF060709))
+                .verticalScroll(
+                    state = scrollState,
+                    enabled = isFeedInteractive // Se bloquea el scroll cuando salta una publicidad invasiva o el pop-up inicial
                 )
-            }
+        ) {
+            IgFeedTopBar(playerName = playerName)
 
-            Spacer(modifier = Modifier.height(10.dp))
+            IgStoriesStrip(stories = igStories)
 
-            // 2. REPLICA DE FEED DE INSTAGRAM EN MODO OSCURO (SCROLLEABLE)
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF060709))
-                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(18.dp))
-                    .verticalScroll(
-                        state = scrollState,
-                        enabled = activeAd == null // Se bloquea el scroll cuando salta una publicidad invasiva
+            HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+
+            igPosts.forEachIndexed { index, post ->
+                IgFeedPostCard(
+                    post = post,
+                    isLiked = likedPostIds[post.id] == true,
+                    isSaved = savedPostIds[post.id] == true,
+                    isFollowed = followedHandles[post.handle] == true,
+                    enabled = isFeedInteractive,
+                    onToggleLike = {
+                        SoundManager.playClick()
+                        likedPostIds[post.id] = !(likedPostIds[post.id] == true)
+                    },
+                    onToggleSave = {
+                        SoundManager.playClick()
+                        savedPostIds[post.id] = !(savedPostIds[post.id] == true)
+                    },
+                    onToggleFollow = {
+                        SoundManager.playClick()
+                        followedHandles[post.handle] = !(followedHandles[post.handle] == true)
+                    }
+                )
+
+                if (index == 1) {
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+                    IgSuggestionsCarousel(
+                        suggestions = igSuggestions,
+                        followedHandles = followedHandles,
+                        dismissedHandles = dismissedSuggestionHandles,
+                        enabled = isFeedInteractive,
+                        onToggleFollow = { handle ->
+                            SoundManager.playClick()
+                            followedHandles[handle] = !(followedHandles[handle] == true)
+                        },
+                        onDismiss = { handle ->
+                            SoundManager.playClick()
+                            dismissedSuggestionHandles[handle] = true
+                        }
                     )
-            ) {
-                IgFeedTopBar(playerName = playerName)
-
-                IgStoriesStrip(stories = igStories)
+                }
 
                 HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-
-                igPosts.forEachIndexed { index, post ->
-                    IgFeedPostCard(
-                        post = post,
-                        isLiked = likedPostIds[post.id] == true,
-                        isSaved = savedPostIds[post.id] == true,
-                        isFollowed = followedHandles[post.handle] == true,
-                        enabled = activeAd == null,
-                        onToggleLike = {
-                            SoundManager.playClick()
-                            likedPostIds[post.id] = !(likedPostIds[post.id] == true)
-                        },
-                        onToggleSave = {
-                            SoundManager.playClick()
-                            savedPostIds[post.id] = !(savedPostIds[post.id] == true)
-                        },
-                        onToggleFollow = {
-                            SoundManager.playClick()
-                            followedHandles[post.handle] = !(followedHandles[post.handle] == true)
-                        }
-                    )
-
-                    if (index == 1) {
-                        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-                        IgSuggestionsCarousel(
-                            suggestions = igSuggestions,
-                            followedHandles = followedHandles,
-                            dismissedHandles = dismissedSuggestionHandles,
-                            enabled = activeAd == null,
-                            onToggleFollow = { handle ->
-                                SoundManager.playClick()
-                                followedHandles[handle] = !(followedHandles[handle] == true)
-                            },
-                            onDismiss = { handle ->
-                                SoundManager.playClick()
-                                dismissedSuggestionHandles[handle] = true
-                            }
-                        )
-                    }
-
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-                }
-
-                // Botón final al llegar al final del feed esquivando los anuncios
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 16.dp)
-                        .height(54.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
-                        .clickable(enabled = activeAd == null) {
-                            SoundManager.playClick()
-                            onGameFinished(adsShakenCount, trapsClickedCount, currentForegroundElapsed())
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = Color.Black
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Terminar feed",
-                            fontFamily = SpaceGrotesk,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.5.sp,
-                            color = Color.Black
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
             }
+
+            // Botón final al llegar al final del feed esquivando los anuncios
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 16.dp)
+                    .height(54.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
+                    .clickable(enabled = isFeedInteractive) {
+                        SoundManager.playClick()
+                        onGameFinished(adsShakenCount, trapsClickedCount, currentForegroundElapsed())
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = Color.Black
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Terminar feed",
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.5.sp,
+                        color = Color.Black
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
         }
 
         // 3. OVERLAY DE ANUNCIO ESTILO POST DE INSTAGRAM PATROCINADO (SE QUITA AGITANDO EL CELULAR)
@@ -1057,6 +922,82 @@ fun ScrollAdsGameScreen(
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    if (showIntroPopup) {
+        Dialog(onDismissRequest = { dismissIntroPopup() }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Color(0xFF141824))
+                    .border(
+                        width = 2.dp,
+                        brush = Brush.horizontalGradient(listOf(BordeCyan, BordeMagenta)),
+                        shape = RoundedCornerShape(22.dp)
+                    )
+                    .padding(22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(BordeCyan.copy(alpha = 0.16f))
+                        .border(1.5.dp, BordeCyan, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Vibration,
+                        contentDescription = null,
+                        tint = BordeCyan,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = "Esquivá los anuncios",
+                    fontFamily = SpaceGrotesk,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color.White,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Scrolleá el feed hasta el final. Cuando aparezca publicidad invasiva, agitá el celular para esquivarla sin caer en la trampa.",
+                    fontFamily = SpaceGrotesk,
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp,
+                    color = Color.White.copy(alpha = 0.88f),
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(46.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Brush.horizontalGradient(listOf(BordeCyan, VerdeExito)))
+                        .clickable { dismissIntroPopup() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Entendido",
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.5.sp,
+                        color = Color.Black
+                    )
                 }
             }
         }
