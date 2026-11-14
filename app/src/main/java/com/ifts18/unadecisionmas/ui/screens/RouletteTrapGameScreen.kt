@@ -4,8 +4,7 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -70,10 +69,13 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -92,6 +94,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.pow
 import kotlin.math.sin
 
 private data class RoulettePocket(
@@ -170,23 +173,33 @@ private fun doesPocketWinBet(
     }
 }
 
+private val NoFontPadding = PlatformTextStyle(includeFontPadding = false)
+
+private fun tightStyle(fontSize: TextUnit, lineHeight: TextUnit = fontSize): TextStyle =
+    TextStyle(
+        fontFamily = SpaceGrotesk,
+        fontSize = fontSize,
+        lineHeight = lineHeight,
+        platformStyle = NoFontPadding
+    )
+
 private fun betDisplayLabel(betMode: String, selectedNumber: Int): String = when (betMode) {
     "PLENO" -> "Pleno #$selectedNumber"
     "ROJO" -> "Rojo x2"
     "NEGRO" -> "Negro x2"
-    "EVEN" -> "Par (Even)"
-    "ODD" -> "Impar (Odd)"
+    "EVEN" -> "Par"
+    "ODD" -> "Impar"
     "LOW_1_18" -> "1~18"
     "HIGH_19_36" -> "19~36"
-    "DOZEN_1" -> "1st 12"
-    "DOZEN_2" -> "2nd 12"
-    "DOZEN_3" -> "3rd 12"
+    "DOZEN_1" -> "1.ª Docena"
+    "DOZEN_2" -> "2.ª Docena"
+    "DOZEN_3" -> "3.ª Docena"
     "COL_1" -> "Columna 1"
     "COL_2" -> "Columna 2"
     "COL_3" -> "Columna 3"
-    "TIERS" -> "Tiers"
-    "ORPHELINS" -> "Orphelins"
-    "VOISINS" -> "Voisins"
+    "TIERS" -> "Tercios"
+    "ORPHELINS" -> "Huérfanos"
+    "VOISINS" -> "Vecinos 0"
     else -> "Pleno #$selectedNumber"
 }
 
@@ -228,7 +241,7 @@ fun RouletteTrapGameScreen(
     val landedPocket = wheelPockets[state.landedPocketIndex.coerceIn(0, wheelPockets.lastIndex)]
 
     val sliceAngle = 360f / wheelPockets.size
-    val wheelRotation = remember { Animatable(0f) }
+    var wheelRotation by remember { mutableFloatStateOf(0f) }
 
     var isSpinning by remember { mutableStateOf(false) }
     var showResultPill by remember { mutableStateOf(false) }
@@ -262,14 +275,14 @@ fun RouletteTrapGameScreen(
     LaunchedEffect(isSpinning, isLifecycleResumed) {
         if (!isSpinning && isLifecycleResumed) {
             var lastNanos = 0L
-            while (true) {
+            while (!isSpinning && isLifecycleResumed) {
                 val dtSec = withFrameNanos { nanos ->
                     val delta = if (lastNanos != 0L) (nanos - lastNanos) / 1_000_000_000f else 0f
                     lastNanos = nanos
                     delta
                 }
-                if (dtSec > 0f) {
-                    wheelRotation.snapTo((wheelRotation.value + dtSec * 14f) % 360f)
+                if (!isSpinning && dtSec > 0f) {
+                    wheelRotation = (wheelRotation + dtSec * 14f) % 360f
                 }
             }
         }
@@ -385,43 +398,45 @@ fun RouletteTrapGameScreen(
             val currentSelPocket = wheelPockets[currentSelIdx]
             val targetPocketIndex = resolveTargetPocketIndex(snapshot, nextSpinNumber)
 
-            val startWheel = wheelRotation.value
-            val targetWheel = startWheel + 920f
+            val startWheel = wheelRotation
             val relStart = ballRelativeAngle
             val relTarget = -90f + (targetPocketIndex + 0.5f) * sliceAngle
             val relMod = (((relStart - relTarget) % 360f) + 360f) % 360f
-            val relEnd = relStart - 2520f - relMod
+            val relEnd = relStart - 2880f - relMod
 
-            val ballEase = CubicBezierEasing(0.16f, 0.78f, 0.25f, 1f)
             val animProgress = Animatable(0f)
-
-            val wheelJob = launch {
-                wheelRotation.animateTo(
-                    targetValue = targetWheel,
-                    animationSpec = tween(durationMillis = 2350, easing = FastOutSlowInEasing)
-                )
-            }
 
             animProgress.animateTo(
                 targetValue = 1f,
-                animationSpec = tween(durationMillis = 2350, easing = CubicBezierEasing(0.22f, 0.61f, 0.36f, 1f))
+                animationSpec = tween(durationMillis = 3600, easing = LinearEasing)
             ) {
                 val t = value
-                val u = (t / 0.86f).coerceIn(0f, 1f)
-                val easedU = ballEase.transform(u)
-                ballRelativeAngle = relStart + (relEnd - relStart) * easedU
+                // Desaceleración continua del rotor (termina con la misma velocidad residual de reposo ~14°/s)
+                val wheelDecel = 1f - (1f - t).pow(2.15f)
+                wheelRotation = (startWheel + 1380f * wheelDecel + 50f * t) % 360f
+
+                // Desaceleración progresiva de la bolilla en sentido inverso sin doble curva
+                val u = (t / 0.93f).coerceIn(0f, 1f)
+                val easedU = 1f - (1f - u).pow(2.35f)
+                val settleOscillation = if (t > 0.93f) {
+                    val s = (t - 0.93f) / 0.07f
+                    (sin(s * PI * 2.0) * (1f - s) * 1.6f).toFloat()
+                } else {
+                    0f
+                }
+                ballRelativeAngle = relStart + (relEnd - relStart) * easedU + settleOscillation
+
                 ballRadiusFraction = when {
-                    u < 0.65f -> 0.875f
+                    u < 0.68f -> 0.875f
                     u < 1.0f -> {
-                        val dropU = (u - 0.65f) / 0.35f
-                        val bounce = abs(sin(dropU * PI * 2.5)).toFloat() * (1f - dropU) * 0.065f
+                        val dropU = (u - 0.68f) / 0.32f
+                        val bounce = abs(sin(dropU * PI * 3.0)).toFloat() * (1f - dropU) * 0.068f
                         0.875f - (0.875f - 0.565f) * dropU + bounce
                     }
                     else -> 0.565f
                 }
             }
 
-            wheelJob.join()
             ballRelativeAngle = relTarget
             ballRadiusFraction = 0.565f
 
@@ -472,7 +487,7 @@ fun RouletteTrapGameScreen(
                         bonusChips = updatedChips,
                         fakeLockedWinnings = (snapshot.fakeLockedWinnings - 2000).coerceAtLeast(0),
                         elapsedMillis = totalElapsed,
-                        resultBannerText = "NO WIN • 0 VERDE",
+                        resultBannerText = "SIN PREMIO • 0 VERDE",
                         algorithmStageTitle = "Etapa 3: Ventaja de la banca",
                         algorithmExplanation = "Cayó el 0 Verde. Ese casillero extra (1/37 = 2,70%) asegura que la casa gane en el largo plazo."
                     )
@@ -514,14 +529,14 @@ fun RouletteTrapGameScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // 1. CABECERA COMPACTA ESTILO CASINO EVOPLAY + LECTURA DE SENSOR
+            // 1. CABECERA COMPACTA ESTILO CASINO + LECTURA DE SENSOR
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color(0xFF140819).copy(alpha = 0.88f))
                     .border(1.dp, BrassGold.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -531,30 +546,28 @@ fun RouletteTrapGameScreen(
                 ) {
                     IconButton(
                         onClick = onBackToHub,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(30.dp)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Volver",
                             tint = Color.White,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(19.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(6.dp))
-                    Column {
+                    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                         Text(
-                            text = "European Roulette",
-                            fontFamily = SpaceGrotesk,
+                            text = "Ruleta Europea",
+                            style = tightStyle(15.sp, 17.sp),
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
                             color = BrassGoldLight,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = "Agitá para girar • ${"%.2f".format(sensorReading.gForce)} G",
-                            fontFamily = SpaceGrotesk,
-                            fontSize = 10.sp,
+                            style = tightStyle(10.5.sp, 12.sp),
                             color = BordeCyan,
                             maxLines = 1
                         )
@@ -566,185 +579,204 @@ fun RouletteTrapGameScreen(
                         .clip(RoundedCornerShape(9.dp))
                         .background(BordeMagenta.copy(alpha = 0.22f))
                         .border(1.dp, BordeMagenta, RoundedCornerShape(9.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "Fichas: $bonusChips/$maxSpins",
-                        fontFamily = SpaceGrotesk,
+                        style = tightStyle(11.5.sp, 13.sp),
                         fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
                         color = Color.White,
                         maxLines = 1
                     )
                 }
             }
 
-            // 2. ZONA SUPERIOR: RACETRACK FRANCÉS + RUEDA EUROPEA 37 CASILLEROS + PANEL PREVIOUS
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+            // 2. ZONA SUPERIOR: SECTORES + RUEDA EUROPEA 37 CASILLEROS + PANEL DE APUESTA ACTIVA
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Izquierda: Mini Racetrack francés (Tiers / Orphelins / Voisins)
-                Column(
-                    modifier = Modifier
-                        .weight(0.92f)
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(
-                            Brush.verticalGradient(listOf(FeltCenter, FeltEdge))
-                        )
-                        .border(1.4.dp, BrassGold.copy(alpha = 0.7f), RoundedCornerShape(22.dp))
-                        .padding(horizontal = 6.dp, vertical = 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = "RACETRACK",
-                        fontFamily = SpaceGrotesk,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 8.sp,
-                        color = BrassGoldLight,
-                        letterSpacing = 0.8.sp
+                    // Izquierda: Sectores de la rueda (Tercios / Huérfanos / Vecinos 0)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(
+                                Brush.verticalGradient(listOf(FeltCenter, FeltEdge))
+                            )
+                            .border(1.4.dp, BrassGold.copy(alpha = 0.7f), RoundedCornerShape(18.dp))
+                            .padding(horizontal = 6.dp, vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Text(
+                            text = "SECTORES",
+                            style = tightStyle(9.sp, 10.sp),
+                            fontWeight = FontWeight.Bold,
+                            color = BrassGoldLight,
+                            letterSpacing = 0.8.sp
+                        )
+                        listOf(
+                            "TIERS" to "Tercios",
+                            "ORPHELINS" to "Huérfanos",
+                            "VOISINS" to "Vecinos 0"
+                        ).forEach { (modeKey, title) ->
+                            val isSelected = selectedBetMode == modeKey
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(29.dp)
+                                    .clip(RoundedCornerShape(9.dp))
+                                    .background(
+                                        if (isSelected) BrassGold.copy(alpha = 0.30f)
+                                        else Color.Black.copy(alpha = 0.32f)
+                                    )
+                                    .border(
+                                        width = if (isSelected) 1.5.dp else 0.9.dp,
+                                        color = if (isSelected) BrassGoldLight else FeltGridBorder,
+                                        shape = RoundedCornerShape(9.dp)
+                                    )
+                                    .clickable(enabled = !isSpinning && !showResultPopup) {
+                                        selectBet(modeKey)
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = title,
+                                    style = tightStyle(10.sp, 11.sp),
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) BrassGoldLight else Color.White,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Centro: Rueda Europea Oficial de 37 Casilleros en Canvas + Bolilla física
+                    EuropeanRouletteWheelCanvas(
+                        wheelPockets = wheelPockets,
+                        wheelRotationDegrees = wheelRotation,
+                        ballVisible = ballVisible,
+                        ballRelativeAngle = ballRelativeAngle,
+                        ballRadiusFraction = ballRadiusFraction,
+                        modifier = Modifier.size(184.dp)
                     )
-                    listOf(
-                        "TIERS" to "Tiers",
-                        "ORPHELINS" to "Orphelins",
-                        "VOISINS" to "Voisins"
-                    ).forEach { (modeKey, title) ->
-                        val isSelected = selectedBetMode == modeKey
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Derecha: Placa de Apuesta Activa y Valor de Ficha
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(Color(0xFF141519))
+                            .border(1.4.dp, BrassGold.copy(alpha = 0.85f), RoundedCornerShape(18.dp))
+                            .padding(horizontal = 6.dp, vertical = 10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "TU APUESTA",
+                            style = tightStyle(8.5.sp, 10.sp),
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White.copy(alpha = 0.7f),
+                            letterSpacing = 0.6.sp
+                        )
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(25.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(
-                                    if (isSelected) BrassGold.copy(alpha = 0.28f)
-                                    else Color.Black.copy(alpha = 0.30f)
-                                )
-                                .border(
-                                    width = if (isSelected) 1.5.dp else 0.8.dp,
-                                    color = if (isSelected) BrassGoldLight else FeltGridBorder,
-                                    shape = RoundedCornerShape(10.dp)
-                                )
-                                .clickable(enabled = !isSpinning && !showResultPopup) {
-                                    selectBet(modeKey)
-                                },
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(BrassGold.copy(alpha = 0.16f))
+                                .border(1.dp, BrassGold.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 4.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = title,
-                                fontFamily = SpaceGrotesk,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 9.5.sp,
-                                color = if (isSelected) BrassGoldLight else Color.White,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(6.dp))
-
-                // Centro: Rueda Europea Oficial de 37 Casilleros en Canvas + Bolilla física
-                EuropeanRouletteWheelCanvas(
-                    wheelPockets = wheelPockets,
-                    wheelRotationDegrees = wheelRotation.value,
-                    ballVisible = ballVisible,
-                    ballRelativeAngle = ballRelativeAngle,
-                    ballRadiusFraction = ballRadiusFraction,
-                    modifier = Modifier.size(168.dp)
-                )
-
-                Spacer(modifier = Modifier.width(6.dp))
-
-                // Derecha: Panel "Previous:" (5 ranuras circulares) + Placa de Mesa
-                Column(
-                    modifier = Modifier.weight(0.95f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color.Black.copy(alpha = 0.35f))
-                            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(10.dp))
-                            .padding(horizontal = 5.dp, vertical = 5.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "Previous:",
-                            fontFamily = SpaceGrotesk,
-                            fontSize = 9.sp,
-                            color = Color.White.copy(alpha = 0.82f)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            val paddedHistory = List(5) { idx ->
-                                val offset = recentHistory.size - 5 + idx
-                                if (offset >= 0) recentHistory[offset] else null
-                            }
-                            paddedHistory.forEach { pocket ->
-                                Box(
-                                    modifier = Modifier
-                                        .size(18.dp)
-                                        .clip(CircleShape)
-                                        .background(pocket?.pocketColor ?: Color.Transparent)
-                                        .border(
-                                            width = 0.9.dp,
-                                            color = if (pocket != null) Color.White.copy(alpha = 0.7f)
-                                            else Color.White.copy(alpha = 0.28f),
-                                            shape = CircleShape
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (pocket != null) {
-                                        Text(
-                                            text = "${pocket.number}",
-                                            fontFamily = SpaceGrotesk,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 8.sp,
-                                            color = Color.White,
-                                            maxLines = 1
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Placa negra/dorada de límite estilo Evoplay
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFF141519))
-                            .border(1.4.dp, BrassGold, RoundedCornerShape(10.dp))
-                            .padding(horizontal = 6.dp, vertical = 6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "${activeChip.label} = 1 Ficha",
-                                fontFamily = SpaceGrotesk,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 9.5.sp,
-                                color = BrassGoldLight,
-                                maxLines = 1
-                            )
-                            Text(
                                 text = betDisplayLabel(selectedBetMode, selectedPocket.number),
-                                fontFamily = SpaceGrotesk,
-                                fontSize = 9.sp,
-                                color = Color.White.copy(alpha = 0.85f),
+                                style = tightStyle(10.5.sp, 12.sp),
+                                fontWeight = FontWeight.Bold,
+                                color = BrassGoldLight,
+                                textAlign = TextAlign.Center,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
+                        }
+                        Text(
+                            text = "${activeChip.label} = 1 Ficha",
+                            style = tightStyle(9.5.sp, 11.sp),
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White.copy(alpha = 0.9f),
+                            maxLines = 1
+                        )
+                        Text(
+                            text = "Tirada $spinsUsed/$maxSpins",
+                            style = tightStyle(9.sp, 10.sp),
+                            color = BordeCyan,
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                // Barra horizontal de "Últimos:" con 5 círculos perfectos y números centrados
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.Black.copy(alpha = 0.42f))
+                        .border(1.dp, BrassGold.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Últimos:",
+                        style = tightStyle(11.sp, 13.sp),
+                        fontWeight = FontWeight.Bold,
+                        color = BrassGoldLight
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val paddedHistory = List(5) { idx ->
+                            val offset = recentHistory.size - 5 + idx
+                            if (offset >= 0) recentHistory[offset] else null
+                        }
+                        paddedHistory.forEach { pocket ->
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(pocket?.pocketColor ?: Color.White.copy(alpha = 0.05f))
+                                    .border(
+                                        width = 1.1.dp,
+                                        color = if (pocket != null) Color.White.copy(alpha = 0.85f)
+                                        else Color.White.copy(alpha = 0.25f),
+                                        shape = CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (pocket != null) {
+                                    Text(
+                                        text = "${pocket.number}",
+                                        style = tightStyle(10.sp, 10.sp),
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -790,7 +822,7 @@ fun RouletteTrapGameScreen(
                         onSelectOutside = { mode -> selectBet(mode) }
                     )
 
-                    // Píldora flotante estilo Evoplay ("[ 13 ]  NO WIN") al frenar la bolilla
+                    // Píldora flotante al frenar la bolilla
                     androidx.compose.animation.AnimatedVisibility(
                         visible = showResultPill && !showResultPopup,
                         enter = fadeIn(tween(180)) + scaleIn(tween(200), initialScale = 0.9f),
@@ -801,7 +833,7 @@ fun RouletteTrapGameScreen(
                                 .clip(RoundedCornerShape(24.dp))
                                 .background(Color(0xEE101218))
                                 .border(1.5.dp, BrassGold, RoundedCornerShape(24.dp))
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
@@ -815,17 +847,16 @@ fun RouletteTrapGameScreen(
                             ) {
                                 Text(
                                     text = "${landedPocket.number}",
-                                    fontFamily = SpaceGrotesk,
+                                    style = tightStyle(14.sp, 14.sp),
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    color = Color.White
+                                    color = Color.White,
+                                    textAlign = TextAlign.Center
                                 )
                             }
                             Text(
                                 text = resultBannerText,
-                                fontFamily = SpaceGrotesk,
+                                style = tightStyle(12.sp, 14.sp),
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
                                 color = Color.White,
                                 maxLines = 1
                             )
@@ -834,10 +865,10 @@ fun RouletteTrapGameScreen(
                 }
             }
 
-            // 4. CONTROLES INFERIORES ESTILO EVOPLAY: FICHAS + BOTONES CARMESÍ/ORO + HUD
+            // 4. CONTROLES INFERIORES: FICHAS + BOTONES CARMESÍ/ORO + HUD
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (spinsUsed < maxSpins) {
                     Row(
@@ -855,7 +886,7 @@ fun RouletteTrapGameScreen(
                                     spec = spec,
                                     isSelected = idx == selectedChipIndex,
                                     enabled = !isSpinning && !showResultPopup,
-                                    size = 33.dp,
+                                    size = 36.dp,
                                     onClick = {
                                         SoundManager.playClick()
                                         selectedChipIndex = idx
@@ -864,13 +895,13 @@ fun RouletteTrapGameScreen(
                             }
                         }
 
-                        // Botones circulares carmesí con bisel dorado (Undo, Clear, x2) + Spin Grande
+                        // Botones circulares carmesí con bisel dorado (Deshacer, Reiniciar, x2) + Girar Grande
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             CrimsonRoundButton(
-                                size = 34.dp,
+                                size = 36.dp,
                                 enabled = !isSpinning && !showResultPopup && previousBetBackup != null,
                                 onClick = {
                                     SoundManager.playClick()
@@ -890,12 +921,12 @@ fun RouletteTrapGameScreen(
                                     imageVector = Icons.AutoMirrored.Filled.Undo,
                                     contentDescription = "Deshacer",
                                     tint = BrassGoldLight,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(17.dp)
                                 )
                             }
 
                             CrimsonRoundButton(
-                                size = 34.dp,
+                                size = 36.dp,
                                 enabled = !isSpinning && !showResultPopup,
                                 onClick = {
                                     SoundManager.playClick()
@@ -908,12 +939,12 @@ fun RouletteTrapGameScreen(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = "Reiniciar apuesta al 29",
                                     tint = BrassGoldLight,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(17.dp)
                                 )
                             }
 
                             CrimsonRoundButton(
-                                size = 34.dp,
+                                size = 36.dp,
                                 enabled = !isSpinning && !showResultPopup,
                                 onClick = {
                                     SoundManager.playClick()
@@ -923,24 +954,24 @@ fun RouletteTrapGameScreen(
                                 if (spinsUsed > 0 && betMultiplier == 1) {
                                     Icon(
                                         imageVector = Icons.Default.Replay,
-                                        contentDescription = "Rebet",
+                                        contentDescription = "Repetir apuesta",
                                         tint = BrassGoldLight,
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(17.dp)
                                     )
                                 } else {
                                     Text(
                                         text = "×${betMultiplier * 2}",
-                                        fontFamily = SpaceGrotesk,
+                                        style = tightStyle(11.sp, 11.sp),
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp,
-                                        color = BrassGoldLight
+                                        color = BrassGoldLight,
+                                        textAlign = TextAlign.Center
                                     )
                                 }
                             }
 
-                            // Botón principal SPIN (estilo Evoplay grande carmesí y oro)
+                            // Botón principal GIRAR
                             CrimsonRoundButton(
-                                size = 50.dp,
+                                size = 52.dp,
                                 enabled = !isSpinning && !showResultPopup,
                                 borderWidth = 2.4.dp,
                                 onClick = { triggerRouletteSpin() }
@@ -962,9 +993,8 @@ fun RouletteTrapGameScreen(
                     ) {
                         Text(
                             text = "Sin fichas de bono. El casino te pide cargar plata real:",
-                            fontFamily = SpaceGrotesk,
+                            style = tightStyle(11.5.sp, 14.sp),
                             fontWeight = FontWeight.Bold,
-                            fontSize = 11.5.sp,
                             color = RojoAlerta,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
@@ -972,7 +1002,7 @@ fun RouletteTrapGameScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(38.dp)
+                                .height(42.dp)
                                 .clip(RoundedCornerShape(11.dp))
                                 .background(RojoAlerta.copy(alpha = 0.22f))
                                 .border(1.2.dp, RojoAlerta, RoundedCornerShape(11.dp))
@@ -991,16 +1021,15 @@ fun RouletteTrapGameScreen(
                         ) {
                             Text(
                                 text = "Cargar $5.000 reales para seguir",
-                                fontFamily = SpaceGrotesk,
+                                style = tightStyle(12.sp, 14.sp),
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
                                 color = Color.White
                             )
                         }
                     }
                 }
 
-                // Píldoras inferiores estilo Evoplay (TOTAL BET / BONO TRABADO) + Plantarse
+                // Píldoras inferiores (APUESTA / BONO TRABADO) + Plantarse
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1024,7 +1053,7 @@ fun RouletteTrapGameScreen(
                         Box(
                             modifier = Modifier
                                 .weight(0.95f)
-                                .height(38.dp)
+                                .height(48.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
                                 .clickable {
@@ -1042,19 +1071,18 @@ fun RouletteTrapGameScreen(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Shield,
                                     contentDescription = null,
                                     tint = Color.Black,
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                                 Text(
                                     text = if (spinsUsed < maxSpins) "Plantarse" else "Cerrar",
-                                    fontFamily = SpaceGrotesk,
+                                    style = tightStyle(12.5.sp, 14.sp),
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.5.sp,
                                     color = Color.Black,
                                     maxLines = 1
                                 )
@@ -1064,7 +1092,7 @@ fun RouletteTrapGameScreen(
                         Box(
                             modifier = Modifier
                                 .weight(0.95f)
-                                .height(38.dp)
+                                .height(48.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color.Black.copy(alpha = 0.4f))
                                 .border(1.dp, BordeCyan.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
@@ -1073,19 +1101,18 @@ fun RouletteTrapGameScreen(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Vibration,
                                     contentDescription = null,
                                     tint = BordeCyan,
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                                 Text(
                                     text = if (isSpinning) "Girando" else "Agitar",
-                                    fontFamily = SpaceGrotesk,
+                                    style = tightStyle(12.5.sp, 14.sp),
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.5.sp,
                                     color = Color.White,
                                     maxLines = 1
                                 )
@@ -1499,9 +1526,9 @@ private fun EuropeanBettingTable(
     onSelectOutside: (String) -> Unit
 ) {
     val pocketByNum = remember(wheelPockets) { wheelPockets.associateBy { it.number } }
-    val rowHeight = 27.dp
-    val zeroWidth = 23.dp
-    val colBetWidth = 25.dp
+    val rowHeight = 34.dp
+    val zeroWidth = 26.dp
+    val colBetWidth = 28.dp
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -1530,10 +1557,10 @@ private fun EuropeanBettingTable(
             ) {
                 Text(
                     text = "0",
-                    fontFamily = SpaceGrotesk,
+                    style = tightStyle(12.5.sp, 12.5.sp),
                     fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    color = Color.White
+                    color = Color.White,
+                    textAlign = TextAlign.Center
                 )
             }
 
@@ -1561,10 +1588,10 @@ private fun EuropeanBettingTable(
                             ) {
                                 Text(
                                     text = "$num",
-                                    fontFamily = SpaceGrotesk,
+                                    style = tightStyle(11.sp, 11.sp),
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 9.5.sp,
                                     color = Color.White,
+                                    textAlign = TextAlign.Center,
                                     maxLines = 1,
                                     softWrap = false
                                 )
@@ -1593,10 +1620,10 @@ private fun EuropeanBettingTable(
                     ) {
                         Text(
                             text = "2~1",
-                            fontFamily = SpaceGrotesk,
+                            style = tightStyle(9.sp, 9.sp),
                             fontWeight = FontWeight.Bold,
-                            fontSize = 8.sp,
                             color = Color.White,
+                            textAlign = TextAlign.Center,
                             maxLines = 1
                         )
                     }
@@ -1604,14 +1631,14 @@ private fun EuropeanBettingTable(
             }
         }
 
-        // Fila de Docenas (1st 12, 2nd 12, 3rd 12)
+        // Fila de Docenas (1.ª Docena, 2.ª Docena, 3.ª Docena)
         Row(modifier = Modifier.fillMaxWidth()) {
             Spacer(modifier = Modifier.width(zeroWidth))
             Row(modifier = Modifier.weight(1f)) {
                 listOf(
-                    "DOZEN_1" to "1st 12",
-                    "DOZEN_2" to "2nd 12",
-                    "DOZEN_3" to "3rd 12"
+                    "DOZEN_1" to "1.ª Docena",
+                    "DOZEN_2" to "2.ª Docena",
+                    "DOZEN_3" to "3.ª Docena"
                 ).forEach { (key, label) ->
                     val isBetHere = selectedBetMode == key
                     TableCellBox(
@@ -1623,15 +1650,15 @@ private fun EuropeanBettingTable(
                         betMultiplier = betMultiplier,
                         modifier = Modifier
                             .weight(1f)
-                            .height(23.dp)
+                            .height(29.dp)
                             .clickable(enabled = enabled) { onSelectOutside(key) }
                     ) {
                         Text(
                             text = label,
-                            fontFamily = SpaceGrotesk,
+                            style = tightStyle(10.5.sp, 11.sp),
                             fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp,
                             color = Color.White,
+                            textAlign = TextAlign.Center,
                             maxLines = 1
                         )
                     }
@@ -1640,16 +1667,16 @@ private fun EuropeanBettingTable(
             Spacer(modifier = Modifier.width(colBetWidth))
         }
 
-        // Fila inferior de Suertes Simples (1~18, Even, Rojo, Negro, Odd, 19~36)
+        // Fila inferior de Suertes Simples (1~18, Par, Rojo, Negro, Impar, 19~36)
         Row(modifier = Modifier.fillMaxWidth()) {
             Spacer(modifier = Modifier.width(zeroWidth))
             Row(modifier = Modifier.weight(1f)) {
                 listOf(
                     "LOW_1_18" to "1~18",
-                    "EVEN" to "Even",
+                    "EVEN" to "Par",
                     "ROJO" to "RED_DIAMOND",
                     "NEGRO" to "BLACK_DIAMOND",
-                    "ODD" to "Odd",
+                    "ODD" to "Impar",
                     "HIGH_19_36" to "19~36"
                 ).forEach { (key, label) ->
                     val isBetHere = selectedBetMode == key
@@ -1662,12 +1689,12 @@ private fun EuropeanBettingTable(
                         betMultiplier = betMultiplier,
                         modifier = Modifier
                             .weight(1f)
-                            .height(24.dp)
+                            .height(30.dp)
                             .clickable(enabled = enabled) { onSelectOutside(key) }
                     ) {
                         if (label == "RED_DIAMOND" || label == "BLACK_DIAMOND") {
                             val diamondColor = if (label == "RED_DIAMOND") PocketRed else PocketBlack
-                            Canvas(modifier = Modifier.size(width = 24.dp, height = 14.dp)) {
+                            Canvas(modifier = Modifier.size(width = 26.dp, height = 15.dp)) {
                                 val p = Path().apply {
                                     moveTo(size.width / 2f, 1f)
                                     lineTo(size.width - 1f, size.height / 2f)
@@ -1681,10 +1708,10 @@ private fun EuropeanBettingTable(
                         } else {
                             Text(
                                 text = label,
-                                fontFamily = SpaceGrotesk,
+                                style = tightStyle(10.5.sp, 11.sp),
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 9.5.sp,
                                 color = Color.White,
+                                textAlign = TextAlign.Center,
                                 maxLines = 1
                             )
                         }
@@ -1753,7 +1780,7 @@ private fun TableCellBox(
         }
 
         if (showDolly) {
-            BrassDollyMarker(modifier = Modifier.size(16.dp))
+            BrassDollyMarker(modifier = Modifier.size(19.dp))
         }
     }
 }
@@ -1761,20 +1788,20 @@ private fun TableCellBox(
 @Composable
 private fun MiniTableChip(spec: CasinoChipSpec, showStack: Boolean) {
     Box(
-        modifier = Modifier.size(17.dp),
+        modifier = Modifier.size(20.dp),
         contentAlignment = Alignment.Center
     ) {
         if (showStack) {
             Box(
                 modifier = Modifier
                     .padding(top = 2.dp)
-                    .size(15.dp)
+                    .size(18.dp)
                     .clip(CircleShape)
                     .background(spec.baseColor.copy(alpha = 0.85f))
                     .border(1.dp, Color.Black.copy(alpha = 0.5f), CircleShape)
             )
         }
-        Canvas(modifier = Modifier.size(15.dp)) {
+        Canvas(modifier = Modifier.size(18.dp)) {
             val r = size.minDimension / 2f
             drawCircle(color = Color.Black.copy(alpha = 0.45f), radius = r, center = Offset(center.x, center.y + 1.2f))
             drawCircle(color = spec.baseColor, radius = r, center = center)
@@ -1796,10 +1823,10 @@ private fun MiniTableChip(spec: CasinoChipSpec, showStack: Boolean) {
         }
         Text(
             text = spec.label,
-            fontFamily = SpaceGrotesk,
+            style = tightStyle(6.5.sp, 6.5.sp),
             fontWeight = FontWeight.Bold,
-            fontSize = 6.sp,
             color = spec.textColor,
+            textAlign = TextAlign.Center,
             maxLines = 1
         )
     }
@@ -1876,10 +1903,10 @@ private fun CasinoChipButton(
         }
         Text(
             text = spec.label,
-            fontFamily = SpaceGrotesk,
+            style = tightStyle(10.sp, 10.sp),
             fontWeight = FontWeight.Bold,
-            fontSize = 9.5.sp,
             color = spec.textColor,
+            textAlign = TextAlign.Center,
             maxLines = 1
         )
     }
@@ -1928,40 +1955,40 @@ private fun HudDarkPill(
 ) {
     Column(
         modifier = modifier
-            .height(38.dp)
+            .height(48.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(Color(0xD90A0D14))
-            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically)
     ) {
         Text(
             text = label,
-            fontFamily = SpaceGrotesk,
+            style = tightStyle(8.5.sp, 10.sp),
             fontWeight = FontWeight.Bold,
-            fontSize = 7.5.sp,
-            color = Color.White.copy(alpha = 0.68f),
+            color = Color.White.copy(alpha = 0.72f),
+            textAlign = TextAlign.Center,
             maxLines = 1
         )
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             if (showLock) {
                 Icon(
                     imageVector = Icons.Default.Lock,
                     contentDescription = "Bloqueado",
                     tint = valueColor,
-                    modifier = Modifier.size(10.dp)
+                    modifier = Modifier.size(11.dp)
                 )
             }
             Text(
                 text = value,
-                fontFamily = SpaceGrotesk,
+                style = tightStyle(12.sp, 14.sp),
                 fontWeight = FontWeight.Bold,
-                fontSize = 11.sp,
                 color = valueColor,
+                textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
