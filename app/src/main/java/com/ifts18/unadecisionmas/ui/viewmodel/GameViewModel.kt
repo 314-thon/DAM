@@ -73,9 +73,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             }
             gameDao.getMinigameProgress(KEY_ROULETTE)?.let { saved ->
                 _rouletteState.value = RouletteGameState(
-                    selectedNumberIndex = saved.selectedNumberIndex.coerceIn(0, 11),
+                    selectedNumberIndex = saved.selectedNumberIndex.coerceIn(0, 36),
                     selectedBetMode = saved.selectedBetMode.ifBlank { "PLENO" },
-                    landedPocketIndex = saved.landedPocketIndex.coerceIn(0, 11),
+                    landedPocketIndex = saved.landedPocketIndex.coerceIn(0, 36),
                     spinsUsed = saved.spinsUsed,
                     bonusChips = saved.bonusChips,
                     fakeLockedWinnings = saved.fakeLockedWinnings,

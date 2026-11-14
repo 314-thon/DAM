@@ -187,9 +187,9 @@ data class SlotsGameState(
  * Estado persistente del minijuego La Ruleta del 29 (Juego 4).
  */
 data class RouletteGameState(
-    val selectedNumberIndex: Int = 8,
+    val selectedNumberIndex: Int = 30,
     val selectedBetMode: String = "PLENO",
-    val landedPocketIndex: Int = 8,
+    val landedPocketIndex: Int = 30,
     val spinsUsed: Int = 0,
     val maxSpins: Int = 10,
     val bonusChips: Int = 10,

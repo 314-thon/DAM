@@ -1,13 +1,15 @@
 package com.ifts18.unadecisionmas.ui.screens
 
+import android.graphics.Paint
+import android.graphics.Typeface
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,8 +31,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.Icon
@@ -40,11 +46,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,13 +63,17 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -70,13 +84,13 @@ import com.ifts18.unadecisionmas.sensor.HapticFeedbackHelper
 import com.ifts18.unadecisionmas.sensor.rememberAccelerometerMonitor
 import com.ifts18.unadecisionmas.ui.theme.BordeCyan
 import com.ifts18.unadecisionmas.ui.theme.BordeMagenta
-import com.ifts18.unadecisionmas.ui.theme.BurbujaChat
-import com.ifts18.unadecisionmas.ui.theme.FondoGeneral
 import com.ifts18.unadecisionmas.ui.theme.RojoAlerta
 import com.ifts18.unadecisionmas.ui.theme.SpaceGrotesk
-import com.ifts18.unadecisionmas.ui.theme.TextoSecundario
 import com.ifts18.unadecisionmas.ui.theme.VerdeExito
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -86,10 +100,102 @@ private data class RoulettePocket(
     val pocketColor: Color
 )
 
+private data class CasinoChipSpec(
+    val label: String,
+    val baseColor: Color,
+    val rimColor: Color,
+    val textColor: Color
+)
+
+// Paleta inspirada en European Roulette (Evoplay)
+private val CasinoBgTop = Color(0xFF1A0A1E)
+private val CasinoBgMid = Color(0xFF280D2C)
+private val CasinoBgBottom = Color(0xFF0A1F10)
+private val MahoganyLight = Color(0xFF6E2C14)
+private val MahoganyDark = Color(0xFF331105)
+private val FeltCenter = Color(0xFF0B7D2A)
+private val FeltEdge = Color(0xFF044A18)
+private val FeltGridBorder = Color(0xFF43B560)
+private val PocketGreen = Color(0xFF0D7B3E)
+private val PocketRed = Color(0xFFD21417)
+private val PocketBlack = Color(0xFF151515)
+private val BrassGoldLight = Color(0xFFFFE58F)
+private val BrassGold = Color(0xFFE5B338)
+private val BrassGoldDark = Color(0xFF8C6214)
+private val CrimsonBtnLight = Color(0xFF9C161A)
+private val CrimsonBtnDark = Color(0xFF56090B)
+
+private val RedNumbers = setOf(1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36)
+private val TiersNumbers = setOf(27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33)
+private val OrphelinsNumbers = setOf(1, 20, 14, 31, 9, 17, 34, 6)
+private val VoisinsNumbers = setOf(22, 18, 29, 7, 28, 12, 35, 3, 26, 0, 32, 15, 19, 4, 21, 2, 25)
+
+private val EuropeanWheelOrder = listOf(
+    0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23,
+    10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+)
+
+private fun buildEuropeanPockets(): List<RoulettePocket> = EuropeanWheelOrder.map { num ->
+    when {
+        num == 0 -> RoulettePocket(0, "Verde", PocketGreen)
+        num in RedNumbers -> RoulettePocket(num, "Rojo", PocketRed)
+        else -> RoulettePocket(num, "Negro", PocketBlack)
+    }
+}
+
+private fun doesPocketWinBet(
+    pocket: RoulettePocket,
+    betMode: String,
+    selectedNumber: Int
+): Boolean {
+    val n = pocket.number
+    return when (betMode) {
+        "PLENO" -> n == selectedNumber
+        "ROJO" -> pocket.colorName == "Rojo"
+        "NEGRO" -> pocket.colorName == "Negro"
+        "EVEN" -> n != 0 && n % 2 == 0
+        "ODD" -> n != 0 && n % 2 == 1
+        "LOW_1_18" -> n in 1..18
+        "HIGH_19_36" -> n in 19..36
+        "DOZEN_1" -> n in 1..12
+        "DOZEN_2" -> n in 13..24
+        "DOZEN_3" -> n in 25..36
+        "COL_1" -> n != 0 && n % 3 == 1
+        "COL_2" -> n != 0 && n % 3 == 2
+        "COL_3" -> n != 0 && n % 3 == 0
+        "TIERS" -> n in TiersNumbers
+        "ORPHELINS" -> n in OrphelinsNumbers
+        "VOISINS" -> n in VoisinsNumbers
+        else -> n == selectedNumber
+    }
+}
+
+private fun betDisplayLabel(betMode: String, selectedNumber: Int): String = when (betMode) {
+    "PLENO" -> "Pleno #$selectedNumber"
+    "ROJO" -> "Rojo x2"
+    "NEGRO" -> "Negro x2"
+    "EVEN" -> "Par (Even)"
+    "ODD" -> "Impar (Odd)"
+    "LOW_1_18" -> "1~18"
+    "HIGH_19_36" -> "19~36"
+    "DOZEN_1" -> "1st 12"
+    "DOZEN_2" -> "2nd 12"
+    "DOZEN_3" -> "3rd 12"
+    "COL_1" -> "Columna 1"
+    "COL_2" -> "Columna 2"
+    "COL_3" -> "Columna 3"
+    "TIERS" -> "Tiers"
+    "ORPHELINS" -> "Orphelins"
+    "VOISINS" -> "Voisins"
+    else -> "Pleno #$selectedNumber"
+}
+
 /**
  * JUEGO 4: "La Ruleta del 29"
- * Simulador interactivo de Ruleta con rueda giratoria en Canvas, paño interactivo
- * y memoria persistente en Room.
+ * Simulador basado en la arquitectura visual y de flujo de European Roulette (Evoplay):
+ * rueda europea de 37 casilleros con bolilla física, racetrack francés (Tiers/Orphelins/Voisins),
+ * paño verde esmeralda completo (0-36 + externas), dolly de bronce dorado, historial Previous
+ * y explicación pedagógica en popup modal (sin scroll en la pantalla principal).
  */
 @Composable
 fun RouletteTrapGameScreen(
@@ -103,31 +209,39 @@ fun RouletteTrapGameScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
 
-    val wheelPockets = remember {
+    val wheelPockets = remember { buildEuropeanPockets() }
+    val chipSpecs = remember {
         listOf(
-            RoulettePocket(0, "Verde", Color(0xFF00C853)),
-            RoulettePocket(32, "Rojo", Color(0xFFD32F2F)),
-            RoulettePocket(15, "Negro", Color(0xFF262B38)),
-            RoulettePocket(19, "Rojo", Color(0xFFD32F2F)),
-            RoulettePocket(4, "Negro", Color(0xFF262B38)),
-            RoulettePocket(21, "Rojo", Color(0xFFD32F2F)),
-            RoulettePocket(2, "Negro", Color(0xFF262B38)),
-            RoulettePocket(28, "Rojo", Color(0xFFD32F2F)),
-            RoulettePocket(29, "Negro", Color(0xFF262B38)),
-            RoulettePocket(7, "Rojo", Color(0xFFD32F2F)),
-            RoulettePocket(20, "Negro", Color(0xFF262B38)),
-            RoulettePocket(14, "Rojo", Color(0xFFD32F2F))
+            CasinoChipSpec("0.1", Color(0xFFB0BEC5), Color(0xFFECEFF1), Color(0xFF151515)),
+            CasinoChipSpec("0.5", Color(0xFF78909C), Color(0xFFCFD8DC), Color(0xFFFFFFFF)),
+            CasinoChipSpec("1", Color(0xFF263238), Color(0xFFECEFF1), Color(0xFFFFFFFF)),
+            CasinoChipSpec("5", Color(0xFFC62828), Color(0xFFFFFFFF), Color(0xFFFFFFFF)),
+            CasinoChipSpec("10", Color(0xFF1565C0), Color(0xFFFFFFFF), Color(0xFFFFFFFF))
         )
     }
+    var selectedChipIndex by remember { mutableIntStateOf(3) } // Ficha "5" por defecto
+    val activeChip = chipSpecs[selectedChipIndex]
 
     val selectedNumberIndex = state.selectedNumberIndex.coerceIn(0, wheelPockets.lastIndex)
     val selectedPocket = wheelPockets[selectedNumberIndex]
     val selectedBetMode = state.selectedBetMode
     val landedPocket = wheelPockets[state.landedPocketIndex.coerceIn(0, wheelPockets.lastIndex)]
 
+    val sliceAngle = 360f / wheelPockets.size
     val wheelRotation = remember { Animatable(0f) }
+
     var isSpinning by remember { mutableStateOf(false) }
+    var showResultPill by remember { mutableStateOf(false) }
     var showResultPopup by remember { mutableStateOf(false) }
+    var ballVisible by remember { mutableStateOf(state.spinsUsed > 0) }
+    var ballRelativeAngle by remember {
+        mutableFloatStateOf(-90f + (state.landedPocketIndex.coerceIn(0, wheelPockets.lastIndex) + 0.5f) * sliceAngle)
+    }
+    var ballRadiusFraction by remember { mutableFloatStateOf(0.565f) }
+
+    val recentHistory = remember { mutableStateListOf<RoulettePocket>() }
+    var previousBetBackup by remember { mutableStateOf<Pair<String, Int>?>(null) }
+    var betMultiplier by remember { mutableIntStateOf(1) }
 
     val spinsUsed = state.spinsUsed
     val maxSpins = state.maxSpins
@@ -144,11 +258,20 @@ fun RouletteTrapGameScreen(
     var isLifecycleResumed by remember { mutableStateOf(true) }
     var hasFinished by remember { mutableStateOf(false) }
 
-    val sliceAngle = 360f / wheelPockets.size
-    LaunchedEffect(state.landedPocketIndex) {
-        if (!isSpinning) {
-            val alignedAngle = (360f - (state.landedPocketIndex.coerceIn(0, wheelPockets.lastIndex) * sliceAngle) - sliceAngle / 2f) % 360f
-            wheelRotation.snapTo(alignedAngle)
+    // Giro suave continuo en reposo como Evoplay European Roulette
+    LaunchedEffect(isSpinning, isLifecycleResumed) {
+        if (!isSpinning && isLifecycleResumed) {
+            var lastNanos = 0L
+            while (true) {
+                val dtSec = withFrameNanos { nanos ->
+                    val delta = if (lastNanos != 0L) (nanos - lastNanos) / 1_000_000_000f else 0f
+                    lastNanos = nanos
+                    delta
+                }
+                if (dtSec > 0f) {
+                    wheelRotation.snapTo((wheelRotation.value + dtSec * 14f) % 360f)
+                }
+            }
         }
     }
 
@@ -174,6 +297,7 @@ fun RouletteTrapGameScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            SoundManager.stopSlotSpinLoop()
             if (!hasFinished && currentState.spinsUsed > 0) {
                 val extra = if (isLifecycleResumed) (System.currentTimeMillis() - sessionOpenedAt).coerceAtLeast(0L) else 0L
                 onStateChange(currentState.copy(elapsedMillis = activeBeforePauseMillis + extra))
@@ -186,90 +310,171 @@ fun RouletteTrapGameScreen(
         return activeBeforePauseMillis + extra
     }
 
+    fun selectBet(mode: String, numberIndex: Int = currentState.selectedNumberIndex) {
+        if (isSpinning || showResultPopup) return
+        SoundManager.playClick()
+        previousBetBackup = currentState.selectedBetMode to currentState.selectedNumberIndex
+        showResultPill = false
+        onStateChange(
+            currentState.copy(
+                selectedBetMode = mode,
+                selectedNumberIndex = numberIndex.coerceIn(0, wheelPockets.lastIndex),
+                elapsedMillis = currentTotalElapsed()
+            )
+        )
+    }
+
+    fun resolveTargetPocketIndex(snapshot: RouletteGameState, nextSpinNumber: Int): Int {
+        val selIdx = snapshot.selectedNumberIndex.coerceIn(0, wheelPockets.lastIndex)
+        val selNum = wheelPockets[selIdx].number
+        val mode = snapshot.selectedBetMode
+
+        return when (nextSpinNumber) {
+            // Etapa 1: Gancho inicial (acierta la apuesta elegida)
+            1, 2 -> {
+                if (mode == "PLENO") {
+                    selIdx
+                } else {
+                    val winningIndices = wheelPockets.indices.filter { idx ->
+                        doesPocketWinBet(wheelPockets[idx], mode, selNum)
+                    }
+                    if (winningIndices.isNotEmpty()) {
+                        winningIndices[(nextSpinNumber * 3) % winningIndices.size]
+                    } else {
+                        selIdx
+                    }
+                }
+            }
+            // Etapa 2: Casi-acierto (frena al lado en rueda o falla por margen mínimo)
+            3, 4, 5, 6 -> {
+                if (mode == "PLENO") {
+                    val offset = if (nextSpinNumber % 2 == 1) -1 else 1
+                    (selIdx + offset + wheelPockets.size) % wheelPockets.size
+                } else {
+                    val losingNonZero = wheelPockets.indices.filter { idx ->
+                        idx != 0 && !doesPocketWinBet(wheelPockets[idx], mode, selNum)
+                    }
+                    if (losingNonZero.isNotEmpty()) {
+                        losingNonZero[(nextSpinNumber * 5) % losingNonZero.size]
+                    } else {
+                        (selIdx + 1) % wheelPockets.size
+                    }
+                }
+            }
+            // Etapa 3: Ventaja matemática de la banca (0 Verde)
+            else -> 0
+        }
+    }
+
     fun triggerRouletteSpin() {
         val snapshot = currentState
-        if (isSpinning || !isLifecycleResumed || showResultPopup || snapshot.spinsUsed >= snapshot.maxSpins || snapshot.bonusChips <= 0) return
+        if (isSpinning || !isLifecycleResumed || showResultPopup || snapshot.spinsUsed >= snapshot.maxSpins || snapshot.bonusChips <= 0) {
+            return
+        }
         isSpinning = true
         showResultPopup = false
-        SoundManager.playClick()
+        showResultPill = false
+        ballVisible = true
+
+        SoundManager.playSlotSpinStart(turbo = false)
         HapticFeedbackHelper.vibrateShort(context, 55L)
 
         scope.launch {
             val nextSpinNumber = snapshot.spinsUsed + 1
             val currentSelIdx = snapshot.selectedNumberIndex.coerceIn(0, wheelPockets.lastIndex)
             val currentSelPocket = wheelPockets[currentSelIdx]
+            val targetPocketIndex = resolveTargetPocketIndex(snapshot, nextSpinNumber)
 
-            val targetPocketIndex = when (nextSpinNumber) {
-                1, 2 -> {
-                    when (snapshot.selectedBetMode) {
-                        "ROJO" -> wheelPockets.indexOfFirst { it.colorName == "Rojo" }
-                        "NEGRO" -> wheelPockets.indexOfFirst { it.colorName == "Negro" }
-                        else -> currentSelIdx
-                    }
-                }
-                3, 4, 5, 6 -> {
-                    when (snapshot.selectedBetMode) {
-                        "ROJO" -> wheelPockets.indexOfFirst { it.colorName == "Negro" }
-                        "NEGRO" -> wheelPockets.indexOfFirst { it.colorName == "Rojo" }
-                        else -> (currentSelIdx - 1 + wheelPockets.size) % wheelPockets.size
-                    }
-                }
-                else -> 0
+            val startWheel = wheelRotation.value
+            val targetWheel = startWheel + 920f
+            val relStart = ballRelativeAngle
+            val relTarget = -90f + (targetPocketIndex + 0.5f) * sliceAngle
+            val relMod = (((relStart - relTarget) % 360f) + 360f) % 360f
+            val relEnd = relStart - 2520f - relMod
+
+            val ballEase = CubicBezierEasing(0.16f, 0.78f, 0.25f, 1f)
+            val animProgress = Animatable(0f)
+
+            val wheelJob = launch {
+                wheelRotation.animateTo(
+                    targetValue = targetWheel,
+                    animationSpec = tween(durationMillis = 2350, easing = FastOutSlowInEasing)
+                )
             }
 
-            val targetAngleMod = (360f - (targetPocketIndex * sliceAngle) - sliceAngle / 2f) % 360f
-            val currentMod = wheelRotation.value % 360f
-            val delta = ((targetAngleMod - currentMod) + 360f) % 360f
-            val totalTargetRotation = wheelRotation.value + 1080f + delta
+            animProgress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 2350, easing = CubicBezierEasing(0.22f, 0.61f, 0.36f, 1f))
+            ) {
+                val t = value
+                val u = (t / 0.86f).coerceIn(0f, 1f)
+                val easedU = ballEase.transform(u)
+                ballRelativeAngle = relStart + (relEnd - relStart) * easedU
+                ballRadiusFraction = when {
+                    u < 0.65f -> 0.875f
+                    u < 1.0f -> {
+                        val dropU = (u - 0.65f) / 0.35f
+                        val bounce = abs(sin(dropU * PI * 2.5)).toFloat() * (1f - dropU) * 0.065f
+                        0.875f - (0.875f - 0.565f) * dropU + bounce
+                    }
+                    else -> 0.565f
+                }
+            }
 
-            wheelRotation.animateTo(
-                targetValue = totalTargetRotation,
-                animationSpec = tween(durationMillis = 1250, easing = FastOutSlowInEasing)
-            )
+            wheelJob.join()
+            ballRelativeAngle = relTarget
+            ballRadiusFraction = 0.565f
+
+            SoundManager.stopSlotSpinLoop()
+            SoundManager.playSlotReelStop(2)
 
             val landed = wheelPockets[targetPocketIndex]
+            recentHistory.add(landed)
+            if (recentHistory.size > 5) {
+                recentHistory.removeAt(0)
+            }
+
             val updatedChips = (snapshot.bonusChips - 1).coerceAtLeast(0)
             val totalElapsed = currentTotalElapsed()
+            val betLabel = betDisplayLabel(snapshot.selectedBetMode, currentSelPocket.number)
 
             val nextState = when (nextSpinNumber) {
                 1, 2 -> {
+                    SoundManager.playSlotWinChime()
                     snapshot.copy(
                         landedPocketIndex = targetPocketIndex,
                         spinsUsed = nextSpinNumber,
                         bonusChips = updatedChips,
                         fakeLockedWinnings = snapshot.fakeLockedWinnings + 4000,
                         elapsedMillis = totalElapsed,
-                        resultBannerText = "+$4.000 en bono trabado",
+                        resultBannerText = "+$4.000 BONO TRABADO",
                         algorithmStageTitle = "Etapa 1: Gancho inicial",
-                        algorithmExplanation = "Te dejan ganar al inicio, pero el saldo queda trabado y exige seguir apostando."
+                        algorithmExplanation = "Acierto en $betLabel (#${landed.number} ${landed.colorName}). Te dejan ganar al inicio, pero el premio queda bloqueado bajo rollover."
                     )
                 }
                 3, 4, 5, 6 -> {
-                    val betLabel = when (snapshot.selectedBetMode) {
-                        "ROJO" -> "Rojo"
-                        "NEGRO" -> "Negro"
-                        else -> "#${currentSelPocket.number} ${currentSelPocket.colorName}"
-                    }
+                    SoundManager.playSlotNearMiss()
                     snapshot.copy(
                         landedPocketIndex = targetPocketIndex,
                         spinsUsed = nextSpinNumber,
                         bonusChips = updatedChips,
                         elapsedMillis = totalElapsed,
-                        resultBannerText = "Frenó al lado (#${landed.number} ${landed.colorName})",
-                        algorithmStageTitle = "Etapa 2: Casi-acierto",
-                        algorithmExplanation = "Apostaste a $betLabel y cayó pegado. Cada tirada es independiente, no hay rachas."
+                        resultBannerText = "CASI ACIERTO • #${landed.number}",
+                        algorithmStageTitle = "Etapa 2: Efecto casi-acierto",
+                        algorithmExplanation = "Apostaste a $betLabel y cayó #${landed.number} ${landed.colorName}. Cada giro es independiente y no existe racha ni compensación."
                     )
                 }
                 else -> {
+                    SoundManager.playSlotNearMiss()
                     snapshot.copy(
                         landedPocketIndex = targetPocketIndex,
                         spinsUsed = nextSpinNumber,
                         bonusChips = updatedChips,
                         fakeLockedWinnings = (snapshot.fakeLockedWinnings - 2000).coerceAtLeast(0),
                         elapsedMillis = totalElapsed,
-                        resultBannerText = "Salió 0 Verde • Gana la banca",
+                        resultBannerText = "NO WIN • 0 VERDE",
                         algorithmStageTitle = "Etapa 3: Ventaja de la banca",
-                        algorithmExplanation = "El 0 Verde inclina la probabilidad a favor de la casa en el largo plazo."
+                        algorithmExplanation = "Cayó el 0 Verde. Ese casillero extra (1/37 = 2,70%) asegura que la casa gane en el largo plazo."
                     )
                 }
             }
@@ -277,6 +482,8 @@ fun RouletteTrapGameScreen(
             onStateChange(nextState)
             HapticFeedbackHelper.vibrateShort(context, 45L)
             isSpinning = false
+            showResultPill = true
+            delay(850L)
             showResultPopup = true
         }
     }
@@ -292,24 +499,29 @@ fun RouletteTrapGameScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(FondoGeneral)
+            .background(
+                Brush.verticalGradient(
+                    listOf(CasinoBgTop, CasinoBgMid, CasinoBgBottom)
+                )
+            )
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 14.dp, vertical = 6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // 1. CABECERA CON CONTADOR DE FICHAS EN UNA SOLA LÍNEA
+            // 1. CABECERA COMPACTA ESTILO CASINO EVOPLAY + LECTURA DE SENSOR
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF161922))
-                    .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(14.dp))
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF140819).copy(alpha = 0.88f))
+                    .border(1.dp, BrassGold.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 8.dp, vertical = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -319,429 +531,451 @@ fun RouletteTrapGameScreen(
                 ) {
                     IconButton(
                         onClick = onBackToHub,
-                        modifier = Modifier.size(30.dp)
+                        modifier = Modifier.size(28.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Volver",
-                            tint = Color.White
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(6.dp))
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column {
                         Text(
-                            text = "La Ruleta del 29",
+                            text = "European Roulette",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = Color.White,
+                            fontSize = 14.sp,
+                            color = BrassGoldLight,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = "Agitá para girar • ${"%.2f".format(sensorReading.gForce)} G",
                             fontFamily = SpaceGrotesk,
-                            fontSize = 11.sp,
+                            fontSize = 10.sp,
                             color = BordeCyan,
                             maxLines = 1
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
-
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(9.dp))
                         .background(BordeMagenta.copy(alpha = 0.22f))
-                        .border(1.dp, BordeMagenta, RoundedCornerShape(10.dp))
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
-                    contentAlignment = Alignment.Center
+                        .border(1.dp, BordeMagenta, RoundedCornerShape(9.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
                         text = "Fichas: $bonusChips/$maxSpins",
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         color = Color.White,
-                        maxLines = 1,
-                        softWrap = false
+                        maxLines = 1
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // 2. RUEDA DE RULETA VISUAL ANIMADA EN CANVAS
-            Column(
+            // 2. ZONA SUPERIOR: RACETRACK FRANCÉS + RUEDA EUROPEA 37 CASILLEROS + PANEL PREVIOUS
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color(0xFF1E142D), Color(0xFF111622))
-                        )
-                    )
-                    .border(
-                        width = 1.6.dp,
-                        brush = Brush.horizontalGradient(listOf(BordeCyan, BordeMagenta)),
-                        shape = RoundedCornerShape(18.dp)
-                    )
-                    .padding(10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Box(
-                    modifier = Modifier.size(152.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val radius = size.minDimension / 2f
-                        val center = Offset(size.width / 2f, size.height / 2f)
-                        val sweepAngle = 360f / wheelPockets.size
-
-                        // Aro exterior dorado/neón
-                        drawCircle(
-                            color = Color(0xFFFFD54F),
-                            radius = radius,
-                            center = center,
-                            style = Stroke(width = 6f)
+                // Izquierda: Mini Racetrack francés (Tiers / Orphelins / Voisins)
+                Column(
+                    modifier = Modifier
+                        .weight(0.92f)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(
+                            Brush.verticalGradient(listOf(FeltCenter, FeltEdge))
                         )
-
-                        // Rueda giratoria con los 12 sectores de colores
-                        rotate(degrees = wheelRotation.value, pivot = center) {
-                            wheelPockets.forEachIndexed { idx, pocket ->
-                                val startAngle = -90f + idx * sweepAngle
-                                drawArc(
-                                    color = pocket.pocketColor,
-                                    startAngle = startAngle,
-                                    sweepAngle = sweepAngle,
-                                    useCenter = true,
-                                    topLeft = Offset(center.x - radius + 6f, center.y - radius + 6f),
-                                    size = Size((radius - 6f) * 2f, (radius - 6f) * 2f)
-                                )
-                                drawArc(
-                                    color = Color.White.copy(alpha = 0.35f),
-                                    startAngle = startAngle,
-                                    sweepAngle = sweepAngle,
-                                    useCenter = true,
-                                    topLeft = Offset(center.x - radius + 6f, center.y - radius + 6f),
-                                    size = Size((radius - 6f) * 2f, (radius - 6f) * 2f),
-                                    style = Stroke(width = 2f)
-                                )
-
-                                // Puntito de casillero cerca del borde para visualizar el giro
-                                val midRad = Math.toRadians((startAngle + sweepAngle / 2f).toDouble())
-                                val dotDist = radius * 0.78f
-                                val dotX = center.x + (cos(midRad) * dotDist).toFloat()
-                                val dotY = center.y + (sin(midRad) * dotDist).toFloat()
-                                drawCircle(
-                                    color = if (pocket.number == selectedPocket.number && selectedBetMode == "PLENO") {
-                                        BordeCyan
-                                    } else {
-                                        Color.White.copy(alpha = 0.85f)
-                                    },
-                                    radius = if (pocket.number == selectedPocket.number && selectedBetMode == "PLENO") 8f else 4.5f,
-                                    center = Offset(dotX, dotY)
-                                )
-                            }
-                        }
-
-                        // Puntero / Bolilla blanca arriba al centro (-90°)
-                        val pointerPath = Path().apply {
-                            moveTo(center.x, 2f)
-                            lineTo(center.x - 12f, -14f)
-                            lineTo(center.x + 12f, -14f)
-                            close()
-                        }
-                        drawPath(path = pointerPath, color = Color(0xFFFFD54F))
-                        drawCircle(
-                            color = Color.White,
-                            radius = 9f,
-                            center = Offset(center.x, 22f)
-                        )
-                    }
-
-                    // Centro de la ruleta mostrando el número que salió
-                    Column(
-                        modifier = Modifier
-                            .size(74.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF0E131D))
-                            .border(2.2.dp, landedPocket.pocketColor, CircleShape),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = if (isSpinning) "..." else "${landedPocket.number}",
-                            fontFamily = SpaceGrotesk,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp,
-                            color = Color.White
-                        )
-                        Text(
-                            text = if (isSpinning) "GIRANDO" else landedPocket.colorName.uppercase(),
-                            fontFamily = SpaceGrotesk,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 9.sp,
-                            color = when (landedPocket.colorName) {
-                                "Rojo" -> RojoAlerta
-                                "Verde" -> VerdeExito
-                                else -> BordeCyan
-                            }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = resultBannerText,
-                    fontFamily = SpaceGrotesk,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.5.sp,
-                    lineHeight = 15.sp,
-                    color = BordeCyan,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // 3. PAÑO DE APUESTA INTERACTIVO: ELEGIR NÚMERO O COLOR CLARAMENTE
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(BurbujaChat.copy(alpha = 0.90f))
-                    .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(16.dp))
-                    .padding(10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .border(1.4.dp, BrassGold.copy(alpha = 0.7f), RoundedCornerShape(22.dp))
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = "Elegí tu apuesta:",
+                        text = "RACETRACK",
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                        color = Color.White
+                        fontSize = 8.sp,
+                        color = BrassGoldLight,
+                        letterSpacing = 0.8.sp
                     )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = "Bono trabado: $$fakeLockedWinnings",
-                            fontFamily = SpaceGrotesk,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp,
-                            color = BordeMagenta
-                        )
-                        Icon(
-                            imageVector = Icons.Default.Lock,
-                            contentDescription = "Bloqueado",
-                            tint = BordeMagenta,
-                            modifier = Modifier.size(12.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Selector de modo: Pleno al Número vs Rojo vs Negro
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    val modes = listOf(
-                        Triple("PLENO", "Pleno #${selectedPocket.number}", BordeCyan),
-                        Triple("ROJO", "Rojo x2", RojoAlerta),
-                        Triple("NEGRO", "Negro x2", Color(0xFF454E63))
-                    )
-                    modes.forEach { (modeKey, label, accent) ->
+                    listOf(
+                        "TIERS" to "Tiers",
+                        "ORPHELINS" to "Orphelins",
+                        "VOISINS" to "Voisins"
+                    ).forEach { (modeKey, title) ->
                         val isSelected = selectedBetMode == modeKey
                         Box(
                             modifier = Modifier
-                                .weight(1f)
-                                .height(33.dp)
+                                .fillMaxWidth()
+                                .height(25.dp)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(
-                                    if (isSelected) accent.copy(alpha = 0.28f)
-                                    else Color(0xFF121722)
+                                    if (isSelected) BrassGold.copy(alpha = 0.28f)
+                                    else Color.Black.copy(alpha = 0.30f)
                                 )
                                 .border(
-                                    width = if (isSelected) 2.dp else 1.dp,
-                                    color = if (isSelected) accent else Color.White.copy(alpha = 0.16f),
+                                    width = if (isSelected) 1.5.dp else 0.8.dp,
+                                    color = if (isSelected) BrassGoldLight else FeltGridBorder,
                                     shape = RoundedCornerShape(10.dp)
                                 )
                                 .clickable(enabled = !isSpinning && !showResultPopup) {
-                                    SoundManager.playClick()
-                                    onStateChange(
-                                        currentState.copy(
-                                            selectedBetMode = modeKey,
-                                            elapsedMillis = currentTotalElapsed()
-                                        )
-                                    )
+                                    selectBet(modeKey)
                                 },
                             contentAlignment = Alignment.Center
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp)
-                            ) {
-                                if (modeKey == "ROJO" || modeKey == "NEGRO") {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(8.dp)
-                                            .clip(CircleShape)
-                                            .background(if (modeKey == "ROJO") Color(0xFFD32F2F) else Color(0xFF262B38))
-                                            .border(0.8.dp, Color.White.copy(alpha = 0.5f), CircleShape)
-                                    )
-                                }
-                                Text(
-                                    text = label,
-                                    fontFamily = SpaceGrotesk,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.5.sp,
-                                    color = Color.White,
-                                    maxLines = 1
-                                )
-                            }
+                            Text(
+                                text = title,
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.5.sp,
+                                color = if (isSelected) BrassGoldLight else Color.White,
+                                maxLines = 1
+                            )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.width(6.dp))
 
-                Text(
-                    text = "Tocá un número del paño para cambiar:",
-                    fontFamily = SpaceGrotesk,
-                    fontSize = 11.sp,
-                    color = TextoSecundario,
-                    modifier = Modifier.fillMaxWidth()
+                // Centro: Rueda Europea Oficial de 37 Casilleros en Canvas + Bolilla física
+                EuropeanRouletteWheelCanvas(
+                    wheelPockets = wheelPockets,
+                    wheelRotationDegrees = wheelRotation.value,
+                    ballVisible = ballVisible,
+                    ballRelativeAngle = ballRelativeAngle,
+                    ballRadiusFraction = ballRadiusFraction,
+                    modifier = Modifier.size(168.dp)
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.width(6.dp))
 
-                // Grilla de números de la ruleta (2 filas de 6 números cada una)
-                val firstRow = wheelPockets.take(6)
-                val secondRow = wheelPockets.drop(6)
-
-                listOf(firstRow, secondRow).forEachIndexed { rowIdx, rowPockets ->
-                    Row(
+                // Derecha: Panel "Previous:" (5 ranuras circulares) + Placa de Mesa
+                Column(
+                    modifier = Modifier.weight(0.95f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color.Black.copy(alpha = 0.35f))
+                            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 5.dp, vertical = 5.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        rowPockets.forEachIndexed { colIdx, pocket ->
-                            val actualIndex = rowIdx * 6 + colIdx
-                            val isNumberSelected = selectedBetMode == "PLENO" && selectedNumberIndex == actualIndex
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(33.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(pocket.pocketColor)
-                                    .border(
-                                        width = if (isNumberSelected) 2.5.dp else 1.dp,
-                                        color = if (isNumberSelected) Color.White else Color.White.copy(alpha = 0.22f),
-                                        shape = RoundedCornerShape(8.dp)
-                                    )
-                                    .clickable(enabled = !isSpinning && !showResultPopup) {
-                                        SoundManager.playClick()
-                                        onStateChange(
-                                            currentState.copy(
-                                                selectedNumberIndex = actualIndex,
-                                                selectedBetMode = "PLENO",
-                                                elapsedMillis = currentTotalElapsed()
-                                            )
+                        Text(
+                            text = "Previous:",
+                            fontFamily = SpaceGrotesk,
+                            fontSize = 9.sp,
+                            color = Color.White.copy(alpha = 0.82f)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            val paddedHistory = List(5) { idx ->
+                                val offset = recentHistory.size - 5 + idx
+                                if (offset >= 0) recentHistory[offset] else null
+                            }
+                            paddedHistory.forEach { pocket ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .clip(CircleShape)
+                                        .background(pocket?.pocketColor ?: Color.Transparent)
+                                        .border(
+                                            width = 0.9.dp,
+                                            color = if (pocket != null) Color.White.copy(alpha = 0.7f)
+                                            else Color.White.copy(alpha = 0.28f),
+                                            shape = CircleShape
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (pocket != null) {
+                                        Text(
+                                            text = "${pocket.number}",
+                                            fontFamily = SpaceGrotesk,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 8.sp,
+                                            color = Color.White,
+                                            maxLines = 1
                                         )
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "${pocket.number}",
-                                    fontFamily = SpaceGrotesk,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    color = if (isNumberSelected) BordeCyan else Color.White,
-                                    maxLines = 1
-                                )
+                                    }
+                                }
                             }
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Botón de acción por Acelerómetro o toque
-                if (spinsUsed < maxSpins) {
+                    // Placa negra/dorada de límite estilo Evoplay
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(44.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                Brush.horizontalGradient(
-                                    if (isSpinning || showResultPopup) listOf(Color.Gray, Color.DarkGray)
-                                    else listOf(BordeMagenta, BordeCyan)
-                                )
-                            )
-                            .clickable(enabled = !isSpinning && !showResultPopup) { triggerRouletteSpin() },
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF141519))
+                            .border(1.4.dp, BrassGold, RoundedCornerShape(10.dp))
+                            .padding(horizontal = 6.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 10.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Vibration,
-                                contentDescription = null,
-                                tint = Color.White
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = if (isSpinning) {
-                                    "Girando..."
-                                } else {
-                                    "Agitá o tocá para girar ($bonusChips)"
-                                },
+                                text = "${activeChip.label} = 1 Ficha",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
+                                fontSize = 9.5.sp,
+                                color = BrassGoldLight,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = betDisplayLabel(selectedBetMode, selectedPocket.number),
+                                fontFamily = SpaceGrotesk,
+                                fontSize = 9.sp,
+                                color = Color.White.copy(alpha = 0.85f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 3. PAÑO EUROPEO COMPLETO DE CAOBAS + FELPA VERDE ESMERALDA (0..36 + EXTERNAS)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(
+                        Brush.verticalGradient(listOf(MahoganyLight, MahoganyDark))
+                    )
+                    .border(1.6.dp, BrassGold.copy(alpha = 0.8f), RoundedCornerShape(16.dp))
+                    .padding(5.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(FeltCenter, FeltEdge)
+                            )
+                        )
+                        .border(1.dp, FeltGridBorder.copy(alpha = 0.65f), RoundedCornerShape(11.dp))
+                        .padding(6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    EuropeanBettingTable(
+                        wheelPockets = wheelPockets,
+                        selectedBetMode = selectedBetMode,
+                        selectedNumber = selectedPocket.number,
+                        landedNumber = if (!isSpinning && spinsUsed > 0) landedPocket.number else null,
+                        activeChip = activeChip,
+                        betMultiplier = betMultiplier,
+                        enabled = !isSpinning && !showResultPopup,
+                        onSelectPleno = { num ->
+                            val idx = wheelPockets.indexOfFirst { it.number == num }
+                            if (idx >= 0) selectBet("PLENO", idx)
+                        },
+                        onSelectOutside = { mode -> selectBet(mode) }
+                    )
+
+                    // Píldora flotante estilo Evoplay ("[ 13 ]  NO WIN") al frenar la bolilla
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = showResultPill && !showResultPopup,
+                        enter = fadeIn(tween(180)) + scaleIn(tween(200), initialScale = 0.9f),
+                        exit = fadeOut(tween(180))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(Color(0xEE101218))
+                                .border(1.5.dp, BrassGold, RoundedCornerShape(24.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(landedPocket.pocketColor)
+                                    .border(1.6.dp, Color.White.copy(alpha = 0.85f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "${landedPocket.number}",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = Color.White
+                                )
+                            }
+                            Text(
+                                text = resultBannerText,
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
                                 color = Color.White,
                                 maxLines = 1
                             )
                         }
                     }
+                }
+            }
+
+            // 4. CONTROLES INFERIORES ESTILO EVOPLAY: FICHAS + BOTONES CARMESÍ/ORO + HUD
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (spinsUsed < maxSpins) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        // Selector de fichas (0.1, 0.5, 1, 5, 10)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            chipSpecs.forEachIndexed { idx, spec ->
+                                CasinoChipButton(
+                                    spec = spec,
+                                    isSelected = idx == selectedChipIndex,
+                                    enabled = !isSpinning && !showResultPopup,
+                                    size = 33.dp,
+                                    onClick = {
+                                        SoundManager.playClick()
+                                        selectedChipIndex = idx
+                                    }
+                                )
+                            }
+                        }
+
+                        // Botones circulares carmesí con bisel dorado (Undo, Clear, x2) + Spin Grande
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CrimsonRoundButton(
+                                size = 34.dp,
+                                enabled = !isSpinning && !showResultPopup && previousBetBackup != null,
+                                onClick = {
+                                    SoundManager.playClick()
+                                    previousBetBackup?.let { (prevMode, prevIdx) ->
+                                        previousBetBackup = null
+                                        onStateChange(
+                                            currentState.copy(
+                                                selectedBetMode = prevMode,
+                                                selectedNumberIndex = prevIdx,
+                                                elapsedMillis = currentTotalElapsed()
+                                            )
+                                        )
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Undo,
+                                    contentDescription = "Deshacer",
+                                    tint = BrassGoldLight,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+
+                            CrimsonRoundButton(
+                                size = 34.dp,
+                                enabled = !isSpinning && !showResultPopup,
+                                onClick = {
+                                    SoundManager.playClick()
+                                    betMultiplier = 1
+                                    val idx29 = wheelPockets.indexOfFirst { it.number == 29 }.coerceAtLeast(0)
+                                    selectBet("PLENO", idx29)
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Reiniciar apuesta al 29",
+                                    tint = BrassGoldLight,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+
+                            CrimsonRoundButton(
+                                size = 34.dp,
+                                enabled = !isSpinning && !showResultPopup,
+                                onClick = {
+                                    SoundManager.playClick()
+                                    betMultiplier = if (betMultiplier == 1) 2 else 1
+                                }
+                            ) {
+                                if (spinsUsed > 0 && betMultiplier == 1) {
+                                    Icon(
+                                        imageVector = Icons.Default.Replay,
+                                        contentDescription = "Rebet",
+                                        tint = BrassGoldLight,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                } else {
+                                    Text(
+                                        text = "×${betMultiplier * 2}",
+                                        fontFamily = SpaceGrotesk,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = BrassGoldLight
+                                    )
+                                }
+                            }
+
+                            // Botón principal SPIN (estilo Evoplay grande carmesí y oro)
+                            CrimsonRoundButton(
+                                size = 50.dp,
+                                enabled = !isSpinning && !showResultPopup,
+                                borderWidth = 2.4.dp,
+                                onClick = { triggerRouletteSpin() }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Autorenew,
+                                    contentDescription = "Girar ruleta",
+                                    tint = BrassGoldLight,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
+                    }
                 } else {
+                    // Sin fichas: trampa de depósito real
                     Column(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         Text(
                             text = "Sin fichas de bono. El casino te pide cargar plata real:",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
+                            fontSize = 11.5.sp,
                             color = RojoAlerta,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
                         )
-
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(42.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(RojoAlerta.copy(alpha = 0.2f))
-                                .border(1.dp, RojoAlerta, RoundedCornerShape(12.dp))
+                                .height(38.dp)
+                                .clip(RoundedCornerShape(11.dp))
+                                .background(RojoAlerta.copy(alpha = 0.22f))
+                                .border(1.2.dp, RojoAlerta, RoundedCornerShape(11.dp))
                                 .clickable {
                                     SoundManager.playClick()
                                     hasFinished = true
@@ -752,8 +986,7 @@ fun RouletteTrapGameScreen(
                                         realMoneyLost + 5000,
                                         currentTotalElapsed()
                                     )
-                                }
-                                .padding(horizontal = 10.dp),
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -761,63 +994,109 @@ fun RouletteTrapGameScreen(
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp,
-                                color = Color.White,
-                                textAlign = TextAlign.Center
+                                color = Color.White
                             )
                         }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // 4. BOTÓN PARA PLANTARSE A TIEMPO
-            AnimatedVisibility(
-                visible = spinsUsed >= 1,
-                enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 2 }
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(46.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
-                        .clickable {
-                            SoundManager.playClick()
-                            hasFinished = true
-                            val stoppedBeforeDrain = spinsUsed < maxSpins
-                            onGameFinished(
-                                stoppedBeforeDrain,
-                                spinsUsed,
-                                bonusChips,
-                                realMoneyLost,
-                                currentTotalElapsed()
-                            )
-                        },
-                    contentAlignment = Alignment.Center
+                // Píldoras inferiores estilo Evoplay (TOTAL BET / BONO TRABADO) + Plantarse
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Shield,
-                            contentDescription = null,
-                            tint = Color.Black,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (spinsUsed < maxSpins) "Plantarse" else "Cerrar sin depositar",
-                            fontFamily = SpaceGrotesk,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.5.sp,
-                            color = Color.Black,
-                            textAlign = TextAlign.Center
-                        )
+                    HudDarkPill(
+                        label = "APUESTA",
+                        value = "${activeChip.label} ×$betMultiplier",
+                        valueColor = BrassGoldLight,
+                        modifier = Modifier.weight(1f)
+                    )
+                    HudDarkPill(
+                        label = "BONO TRABADO",
+                        value = "$$fakeLockedWinnings",
+                        valueColor = BordeMagenta,
+                        showLock = true,
+                        modifier = Modifier.weight(1.1f)
+                    )
+
+                    if (spinsUsed >= 1) {
+                        Box(
+                            modifier = Modifier
+                                .weight(0.95f)
+                                .height(38.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
+                                .clickable {
+                                    SoundManager.playClick()
+                                    hasFinished = true
+                                    onGameFinished(
+                                        spinsUsed < maxSpins,
+                                        spinsUsed,
+                                        bonusChips,
+                                        realMoneyLost,
+                                        currentTotalElapsed()
+                                    )
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Shield,
+                                    contentDescription = null,
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = if (spinsUsed < maxSpins) "Plantarse" else "Cerrar",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.5.sp,
+                                    color = Color.Black,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .weight(0.95f)
+                                .height(38.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.Black.copy(alpha = 0.4f))
+                                .border(1.dp, BordeCyan.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                                .clickable(enabled = !isSpinning) { triggerRouletteSpin() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Vibration,
+                                    contentDescription = null,
+                                    tint = BordeCyan,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = if (isSpinning) "Girando" else "Agitar",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.5.sp,
+                                    color = Color.White,
+                                    maxLines = 1
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
 
-        // OVERLAY MODAL DE EXPLICACIÓN POR CADA TIRADA (SIN SCROLL EN PANTALLA PRINCIPAL)
+        // OVERLAY MODAL DE EXPLICACIÓN POR CADA TIRADA (APARECE AL TERMINAR EL GIRO Y SE CIERRA PARA SEGUIR)
         AnimatedVisibility(
             visible = showResultPopup,
             enter = fadeIn(tween(220)) + scaleIn(tween(260), initialScale = 0.92f),
@@ -831,12 +1110,13 @@ fun RouletteTrapGameScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.74f))
+                    .background(Color.Black.copy(alpha = 0.76f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) {
                         showResultPopup = false
+                        showResultPill = false
                     }
                     .padding(horizontal = 20.dp),
                 contentAlignment = Alignment.Center
@@ -848,7 +1128,7 @@ fun RouletteTrapGameScreen(
                         .background(Color(0xFF141B29))
                         .border(
                             width = 2.dp,
-                            brush = Brush.horizontalGradient(listOf(stageColor, BordeCyan)),
+                            brush = Brush.horizontalGradient(listOf(stageColor, BrassGold)),
                             shape = RoundedCornerShape(22.dp)
                         )
                         .clickable(
@@ -882,7 +1162,7 @@ fun RouletteTrapGameScreen(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(landedPocket.pocketColor)
-                                .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Text(
@@ -915,7 +1195,7 @@ fun RouletteTrapGameScreen(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(14.dp))
                             .background(Color(0xFF0E131D))
-                            .border(1.dp, BordeCyan.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+                            .border(1.dp, BrassGold.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
                             .padding(14.dp)
                     ) {
                         Text(
@@ -942,21 +1222,21 @@ fun RouletteTrapGameScreen(
                             .fillMaxWidth()
                             .height(46.dp)
                             .clip(RoundedCornerShape(13.dp))
-                            .background(Brush.horizontalGradient(listOf(BordeMagenta, BordeCyan)))
+                            .background(Brush.horizontalGradient(listOf(CrimsonBtnLight, BrassGoldDark)))
+                            .border(1.dp, BrassGold, RoundedCornerShape(13.dp))
                             .clickable {
                                 SoundManager.playClick()
                                 showResultPopup = false
+                                showResultPill = false
                             },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (spinsUsed < maxSpins) "Seguir tirando" else "Cerrar",
+                            text = if (spinsUsed < maxSpins) "Seguir tirando (${maxSpins - spinsUsed})" else "Cerrar",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
-                            color = Color.White,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
+                            color = Color.White
                         )
                     }
 
@@ -972,6 +1252,7 @@ fun RouletteTrapGameScreen(
                                 .clickable {
                                     SoundManager.playClick()
                                     showResultPopup = false
+                                    showResultPill = false
                                     hasFinished = true
                                     onGameFinished(
                                         true,
@@ -984,18 +1265,706 @@ fun RouletteTrapGameScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "Plantarse",
+                                text = "Plantarse a tiempo",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.5.sp,
-                                color = VerdeExito,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
+                                color = VerdeExito
                             )
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun EuropeanRouletteWheelCanvas(
+    wheelPockets: List<RoulettePocket>,
+    wheelRotationDegrees: Float,
+    ballVisible: Boolean,
+    ballRelativeAngle: Float,
+    ballRadiusFraction: Float,
+    modifier: Modifier = Modifier
+) {
+    val numberPaint = remember {
+        Paint().apply {
+            color = android.graphics.Color.WHITE
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+    }
+
+    Canvas(modifier = modifier) {
+        val radius = size.minDimension / 2f
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val sweepAngle = 360f / wheelPockets.size
+
+        // 1. Aro exterior de madera caoba y pista de la bolilla
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(MahoganyDark, MahoganyLight, MahoganyDark),
+                center = center,
+                radius = radius
+            ),
+            radius = radius,
+            center = center
+        )
+        drawCircle(
+            color = BrassGold,
+            radius = radius * 0.985f,
+            center = center,
+            style = Stroke(width = 2.4f)
+        )
+        drawCircle(
+            color = Color(0xFF1F0A03),
+            radius = radius * 0.875f,
+            center = center,
+            style = Stroke(width = radius * 0.08f)
+        )
+
+        // 8 deflectores metálicos en la pista exterior
+        for (i in 0 until 8) {
+            val angleRad = Math.toRadians(i * 45.0)
+            val dx = center.x + (cos(angleRad) * radius * 0.845f).toFloat()
+            val dy = center.y + (sin(angleRad) * radius * 0.845f).toFloat()
+            drawCircle(
+                color = BrassGoldLight,
+                radius = radius * 0.025f,
+                center = Offset(dx, dy)
+            )
+        }
+
+        // 2. Rotor con los 37 bolsillos europeos + torreta central dorada
+        rotate(degrees = wheelRotationDegrees, pivot = center) {
+            val outerPocketR = radius * 0.815f
+            val innerPocketR = radius * 0.50f
+            val numberRingR = radius * 0.725f
+            numberPaint.textSize = radius * 0.095f
+
+            wheelPockets.forEachIndexed { idx, pocket ->
+                val startAngle = -90f + idx * sweepAngle
+                val midAngle = startAngle + sweepAngle / 2f
+
+                // Sector completo del número
+                drawArc(
+                    color = pocket.pocketColor,
+                    startAngle = startAngle,
+                    sweepAngle = sweepAngle,
+                    useCenter = true,
+                    topLeft = Offset(center.x - outerPocketR, center.y - outerPocketR),
+                    size = Size(outerPocketR * 2f, outerPocketR * 2f)
+                )
+
+                // Pozo interior ligeramente sombreado donde cae la bolilla
+                drawArc(
+                    color = Color.Black.copy(alpha = 0.24f),
+                    startAngle = startAngle,
+                    sweepAngle = sweepAngle,
+                    useCenter = true,
+                    topLeft = Offset(center.x - radius * 0.61f, center.y - radius * 0.61f),
+                    size = Size(radius * 1.22f, radius * 1.22f)
+                )
+
+                // Divisor metálico dorado entre bolsillos
+                val rad = Math.toRadians(startAngle.toDouble())
+                drawLine(
+                    color = BrassGold.copy(alpha = 0.85f),
+                    start = Offset(
+                        center.x + (cos(rad) * innerPocketR).toFloat(),
+                        center.y + (sin(rad) * innerPocketR).toFloat()
+                    ),
+                    end = Offset(
+                        center.x + (cos(rad) * outerPocketR).toFloat(),
+                        center.y + (sin(rad) * outerPocketR).toFloat()
+                    ),
+                    strokeWidth = 1.6f
+                )
+
+                // Número rotado radialmente
+                rotate(degrees = midAngle + 90f, pivot = center) {
+                    drawContext.canvas.nativeCanvas.drawText(
+                        "${pocket.number}",
+                        center.x,
+                        center.y - numberRingR + numberPaint.textSize * 0.35f,
+                        numberPaint
+                    )
+                }
+            }
+
+            // Aros dorados separadores de banda numérica y pozo
+            drawCircle(
+                color = BrassGold,
+                radius = outerPocketR,
+                center = center,
+                style = Stroke(width = 2.2f)
+            )
+            drawCircle(
+                color = BrassGold.copy(alpha = 0.75f),
+                radius = radius * 0.615f,
+                center = center,
+                style = Stroke(width = 1.5f)
+            )
+
+            // Cono central dorado cepillado
+            val coneR = radius * 0.50f
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(BrassGoldLight, BrassGold, BrassGoldDark),
+                    center = Offset(center.x - coneR * 0.22f, center.y - coneR * 0.22f),
+                    radius = coneR * 1.3f
+                ),
+                radius = coneR,
+                center = center
+            )
+            drawCircle(
+                color = BrassGoldDark,
+                radius = coneR,
+                center = center,
+                style = Stroke(width = 2f)
+            )
+
+            // 4 brazos de la torreta central estilo Evoplay
+            val armLength = radius * 0.26f
+            for (k in 0 until 4) {
+                val aRad = Math.toRadians(k * 90.0 + 45.0)
+                val endX = center.x + (cos(aRad) * armLength).toFloat()
+                val endY = center.y + (sin(aRad) * armLength).toFloat()
+                drawLine(
+                    color = BrassGoldDark,
+                    start = center,
+                    end = Offset(endX, endY),
+                    strokeWidth = radius * 0.055f,
+                    cap = StrokeCap.Round
+                )
+                drawLine(
+                    color = BrassGoldLight,
+                    start = center,
+                    end = Offset(endX, endY),
+                    strokeWidth = radius * 0.025f,
+                    cap = StrokeCap.Round
+                )
+                drawCircle(
+                    color = BrassGoldLight,
+                    radius = radius * 0.045f,
+                    center = Offset(endX, endY)
+                )
+            }
+
+            // Eje central de la torreta
+            drawCircle(
+                brush = Brush.radialGradient(listOf(Color.White, BrassGold, BrassGoldDark)),
+                radius = radius * 0.11f,
+                center = center
+            )
+        }
+
+        // 3. Bolilla de marfil girando / alojada en el bolsillo ganador
+        if (ballVisible) {
+            val worldBallRad = Math.toRadians((wheelRotationDegrees + ballRelativeAngle).toDouble())
+            val bx = center.x + (cos(worldBallRad) * radius * ballRadiusFraction).toFloat()
+            val by = center.y + (sin(worldBallRad) * radius * ballRadiusFraction).toFloat()
+            val ballR = radius * 0.044f
+
+            drawCircle(
+                color = Color.Black.copy(alpha = 0.45f),
+                radius = ballR * 1.15f,
+                center = Offset(bx + 1.5f, by + 2f)
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color.White, Color(0xFFE0E0E0), Color(0xFF9E9E9E)),
+                    center = Offset(bx - ballR * 0.3f, by - ballR * 0.3f),
+                    radius = ballR * 1.5f
+                ),
+                radius = ballR,
+                center = Offset(bx, by)
+            )
+        }
+    }
+}
+
+@Composable
+private fun EuropeanBettingTable(
+    wheelPockets: List<RoulettePocket>,
+    selectedBetMode: String,
+    selectedNumber: Int,
+    landedNumber: Int?,
+    activeChip: CasinoChipSpec,
+    betMultiplier: Int,
+    enabled: Boolean,
+    onSelectPleno: (Int) -> Unit,
+    onSelectOutside: (String) -> Unit
+) {
+    val pocketByNum = remember(wheelPockets) { wheelPockets.associateBy { it.number } }
+    val rowHeight = 27.dp
+    val zeroWidth = 23.dp
+    val colBetWidth = 25.dp
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        // Fila superior principal: [ 0 ] + Grilla 3x12 + [ 2~1 ]
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Casillero 0 Verde
+            val zeroPocket = pocketByNum[0] ?: RoulettePocket(0, "Verde", PocketGreen)
+            val isZeroHighlighted = isNumberHighlighted(0, selectedBetMode, selectedNumber)
+            val isZeroDirectBet = selectedBetMode == "PLENO" && selectedNumber == 0
+            TableCellBox(
+                backgroundColor = zeroPocket.pocketColor,
+                isHighlighted = isZeroHighlighted,
+                showChip = isZeroDirectBet,
+                showDolly = landedNumber == 0,
+                activeChip = activeChip,
+                betMultiplier = betMultiplier,
+                modifier = Modifier
+                    .width(zeroWidth)
+                    .height(rowHeight * 3)
+                    .clickable(enabled = enabled) { onSelectPleno(0) }
+            ) {
+                Text(
+                    text = "0",
+                    fontFamily = SpaceGrotesk,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                    color = Color.White
+                )
+            }
+
+            // 12 columnas x 3 filas (fila 0: 3..36, fila 1: 2..35, fila 2: 1..34)
+            Column(modifier = Modifier.weight(1f)) {
+                for (rowIdx in 0 until 3) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        for (colIdx in 0 until 12) {
+                            val num = (colIdx + 1) * 3 - rowIdx
+                            val pocket = pocketByNum[num] ?: RoulettePocket(num, "Negro", PocketBlack)
+                            val isDirectBet = selectedBetMode == "PLENO" && selectedNumber == num
+                            val isHighlighted = isNumberHighlighted(num, selectedBetMode, selectedNumber)
+
+                            TableCellBox(
+                                backgroundColor = pocket.pocketColor,
+                                isHighlighted = isHighlighted,
+                                showChip = isDirectBet,
+                                showDolly = landedNumber == num,
+                                activeChip = activeChip,
+                                betMultiplier = betMultiplier,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(rowHeight)
+                                    .clickable(enabled = enabled) { onSelectPleno(num) }
+                            ) {
+                                Text(
+                                    text = "$num",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 9.5.sp,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Columna derecha: tres botones 2~1
+            Column(modifier = Modifier.width(colBetWidth)) {
+                val colKeys = listOf("COL_3", "COL_2", "COL_1")
+                colKeys.forEach { colKey ->
+                    val isBetHere = selectedBetMode == colKey
+                    TableCellBox(
+                        backgroundColor = FeltEdge.copy(alpha = 0.65f),
+                        isHighlighted = isBetHere,
+                        showChip = isBetHere,
+                        showDolly = false,
+                        activeChip = activeChip,
+                        betMultiplier = betMultiplier,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(rowHeight)
+                            .clickable(enabled = enabled) { onSelectOutside(colKey) }
+                    ) {
+                        Text(
+                            text = "2~1",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 8.sp,
+                            color = Color.White,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+
+        // Fila de Docenas (1st 12, 2nd 12, 3rd 12)
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Spacer(modifier = Modifier.width(zeroWidth))
+            Row(modifier = Modifier.weight(1f)) {
+                listOf(
+                    "DOZEN_1" to "1st 12",
+                    "DOZEN_2" to "2nd 12",
+                    "DOZEN_3" to "3rd 12"
+                ).forEach { (key, label) ->
+                    val isBetHere = selectedBetMode == key
+                    TableCellBox(
+                        backgroundColor = FeltEdge.copy(alpha = 0.55f),
+                        isHighlighted = isBetHere,
+                        showChip = isBetHere,
+                        showDolly = false,
+                        activeChip = activeChip,
+                        betMultiplier = betMultiplier,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(23.dp)
+                            .clickable(enabled = enabled) { onSelectOutside(key) }
+                    ) {
+                        Text(
+                            text = label,
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp,
+                            color = Color.White,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.width(colBetWidth))
+        }
+
+        // Fila inferior de Suertes Simples (1~18, Even, Rojo, Negro, Odd, 19~36)
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Spacer(modifier = Modifier.width(zeroWidth))
+            Row(modifier = Modifier.weight(1f)) {
+                listOf(
+                    "LOW_1_18" to "1~18",
+                    "EVEN" to "Even",
+                    "ROJO" to "RED_DIAMOND",
+                    "NEGRO" to "BLACK_DIAMOND",
+                    "ODD" to "Odd",
+                    "HIGH_19_36" to "19~36"
+                ).forEach { (key, label) ->
+                    val isBetHere = selectedBetMode == key
+                    TableCellBox(
+                        backgroundColor = FeltEdge.copy(alpha = 0.55f),
+                        isHighlighted = isBetHere,
+                        showChip = isBetHere,
+                        showDolly = false,
+                        activeChip = activeChip,
+                        betMultiplier = betMultiplier,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(24.dp)
+                            .clickable(enabled = enabled) { onSelectOutside(key) }
+                    ) {
+                        if (label == "RED_DIAMOND" || label == "BLACK_DIAMOND") {
+                            val diamondColor = if (label == "RED_DIAMOND") PocketRed else PocketBlack
+                            Canvas(modifier = Modifier.size(width = 24.dp, height = 14.dp)) {
+                                val p = Path().apply {
+                                    moveTo(size.width / 2f, 1f)
+                                    lineTo(size.width - 1f, size.height / 2f)
+                                    lineTo(size.width / 2f, size.height - 1f)
+                                    lineTo(1f, size.height / 2f)
+                                    close()
+                                }
+                                drawPath(path = p, color = diamondColor)
+                                drawPath(path = p, color = Color.White.copy(alpha = 0.7f), style = Stroke(width = 1.1f))
+                            }
+                        } else {
+                            Text(
+                                text = label,
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.5.sp,
+                                color = Color.White,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.width(colBetWidth))
+        }
+    }
+}
+
+private fun isNumberHighlighted(num: Int, betMode: String, selectedNumber: Int): Boolean {
+    return when (betMode) {
+        "PLENO" -> num == selectedNumber
+        "ROJO" -> num in RedNumbers
+        "NEGRO" -> num != 0 && num !in RedNumbers
+        "EVEN" -> num != 0 && num % 2 == 0
+        "ODD" -> num != 0 && num % 2 == 1
+        "LOW_1_18" -> num in 1..18
+        "HIGH_19_36" -> num in 19..36
+        "DOZEN_1" -> num in 1..12
+        "DOZEN_2" -> num in 13..24
+        "DOZEN_3" -> num in 25..36
+        "COL_1" -> num != 0 && num % 3 == 1
+        "COL_2" -> num != 0 && num % 3 == 2
+        "COL_3" -> num != 0 && num % 3 == 0
+        "TIERS" -> num in TiersNumbers
+        "ORPHELINS" -> num in OrphelinsNumbers
+        "VOISINS" -> num in VoisinsNumbers
+        else -> false
+    }
+}
+
+@Composable
+private fun TableCellBox(
+    backgroundColor: Color,
+    isHighlighted: Boolean,
+    showChip: Boolean,
+    showDolly: Boolean,
+    activeChip: CasinoChipSpec,
+    betMultiplier: Int,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .background(backgroundColor)
+            .border(
+                width = if (isHighlighted) 1.2.dp else 0.7.dp,
+                color = if (isHighlighted) BrassGoldLight else FeltGridBorder
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        content()
+
+        if (isHighlighted && !showChip) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(BrassGold.copy(alpha = 0.16f))
+            )
+        }
+
+        if (showChip) {
+            MiniTableChip(spec = activeChip, showStack = betMultiplier > 1)
+        }
+
+        if (showDolly) {
+            BrassDollyMarker(modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun MiniTableChip(spec: CasinoChipSpec, showStack: Boolean) {
+    Box(
+        modifier = Modifier.size(17.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        if (showStack) {
+            Box(
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .size(15.dp)
+                    .clip(CircleShape)
+                    .background(spec.baseColor.copy(alpha = 0.85f))
+                    .border(1.dp, Color.Black.copy(alpha = 0.5f), CircleShape)
+            )
+        }
+        Canvas(modifier = Modifier.size(15.dp)) {
+            val r = size.minDimension / 2f
+            drawCircle(color = Color.Black.copy(alpha = 0.45f), radius = r, center = Offset(center.x, center.y + 1.2f))
+            drawCircle(color = spec.baseColor, radius = r, center = center)
+            drawCircle(
+                color = spec.rimColor,
+                radius = r - 1.5f,
+                center = center,
+                style = Stroke(
+                    width = 2.2f,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 4f), 0f)
+                )
+            )
+            drawCircle(
+                color = Color.White.copy(alpha = 0.45f),
+                radius = r * 0.55f,
+                center = center,
+                style = Stroke(width = 0.9f)
+            )
+        }
+        Text(
+            text = spec.label,
+            fontFamily = SpaceGrotesk,
+            fontWeight = FontWeight.Bold,
+            fontSize = 6.sp,
+            color = spec.textColor,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun BrassDollyMarker(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val r = size.minDimension * 0.44f
+        drawCircle(
+            color = Color.Black.copy(alpha = 0.55f),
+            radius = r,
+            center = Offset(cx + 1f, cy + 2f)
+        )
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(BrassGoldLight, BrassGold, BrassGoldDark),
+                center = Offset(cx - r * 0.25f, cy - r * 0.25f),
+                radius = r * 1.4f
+            ),
+            radius = r,
+            center = Offset(cx, cy)
+        )
+        drawCircle(
+            color = Color.White.copy(alpha = 0.8f),
+            radius = r * 0.42f,
+            center = Offset(cx - r * 0.12f, cy - r * 0.12f)
+        )
+    }
+}
+
+@Composable
+private fun CasinoChipButton(
+    spec: CasinoChipSpec,
+    isSelected: Boolean,
+    enabled: Boolean,
+    size: Dp,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .border(
+                width = if (isSelected) 2.2.dp else 0.dp,
+                color = if (isSelected) BordeCyan else Color.Transparent,
+                shape = CircleShape
+            )
+            .padding(2.dp)
+            .clip(CircleShape)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val r = this.size.minDimension / 2f
+            drawCircle(color = spec.baseColor, radius = r, center = center)
+            drawCircle(
+                color = spec.rimColor,
+                radius = r - 2.5f,
+                center = center,
+                style = Stroke(
+                    width = 3.6f,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 5f), 0f)
+                )
+            )
+            drawCircle(
+                color = Color.White.copy(alpha = 0.35f),
+                radius = r * 0.62f,
+                center = center,
+                style = Stroke(width = 1.2f)
+            )
+        }
+        Text(
+            text = spec.label,
+            fontFamily = SpaceGrotesk,
+            fontWeight = FontWeight.Bold,
+            fontSize = 9.5.sp,
+            color = spec.textColor,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun CrimsonRoundButton(
+    size: Dp,
+    enabled: Boolean,
+    borderWidth: Dp = 1.6.dp,
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(
+                Brush.verticalGradient(
+                    if (enabled) listOf(CrimsonBtnLight, CrimsonBtnDark)
+                    else listOf(Color(0xFF382C2E), Color(0xFF1F181A))
+                )
+            )
+            .border(
+                width = borderWidth,
+                brush = Brush.verticalGradient(
+                    if (enabled) listOf(BrassGoldLight, BrassGoldDark)
+                    else listOf(Color.Gray, Color.DarkGray)
+                ),
+                shape = CircleShape
+            )
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun HudDarkPill(
+    label: String,
+    value: String,
+    valueColor: Color,
+    showLock: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .height(38.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xD90A0D14))
+            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = label,
+            fontFamily = SpaceGrotesk,
+            fontWeight = FontWeight.Bold,
+            fontSize = 7.5.sp,
+            color = Color.White.copy(alpha = 0.68f),
+            maxLines = 1
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            if (showLock) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = "Bloqueado",
+                    tint = valueColor,
+                    modifier = Modifier.size(10.dp)
+                )
+            }
+            Text(
+                text = value,
+                fontFamily = SpaceGrotesk,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp,
+                color = valueColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
