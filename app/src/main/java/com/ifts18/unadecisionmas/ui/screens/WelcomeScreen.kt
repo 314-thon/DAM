@@ -91,7 +91,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -308,8 +307,19 @@ fun WelcomeScreen(
         }
     }
 
-    // Inicia automáticamente el tutorial en el primer lanzamiento apenas el logo queda fijo y el login/apodo está listo
-    LaunchedEffect(isLogoSettled, isTutorialCompleted, needsOnboarding) {
+    // Inicia automáticamente el tutorial en el primer lanzamiento o tras cerrar sesión y volver a loguear
+    LaunchedEffect(authState.isAuthenticated, authState.uid) {
+        activeTutorialStep = null
+        hasAutoStartedTutorial = false
+        hasConfirmedAvatarInTutorial = false
+        if (!authState.isAuthenticated) {
+            showNicknameModal = false
+            showAvatarModal = false
+            showSavedWeekModal = false
+        }
+    }
+
+    LaunchedEffect(isLogoSettled, isTutorialCompleted, needsOnboarding, authState.uid) {
         if (isLogoSettled && !needsOnboarding && !isTutorialCompleted && !hasAutoStartedTutorial) {
             hasAutoStartedTutorial = true
             activeTutorialStep = TutorialStep.NICKNAME
@@ -499,9 +509,8 @@ fun WelcomeScreen(
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.sp,
-                                color = Color.White,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                lineHeight = 13.sp,
+                                color = Color.White
                             )
                         }
 
@@ -710,9 +719,8 @@ fun WelcomeScreen(
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
+                            lineHeight = 16.5.sp,
                             color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
                         Spacer(modifier = Modifier.width(5.dp))
@@ -731,10 +739,9 @@ fun WelcomeScreen(
                         fontFamily = SpaceGrotesk,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 9.5.sp,
+                        lineHeight = 11.5.sp,
                         letterSpacing = 0.6.sp,
-                        color = Color(0xFF2DD4BF).copy(alpha = 0.92f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        color = Color(0xFF2DD4BF).copy(alpha = 0.92f)
                     )
                 }
             }

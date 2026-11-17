@@ -232,7 +232,8 @@ fun InfoResourcesScreen(
         playClickFeedback()
         try {
             val cleanPhone = phone.replace("+", "").replace(" ", "").replace("-", "")
-            val url = "https://wa.me/549$cleanPhone?text=Hola,%20necesito%20orientacion%20sobre%20juego%20problematico"
+            val message = Uri.encode("Quiero más info sobre la ludopatía infantil")
+            val url = "https://wa.me/549$cleanPhone?text=$message"
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
             context.startActivity(intent)
         } catch (_: Exception) {}

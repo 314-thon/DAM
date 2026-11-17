@@ -14,12 +14,12 @@ import com.ifts18.unadecisionmas.data.model.DecisionRecord
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Entidad Room para guardar el progreso de una partida en curso (Checkpoint).
- * Permite cerrar la app a mitad de semana y continuarla otro día.
+ * Entidad Room para guardar el progreso de una partida en curso (Checkpoint) por usuario.
+ * Permite cerrar la app a mitad de semana y continuarla otro día sin mezclar cuentas.
  */
 @Entity(tableName = "saved_game")
 data class SavedGameEntity(
-    @PrimaryKey val id: Int = 1,
+    @PrimaryKey val uid: String,
     val playerName: String,
     val avatarResId: Int,
     val currentDayIndex: Int,
@@ -75,12 +75,16 @@ data class SavedGameEntity(
 }
 
 /**
- * Entidad Room para almacenar las medallas y logros desbloqueados localmente
- * (incluyendo el Easter Egg SIXSEVEN desbloqueado por código QR).
+ * Entidad Room para almacenar las medallas y logros desbloqueados por usuario (`uid`),
+ * incluyendo el Easter Egg SIXSEVEN desbloqueado por código QR.
  */
-@Entity(tableName = "achievements")
+@Entity(
+    tableName = "achievements",
+    primaryKeys = ["uid", "achievementId"]
+)
 data class AchievementEntity(
-    @PrimaryKey val achievementId: String,
+    val uid: String,
+    val achievementId: String,
     val unlockedAt: Long = System.currentTimeMillis()
 )
 
@@ -91,6 +95,7 @@ data class AchievementEntity(
 @Entity(tableName = "local_scores")
 data class LocalScoreEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val uid: String = "",
     val remoteId: String,
     val playerName: String,
     val avatarIndex: Int,
@@ -108,11 +113,15 @@ data class LocalScoreEntity(
 
 /**
  * Entidad Room para conservar el progreso en curso de los minijuegos (Tragamonedas y Ruleta)
- * al salir al menú principal o cerrar la app.
+ * por usuario al salir al menú principal o cerrar la app.
  */
-@Entity(tableName = "minigame_progress")
+@Entity(
+    tableName = "minigame_progress",
+    primaryKeys = ["uid", "gameKey"]
+)
 data class MinigameProgressEntity(
-    @PrimaryKey val gameKey: String,
+    val uid: String,
+    val gameKey: String,
     val spinsUsed: Int,
     val bonusChips: Int,
     val fakeLockedWinnings: Int,
@@ -133,41 +142,47 @@ data class MinigameProgressEntity(
 @Dao
 interface GameDao {
 
-    @Query("SELECT * FROM saved_game WHERE id = 1 LIMIT 1")
-    fun observeSavedGame(): Flow<SavedGameEntity?>
+    @Query("SELECT * FROM saved_game WHERE uid = :uid LIMIT 1")
+    fun observeSavedGame(uid: String): Flow<SavedGameEntity?>
 
-    @Query("SELECT * FROM saved_game WHERE id = 1 LIMIT 1")
-    suspend fun getSavedGame(): SavedGameEntity?
+    @Query("SELECT * FROM saved_game WHERE uid = :uid LIMIT 1")
+    suspend fun getSavedGame(uid: String): SavedGameEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveGameProgress(entity: SavedGameEntity)
 
-    @Query("DELETE FROM saved_game")
-    suspend fun clearSavedGame()
+    @Query("DELETE FROM saved_game WHERE uid = :uid")
+    suspend fun clearSavedGame(uid: String)
 
-    @Query("SELECT * FROM minigame_progress WHERE gameKey = :gameKey LIMIT 1")
-    suspend fun getMinigameProgress(gameKey: String): MinigameProgressEntity?
+    @Query("SELECT * FROM minigame_progress WHERE uid = :uid AND gameKey = :gameKey LIMIT 1")
+    suspend fun getMinigameProgress(uid: String, gameKey: String): MinigameProgressEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveMinigameProgress(entity: MinigameProgressEntity)
 
-    @Query("DELETE FROM minigame_progress WHERE gameKey = :gameKey")
-    suspend fun clearMinigameProgress(gameKey: String)
+    @Query("DELETE FROM minigame_progress WHERE uid = :uid AND gameKey = :gameKey")
+    suspend fun clearMinigameProgress(uid: String, gameKey: String)
 
-    @Query("SELECT * FROM achievements")
-    fun observeAchievements(): Flow<List<AchievementEntity>>
+    @Query("SELECT * FROM achievements WHERE uid = :uid")
+    fun observeAchievements(uid: String): Flow<List<AchievementEntity>>
 
-    @Query("SELECT * FROM achievements")
-    suspend fun getAchievements(): List<AchievementEntity>
+    @Query("SELECT * FROM achievements WHERE uid = :uid")
+    suspend fun getAchievements(uid: String): List<AchievementEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun unlockAchievement(entity: AchievementEntity)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAchievementsIfAbsent(entities: List<AchievementEntity>)
+
     @Query("SELECT * FROM local_scores ORDER BY score DESC, totalTimeMillis ASC LIMIT 50")
     fun observeTopScores(): Flow<List<LocalScoreEntity>>
 
-    @Query("SELECT * FROM local_scores WHERE isSynced = 0")
-    suspend fun getUnsyncedScores(): List<LocalScoreEntity>
+    @Query("SELECT * FROM local_scores WHERE uid = :uid ORDER BY score DESC, totalTimeMillis ASC LIMIT 50")
+    fun observeTopScoresByUid(uid: String): Flow<List<LocalScoreEntity>>
+
+    @Query("SELECT * FROM local_scores WHERE isSynced = 0 AND uid = :uid")
+    suspend fun getUnsyncedScores(uid: String): List<LocalScoreEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertScore(entity: LocalScoreEntity): Long
@@ -183,7 +198,7 @@ interface GameDao {
         LocalScoreEntity::class,
         MinigameProgressEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

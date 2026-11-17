@@ -178,9 +178,9 @@ data class SlotsGameState(
     val fakeLockedWinnings: Int = 0,
     val realMoneyLost: Int = 0,
     val elapsedMillis: Long = 0L,
-    val algorithmStageTitle: String = "Tenés 10 fichas de bono",
-    val algorithmExplanation: String = "Agitá el celular o tocá Girar para probar la máquina.",
-    val spinStatusBanner: String = "3 iguales suman saldo de bono"
+    val algorithmStageTitle: String = "Bono de bienvenida activo",
+    val algorithmExplanation: String = "Elegí tu apuesta y girá los rodillos.",
+    val spinStatusBanner: String = "3 iguales suman saldo a tu cuenta"
 )
 
 /**
@@ -197,8 +197,8 @@ data class RouletteGameState(
     val realMoneyLost: Int = 0,
     val elapsedMillis: Long = 0L,
     val resultBannerText: String = "Elegí número o color y agitá para girar",
-    val algorithmStageTitle: String = "10 fichas de bono activas",
-    val algorithmExplanation: String = "Probá el paño para ver qué pasa en cada tirada."
+    val algorithmStageTitle: String = "Bono de bienvenida activo",
+    val algorithmExplanation: String = "Elegí tu ficha y probá tu suerte en el paño."
 )
 
 /**

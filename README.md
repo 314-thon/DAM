@@ -27,14 +27,14 @@ En esta segunda etapa evolucionamos *Juego Limpio* integrando **cuatro experienc
 
 ### 3. Juego 3 (Simulador Algorítmico + Sensor): *"Tragamonedas Jackpot 777"*
 * **Objetivo:** Demostrar experimentalmente por qué *la casa siempre gana* en las máquinas virtuales 3x3.
-* **Mecánica con Acelerómetro y Persistencia:** Comienza con **10 fichas de bono** y gira los 3 rodillos vectoriales agitando el teléfono o tocando **Girar**. Expone el algoritmo en 3 etapas: *El Gancho* (premio bloqueado bajo Rollover), *Near-Miss* (`777` pasando rozando) y *Vaciado Estadístico (`RTP < 95%`)*. El jugador puede **"Plantarse a tiempo"** para desbloquear la medalla **Ojo abierto**, o salir y retomar más tarde gracias a `MinigameProgressEntity` en Room.
+* **Mecánica con Acelerómetro, Bono Trampa y Cajero:** Comienza con un **saldo de bono inicial de `$8.000`** y permite girar los 3 rodillos vectoriales agitando el celular (`≥ 1.42 g`) o tocando **Girar** (con modo **Turbo** e **Intriga**). Expone el algoritmo en fases: *Gancho inicial* (premios escalonados hasta un techo de `$24.500`), *Near-Miss* (`777` pasando rozando), *Losses Disguised as Wins* y un **mínimo de retiro oculto/bloqueado de `$30.000`** (`WithdrawBonusModal`). Si el jugador se queda sin saldo, aparece el **Cajero (`CashierDepositModal`)** simulando una carga de `$5.000` reales con **20% de comisiones descontadas** (`15%` comisión + `5%` cargo operativo = `$4.000` acreditados) antes de vaciar la cuenta. Permite **"Plantarse a tiempo"** para desbloquear la medalla **Ojo abierto** y guarda el avance en Room (`MinigameProgressEntity`).
 
 ### 4. Juego 4 (Simulador Algorítmico + Sensor): *"La Ruleta del 29"*
 * **Objetivo:** Mostrar la ventaja matemática de la banca europea (el **0 Verde** y los pagos asimétricos) mediante una ruleta interactiva.
-* **Mecánica con Acelerómetro y Persistencia:** Permite elegir apuestas de tipo **Pleno** o **Color**, girar el paño agitando el celular (10 fichas de bono) y observar cómo el algoritmo alterna rachas iniciales y vaciado progresivo. Guarda el progreso en curso en Room (`MinigameProgressEntity`) y permite plantarse a tiempo para sumar puntaje competitivo.
+* **Mecánica con Acelerómetro, Bono Trampa y Cajero:** Permite elegir fichas y apuestas de tipo **Pleno** o **Color** sobre un paño europeo (`0` al `36`), iniciando con **`$8.000` de bono** y un **mínimo de retiro bloqueado de `$30.000`** (`WithdrawBonusModal`). Al agitar el celular (`≥ 1.42 g`) o girar el paño, alterna rachas iniciales controladas por debajo de `$24.500` con la ventaja del **0 Verde**, e incluye la simulación de **Cajero con 20% de comisiones** (`CashierDepositModal`) al quedarse sin fichas. Guarda el progreso en Room (`MinigameProgressEntity`) y permite plantarse a tiempo para sumar puntaje competitivo.
 
 ### Onboarding, Tutorial Interactivo y Privacidad
-* **Acceso con Firebase Auth + Apodo Obligatorio:** Al iniciar (luego del splash Lottie), el jugador puede elegir entre **Entrar rápido con Apodo** (`Anonymous`), **Email y contraseña** o **Continuar con Google** (`Credential Manager`).
+* **Acceso con Firebase Auth + Apodo Obligatorio:** Al iniciar (luego del splash Lottie), el jugador puede elegir entre **Entrar rápido con Apodo** (`Anonymous`), **Email y contraseña** o **Continuar con Google** (`GoogleSignInClient` vía `play-services-auth`).
 * **Protección de identidad:** Incluso ingresando con Google o Email, la app **nunca** usa ni expone el nombre real o correo en el ranking; exige definir un **apodo y avatar** privados antes de habilitar el juego.
 * **Tutorial guiado de 5 pasos (`TutorialCoachmarkOverlay`):** Recorre Apodo, Avatar, Silencio, Grilla de Juegos y Ranking/Medallas (repetible desde el botón `?` del Hub).
 
@@ -48,8 +48,8 @@ En esta segunda etapa evolucionamos *Juego Limpio* integrando **cuatro experienc
 flowchart LR
     A["WelcomeScreen (Hub)\nAuth + Apodo + Tutorial + 4 Juegos"] --> B1["Juego 1: La Semana\n(Chat + 3 Opciones + 25s)"]
     A --> B2["Juego 2: Scroll sin Caer\n(Feed IG + Ads + Shake)"]
-    A --> B3["Juego 3: Tragamonedas 3x3\n(Slots 10 tiradas + Shake)"]
-    A --> B4["Juego 4: La Ruleta del 29\n(Paño Europeo + Shake)"]
+    A --> B3["Juego 3: Tragamonedas 3x3\n(Slots $8K/$30K + Shake)"]
+    A --> B4["Juego 4: La Ruleta del 29\n(Paño Europeo $8K/$30K + Shake)"]
     B1 --> C["GameResultScreen\nBalance + QR SIXSEVEN + Ayuda 141/Boti"]
     B2 --> C
     B3 --> C
@@ -60,21 +60,21 @@ flowchart LR
 
 * **Model (`data/`):** `GameModels.kt` (estados inmutables `GameState`, `SlotsGameState`, `RouletteGameState`, `AuthUiState`, `RankingEntry`), `GameScenariosRepository.kt`, `GameDatabase.kt` (Room), `AuthRepository.kt` y `FirebaseRankingRepository.kt`.
 * **ViewModel (`ui/viewmodel/GameViewModel.kt`):** Expone `StateFlow` reactivos (`gameState`, `slotsState`, `rouletteState`, `authState`, `rankingList`, `isFirebaseOnline`, `firebaseStatusText`), coordina Room, Firebase Auth/RTDB, cálculo de puntaje y eventos multimedia.
-* **View (`ui/screens/`, `ui/components/`):** Pantallas 100% declarativas en Jetpack Compose (`WelcomeScreen`, `GameDecisionScreen`, `ScrollAdsGameScreen`, `SlotsTrapGameScreen`, `RouletteTrapGameScreen`, `GameResultScreen`, `LeaderboardScreen`) y modales desacoplados (`AuthOnboardingModal`, `TutorialCoachmarkOverlay`).
+* **View (`ui/screens/`, `ui/components/`):** Pantallas 100% declarativas en Jetpack Compose (`WelcomeScreen`, `GameDecisionScreen`, `ScrollAdsGameScreen`, `SlotsTrapGameScreen`, `RouletteTrapGameScreen`, `GameResultScreen`, `LeaderboardScreen`) y modales desacoplados (`AuthOnboardingModal`, `TutorialCoachmarkOverlay`, `WithdrawBonusModal`, `CashierDepositModal`).
 
 ---
 
 ## C. Almacenamiento Local (Room/SQLite) y Nube (Firebase)
 
 ### 1. Base de datos local con Room y SQLite (`com.ifts18.unadecisionmas.data.local`)
-Se implementó `AppDatabase` (versión 3) con `GameDao` y **cuatro entidades**:
-* **`SavedGameEntity` (`saved_game`):** Checkpoint completo de *La Semana* (`playerName`, `avatarResId`, `currentDayIndex`, `currentDebt`, `currentSavings`, `wellbeingPoints`, `totalDecisionTimeMillis` e historial serializado) para retomar la partida tras cerrar la app.
-* **`AchievementEntity` (`achievements`):** Registra las 7 medallas desbloqueadas localmente (`INTOCABLE`, `HONRADO_100`, `EVITANDO_TENTACION`, `OJO_ABIERTO`, `VIDA_REAL`, `TODO_AL_ROJO` y el Easter Egg `SIXSEVEN`).
-* **`LocalScoreEntity` (`local_scores`):** Guarda el historial local de puntajes de cada partida y funciona como **caché y cola de sincronización offline** (`isSynced = false`) cuando no hay red o sesión.
-* **`MinigameProgressEntity` (`minigame_progress`):** Persiste el avance en curso de *Tragamonedas Jackpot 777* (`SLOTS`) y *La Ruleta del 29* (`ROULETTE`) al salir al Hub o pasar a segundo plano.
+Se implementó `AppDatabase` (versión 4, con aislamiento por `uid` de usuario para no mezclar cuentas en el mismo dispositivo) con `GameDao` y **cuatro entidades**:
+* **`SavedGameEntity` (`saved_game`):** Checkpoint completo de *La Semana* por usuario (`uid`, `playerName`, `avatarResId`, `currentDayIndex`, `currentDebt`, `currentSavings`, `wellbeingPoints`, `totalDecisionTimeMillis` e historial serializado) para retomar la partida tras cerrar la app.
+* **`AchievementEntity` (`achievements`):** Registra por `(uid, achievementId)` las 7 medallas desbloqueadas localmente (`INTOCABLE`, `HONRADO_100`, `EVITANDO_TENTACION`, `OJO_ABIERTO`, `VIDA_REAL`, `TODO_AL_ROJO` y el Easter Egg `SIXSEVEN`), sincronizadas también con `/users/{uid}/achievements`.
+* **`LocalScoreEntity` (`local_scores`):** Guarda el historial local de puntajes de cada partida por `uid` y funciona como **caché y cola de sincronización offline** (`isSynced = false`) cuando no hay red o sesión.
+* **`MinigameProgressEntity` (`minigame_progress`):** Persiste por `(uid, gameKey)` el avance en curso de *Tragamonedas Jackpot 777* (`SLOTS`) y *La Ruleta del 29* (`ROULETTE`) al salir al Hub o pasar a segundo plano.
 
 ### 2. Autenticación y Ranking Compartido con Firebase (`com.ifts18.unadecisionmas.data.remote`)
-* **`AuthRepository` (Firebase Authentication):** Soporta inicio anónimo rápido con apodo, Email/Contraseña y Google Sign-In mediante `Credential Manager` (`androidx.credentials` + `googleid`). El apodo y avatar elegidos se resguardan en `/users/{uid}` sin almacenar ni publicar emails o nombres reales en el ranking.
+* **`AuthRepository` (Firebase Authentication):** Soporta inicio anónimo rápido con apodo, Email/Contraseña y Google Sign-In mediante `GoogleSignInClient` (`com.google.android.gms:play-services-auth:21.2.0`, compatible con Android 7 a 16). El apodo, avatar y logros elegidos se resguardan en `/users/{uid}` sin almacenar ni publicar emails o nombres reales en el ranking.
 * **`FirebaseRankingRepository` (Firebase Realtime Database):** Sincroniza en tiempo real el nodo `ranking_juego_limpio` usando el SDK autenticado (con respaldo REST firmado con ID Token). Al volver la conectividad o iniciar sesión, sube automáticamente los puntajes pendientes de Room (`refreshRanking()`).
 * **Criterio de ordenamiento y desempate:**
   1. Mayor `score` competitivo.
@@ -82,8 +82,8 @@ Se implementó `AppDatabase` (versión 3) con `GameDao` y **cuatro entidades**:
   3. Mayor `achievementsCount` (cantidad de medallas en la sesión).
 * **Reglas de seguridad (`database.rules.json`):**
   * Exigen `auth != null` para lectura y escritura.
-  * Validan en `ranking_juego_limpio/$entryId` que `newData.child('uid').val() === auth.uid`, tipos/rangos válidos (`score >= 0`, `debt >= 0`, `playerName` no vacío) e impiden modificar registros ajenos.
-  * Restringen `/users/$uid` exclusivamente al propio usuario (`auth != null && auth.uid === $uid`).
+  * Validan en `ranking_juego_limpio/$entryId` que `newData.child('uid').val() === auth.uid`, tipos/rangos válidos (`score >= 0`, `debt >= 0`, `playerName` entre 1 y 30 caracteres) e impiden modificar registros ajenos.
+  * Restringen `/users/$uid` (`nickname`, `avatarIndex` y `achievements`) exclusivamente al propio usuario (`auth != null && auth.uid === $uid`).
 * **Cero credenciales en el repositorio:** `local.properties` y `google-services.json` están excluidos en `.gitignore`. Las propiedades de conexión se inyectan a `BuildConfig` desde `local.properties` (plantilla de ejemplo en `local.properties.example`).
 
 ---
@@ -94,7 +94,7 @@ Se implementó `AppDatabase` (versión 3) con `GameDao` y **cuatro entidades**:
 Implementado en `DeviceSensorManager.kt` (`rememberAccelerometerMonitor`):
 * Calcula la aceleración resultante en tiempo real:
   $$G = \sqrt{\left(\frac{a_x}{g}\right)^2 + \left(\frac{a_y}{g}\right)^2 + \left(\frac{a_z}{g}\right)^2}$$
-* Cuando $G \ge 1.38\,g$, activa vibración háptica (`HapticFeedbackHelper`) y modifica el estado del juego:
+* Cuando supera el umbral calibrado por pantalla ($G \ge 1.38\,g$ en *La Semana* y *Scroll sin Caer*; $G \ge 1.42\,g$ en *Tragamonedas* y *La Ruleta del 29*; valor base `1.45 g` en el monitor), activa vibración háptica (`HapticFeedbackHelper`) y modifica el estado del juego:
   * Destruye anuncios invasivos en *La Semana* (Jueves) y *Scroll sin Caer*.
   * Acciona los giros de *Tragamonedas Jackpot 777* y *La Ruleta del 29*.
 * **Ciclo de vida:** Registra el `SensorEventListener` en `ON_RESUME` y lo libera en `ON_PAUSE`, `ON_STOP` y `onDispose` mediante `LifecycleEventObserver` + `DisposableEffect`.
@@ -122,7 +122,7 @@ Implementado en `DeviceSensorManager.kt` (`rememberAccelerometerMonitor`):
 
 | Integrante | Rol en el Equipo | Tareas Realizadas |
 | :--- | :--- | :--- |
-| **Martín Jonas Avilas** | Líder IT & Arquitectura Android | Arquitectura MVVM (`GameViewModel`, `StateFlow`), persistencia Room/SQLite (4 entidades en `AppDatabase` v3), integración completa de Firebase Auth (Anónimo, Email, Google Credential Manager) + RTDB + `database.rules.json`, generador/escáner QR `SIXSEVEN` y build sin credenciales expuestas. |
+| **Martín Jonas Avilas** | Líder IT & Arquitectura Android | Arquitectura MVVM (`GameViewModel`, `StateFlow`), persistencia Room/SQLite (4 entidades aisladas por `uid` en `AppDatabase` v4), integración completa de Firebase Auth (Anónimo, Email, Google Play Services Auth) + RTDB + `database.rules.json`, generador/escáner QR `SIXSEVEN` y build sin credenciales expuestas. |
 | **Evelyn Gaitán** | Narrative Designer & Mecánicas de Sensor | Diseño de la mecánica de sacudida con Acelerómetro (*"Evitando tentación"*), guiones de *El Error de Transferencia ($80.000)* y *La plata de la SUBE*, co-diseño de *Tragamonedas* / *La Ruleta del 29* y recursos Lottie/Multimedia. |
 | **Roberto Araujo** | Diseñador UX / Sistemas de Puntaje | Sistema de Puntos de Bienestar y Ahorro, escenarios saludables (*Fulbito y Cine con amigos*), emulador de castigo *"Sin celu hasta el lunes"*, diseño del tutorial guiado y tokens visuales del Design System. |
 | **Juan Chaile** | Game Designer & Firebase Ranking | Ranking compartido en Firebase (`ranking_juego_limpio`), fórmula de puntaje competitivo con desempate por milisegundos, escenario del *Superclásico*, flujo de onboarding con apodo obligatorio y prototipado de pantallas. |

@@ -17,6 +17,11 @@
         },
         "avatarIndex": {
           ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 5"
+        },
+        "achievements": {
+          "$achievementId": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          }
         }
       }
     }

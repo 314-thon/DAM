@@ -183,6 +183,7 @@ class FirebaseRankingRepository(
 
         val localId = gameDao.insertScore(
             LocalScoreEntity(
+                uid = activeUid,
                 remoteId = remoteId,
                 playerName = entryToSave.playerName,
                 avatarIndex = entryToSave.avatarIndex,
@@ -227,7 +228,7 @@ class FirebaseRankingRepository(
         val currentUser = firebaseAuth?.currentUser
         if (currentUser != null) {
             attachRealtimeListener()
-            val unsynced = gameDao.getUnsyncedScores()
+            val unsynced = gameDao.getUnsyncedScores(currentUser.uid)
             for (item in unsynced) {
                 val entry = item.toRankingEntry().copy(uid = currentUser.uid)
                 if (pushToFirebase(entry)) {
@@ -417,7 +418,7 @@ class FirebaseRankingRepository(
     private fun LocalScoreEntity.toRankingEntry(): RankingEntry {
         return RankingEntry(
             id = remoteId.ifBlank { "local_$id" },
-            uid = firebaseAuth?.currentUser?.uid.orEmpty(),
+            uid = uid,
             playerName = playerName,
             avatarIndex = avatarIndex,
             score = score,

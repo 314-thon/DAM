@@ -20,18 +20,23 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Warning
+import com.ifts18.unadecisionmas.data.model.AchievementDef
 import com.ifts18.unadecisionmas.ui.components.AchievementBadgeIcon
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -54,7 +59,6 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -93,6 +97,11 @@ fun GameResultScreen(
     val isWon = gameState.currentDebt == 0
     var isContentVisible by remember { mutableStateOf(false) }
     var showQrModal by remember { mutableStateOf(false) }
+    var showMedalsModal by remember { mutableStateOf(false) }
+
+    val sessionUnlockedDefs = remember(gameState.sessionAchievementIds) {
+        AchievementsCatalog.all.filter { gameState.sessionAchievementIds.contains(it.id) }
+    }
 
     val userQrBitmap = remember(gameState.profile.name) {
         QrCodeHelper.generateQrImageBitmap(
@@ -125,7 +134,8 @@ fun GameResultScreen(
         playClickFeedback()
         try {
             val cleanPhone = phone.replace("+", "").replace(" ", "").replace("-", "")
-            val url = "https://wa.me/549$cleanPhone?text=Hola,%20necesito%20orientacion%20sobre%20juego%20problematico"
+            val message = Uri.encode("Quiero más info sobre la ludopatía infantil")
+            val url = "https://wa.me/549$cleanPhone?text=$message"
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
             context.startActivity(intent)
         } catch (_: Exception) {}
@@ -168,7 +178,13 @@ fun GameResultScreen(
             .padding(horizontal = 16.dp, vertical = 6.dp)
     ) {
         val isCompactHeight = maxHeight < 680.dp
+        val hasDecisionHistory = gameState.decisionHistory.isNotEmpty()
         val sectionGap = if (isCompactHeight) 5.dp else 7.dp
+        val qrSize = when {
+            isCompactHeight && hasDecisionHistory -> 60.dp
+            isCompactHeight -> 72.dp
+            else -> 82.dp
+        }
 
         if (isWon) {
             ConfettiEffect(modifier = Modifier.fillMaxSize())
@@ -218,12 +234,11 @@ fun GameResultScreen(
                                 text = "${gameState.lastCompletedMode}: $displayedScore pts",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = if (isCompactHeight) 15.5.sp else 16.5.sp,
-                                color = if (isWon) VerdeExito else RojoAlerta,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                fontSize = if (isCompactHeight) 15.sp else 16.sp,
+                                lineHeight = if (isCompactHeight) 18.sp else 19.5.sp,
+                                color = if (isWon) VerdeExito else RojoAlerta
                             )
-                            Spacer(modifier = Modifier.height(1.dp))
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = gameState.lastModeSummary.ifBlank {
                                     if (isWon) "Superaste la experiencia sin deudas y cuidaste tus ahorros."
@@ -232,9 +247,7 @@ fun GameResultScreen(
                                 fontFamily = SpaceGrotesk,
                                 fontSize = if (isCompactHeight) 10.5.sp else 11.5.sp,
                                 lineHeight = if (isCompactHeight) 13.5.sp else 14.5.sp,
-                                color = Color.White,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
+                                color = Color.White
                             )
                         }
 
@@ -273,9 +286,8 @@ fun GameResultScreen(
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.5.sp,
+                                lineHeight = 18.sp,
                                 color = Color.White,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -347,148 +359,118 @@ fun GameResultScreen(
                             }
                         }
 
-                        // VITRINA DE TROFEOS Y MEDALLAS DE ESTA PARTIDA
-                        val sessionUnlockedDefs = AchievementsCatalog.all.filter {
-                            gameState.sessionAchievementIds.contains(it.id)
-                        }
+                        // VITRINA COMPACTA DE MEDALLAS (ALTO FIJO; TOCAR PARA VER DETALLE)
+                        val totalMedalBonus = sessionUnlockedDefs.sumOf { it.bonusPoints }
+                        val hasSessionMedals = sessionUnlockedDefs.isNotEmpty()
                         Spacer(modifier = Modifier.height(if (isCompactHeight) 5.dp else 7.dp))
-                        Column(
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(11.dp))
                                 .background(Color(0xFF121622))
-                                .border(1.dp, VerdeExito.copy(alpha = 0.4f), RoundedCornerShape(11.dp))
+                                .border(
+                                    width = 1.dp,
+                                    color = if (hasSessionMedals) VerdeExito.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.14f),
+                                    shape = RoundedCornerShape(11.dp)
+                                )
+                                .clickable(enabled = hasSessionMedals) {
+                                    playClickFeedback()
+                                    showMedalsModal = true
+                                }
                                 .padding(
-                                    horizontal = 9.dp,
-                                    vertical = if (isCompactHeight) 5.dp else 7.dp
+                                    horizontal = 10.dp,
+                                    vertical = if (isCompactHeight) 7.dp else 9.dp
                                 ),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
                             ) {
-                                Text(
-                                    text = "Medallas de esta partida (${sessionUnlockedDefs.size})",
-                                    fontFamily = SpaceGrotesk,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.5.sp,
-                                    color = VerdeExito
-                                )
-                                Text(
-                                    text = "Álbum: ${gameState.unlockedAchievementIds.size}/7",
-                                    fontFamily = SpaceGrotesk,
-                                    fontSize = 10.sp,
-                                    color = TextoSecundario
-                                )
-                            }
-
-                            if (sessionUnlockedDefs.isEmpty()) {
-                                Text(
-                                    text = "Sin trofeos nuevos en esta partida. Probá devolver transferencias, elegir planes reales o sacudir ante el spam.",
-                                    fontFamily = SpaceGrotesk,
-                                    fontSize = 10.5.sp,
-                                    lineHeight = 13.5.sp,
-                                    color = TextoSecundario,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            } else if (sessionUnlockedDefs.size == 1) {
-                                val trophy = sessionUnlockedDefs.first()
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(Color(0xFF1A2232))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.weight(1f)
+                                if (hasSessionMedals) {
+                                    AchievementBadgeIcon(
+                                        achievementId = sessionUnlockedDefs.first().id,
+                                        isUnlocked = true,
+                                        containerSize = 28.dp,
+                                        iconSize = 15.dp
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF1E2434))
+                                            .border(1.dp, Color.White.copy(alpha = 0.16f), CircleShape),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        AchievementBadgeIcon(
-                                            achievementId = trophy.id,
-                                            isUnlocked = true,
-                                            containerSize = 22.dp,
-                                            iconSize = 12.dp
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "${trophy.codeNumber} • ${trophy.title}",
-                                            fontFamily = SpaceGrotesk,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 11.sp,
-                                            color = Color.White,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                        Icon(
+                                            imageVector = Icons.Default.EmojiEvents,
+                                            contentDescription = null,
+                                            tint = TextoSecundario,
+                                            modifier = Modifier.size(15.dp)
                                         )
                                     }
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "+${trophy.bonusPoints} pts",
+                                        text = when (sessionUnlockedDefs.size) {
+                                            0 -> "0 medallas desbloqueadas"
+                                            1 -> "1 medalla desbloqueada"
+                                            else -> "${sessionUnlockedDefs.size} medallas desbloqueadas"
+                                        },
                                         fontFamily = SpaceGrotesk,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 10.5.sp,
+                                        fontSize = 12.sp,
+                                        lineHeight = 15.sp,
+                                        color = if (hasSessionMedals) VerdeExito else Color.White
+                                    )
+                                    Text(
+                                        text = if (hasSessionMedals) {
+                                            "Tocá para ver cuáles • Álbum: ${gameState.unlockedAchievementIds.size}/7"
+                                        } else {
+                                            "Probá devolver plata, planes reales o sacudir ante el spam"
+                                        },
+                                        fontFamily = SpaceGrotesk,
+                                        fontSize = 10.sp,
+                                        lineHeight = 13.sp,
+                                        color = TextoSecundario
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(6.dp))
+
+                            if (hasSessionMedals) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Text(
+                                        text = "+$totalMedalBonus pts",
+                                        fontFamily = SpaceGrotesk,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
                                         color = VerdeExito
+                                    )
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                        contentDescription = "Ver medallas desbloqueadas",
+                                        tint = VerdeExito,
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
                             } else {
-                                val medalRows = sessionUnlockedDefs.chunked(2)
-                                Column(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    medalRows.forEach { pair ->
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                        ) {
-                                            pair.forEach { trophy ->
-                                                Row(
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .clip(RoundedCornerShape(8.dp))
-                                                        .background(Color(0xFF1A2232))
-                                                        .padding(horizontal = 6.dp, vertical = 4.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    AchievementBadgeIcon(
-                                                        achievementId = trophy.id,
-                                                        isUnlocked = true,
-                                                        containerSize = 20.dp,
-                                                        iconSize = 11.dp
-                                                    )
-                                                    Spacer(modifier = Modifier.width(5.dp))
-                                                    Column(modifier = Modifier.weight(1f)) {
-                                                        Text(
-                                                            text = "${trophy.codeNumber} ${trophy.title}",
-                                                            fontFamily = SpaceGrotesk,
-                                                            fontWeight = FontWeight.Bold,
-                                                            fontSize = 10.sp,
-                                                            lineHeight = 12.sp,
-                                                            color = Color.White,
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis
-                                                        )
-                                                        Text(
-                                                            text = "+${trophy.bonusPoints} pts",
-                                                            fontFamily = SpaceGrotesk,
-                                                            fontWeight = FontWeight.Bold,
-                                                            fontSize = 9.5.sp,
-                                                            lineHeight = 11.sp,
-                                                            color = VerdeExito
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                            if (pair.size == 1) {
-                                                Spacer(modifier = Modifier.weight(1f))
-                                            }
-                                        }
-                                    }
-                                }
+                                Text(
+                                    text = "${gameState.unlockedAchievementIds.size}/7",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 10.5.sp,
+                                    color = TextoSecundario
+                                )
                             }
                         }
                     }
@@ -523,7 +505,7 @@ fun GameResultScreen(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(if (isCompactHeight) 74.dp else 86.dp)
+                                    .size(qrSize)
                                     .clip(RoundedCornerShape(11.dp))
                                     .background(Color(0xFF0D1117))
                                     .border(1.5.dp, BordeCyan, RoundedCornerShape(11.dp))
@@ -543,18 +525,15 @@ fun GameResultScreen(
                                     fontFamily = SpaceGrotesk,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = if (isCompactHeight) 13.5.sp else 14.5.sp,
-                                    color = BordeCyan,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    lineHeight = if (isCompactHeight) 16.5.sp else 18.sp,
+                                    color = BordeCyan
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "Tocá para ampliar",
                                     fontFamily = SpaceGrotesk,
                                     fontSize = 11.sp,
-                                    color = TextoSecundario,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    color = TextoSecundario
                                 )
                             }
                         }
@@ -672,6 +651,137 @@ fun GameResultScreen(
             qrBitmap = userQrBitmap,
             onDismiss = { showQrModal = false }
         )
+    }
+
+    if (showMedalsModal && sessionUnlockedDefs.isNotEmpty()) {
+        SessionMedalsDialog(
+            medals = sessionUnlockedDefs,
+            totalAlbumUnlocked = gameState.unlockedAchievementIds.size,
+            onDismiss = { showMedalsModal = false }
+        )
+    }
+}
+
+@Composable
+private fun SessionMedalsDialog(
+    medals: List<AchievementDef>,
+    totalAlbumUnlocked: Int,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color(0xFF141824))
+                .border(
+                    width = 2.dp,
+                    brush = Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)),
+                    shape = RoundedCornerShape(22.dp)
+                )
+                .padding(18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = if (medals.size == 1) "1 medalla desbloqueada" else "${medals.size} medallas desbloqueadas",
+                fontFamily = SpaceGrotesk,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                color = VerdeExito,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "Álbum total: $totalAlbumUnlocked/7",
+                fontFamily = SpaceGrotesk,
+                fontSize = 11.5.sp,
+                color = TextoSecundario,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 320.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                medals.forEach { trophy ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF1A2232))
+                            .border(1.dp, VerdeExito.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 10.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AchievementBadgeIcon(
+                            achievementId = trophy.id,
+                            isUnlocked = true,
+                            containerSize = 36.dp,
+                            iconSize = 18.dp
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "${trophy.codeNumber} • ${trophy.title}",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 15.5.sp,
+                                    color = Color.White,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "+${trophy.bonusPoints} pts",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.5.sp,
+                                    color = VerdeExito
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = trophy.description,
+                                fontFamily = SpaceGrotesk,
+                                fontSize = 11.sp,
+                                lineHeight = 14.5.sp,
+                                color = TextoSecundario
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(42.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
+                    .clickable { onDismiss() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Cerrar",
+                    fontFamily = SpaceGrotesk,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = Color.Black
+                )
+            }
+        }
     }
 }
 

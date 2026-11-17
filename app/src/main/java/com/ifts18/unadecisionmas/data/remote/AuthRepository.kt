@@ -438,15 +438,56 @@ class AuthRepository(private val context: Context) {
     private suspend fun saveProfileEverywhere(uid: String, nickname: String, avatarIndex: Int) {
         saveLocalProfileForUid(uid, nickname, avatarIndex)
         try {
-            val payload = mapOf(
+            val payload = mapOf<String, Any>(
                 "nickname" to nickname,
                 "avatarIndex" to avatarIndex,
                 "updatedAt" to System.currentTimeMillis()
             )
             withTimeoutOrNull(5_000L) {
-                db()?.getReference("users")?.child(uid)?.setValue(payload)?.awaitTask()
+                db()?.getReference("users")?.child(uid)?.updateChildren(payload)?.awaitTask()
             }
         } catch (_: Exception) {
+        }
+    }
+
+    suspend fun pushAchievementToCloud(uid: String, achievementId: String, unlockedAt: Long) {
+        if (uid.isBlank() || achievementId.isBlank()) return
+        try {
+            val currentUid = auth()?.currentUser?.uid
+            if (currentUid != uid) return
+            withTimeoutOrNull(5_000L) {
+                db()?.getReference("users")
+                    ?.child(uid)
+                    ?.child("achievements")
+                    ?.child(achievementId)
+                    ?.setValue(unlockedAt)
+                    ?.awaitTask()
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    suspend fun fetchCloudAchievements(uid: String): Map<String, Long> {
+        if (uid.isBlank()) return emptyMap()
+        return try {
+            val currentUid = auth()?.currentUser?.uid
+            if (currentUid != uid) return emptyMap()
+            val snapshot = withTimeoutOrNull(6_000L) {
+                db()?.getReference("users")
+                    ?.child(uid)
+                    ?.child("achievements")
+                    ?.get()
+                    ?.awaitTask()
+            } ?: return emptyMap()
+            val result = mutableMapOf<String, Long>()
+            for (child in snapshot.children) {
+                val id = child.key ?: continue
+                val ts = child.getValue(Long::class.java) ?: System.currentTimeMillis()
+                result[id] = ts
+            }
+            result
+        } catch (_: Exception) {
+            emptyMap()
         }
     }
 

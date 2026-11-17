@@ -1,9 +1,5 @@
 package com.ifts18.unadecisionmas.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,12 +23,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FastForward
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -62,7 +56,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -73,13 +66,14 @@ import com.ifts18.unadecisionmas.data.model.SlotSymbol
 import com.ifts18.unadecisionmas.data.model.SlotsGameState
 import com.ifts18.unadecisionmas.sensor.HapticFeedbackHelper
 import com.ifts18.unadecisionmas.sensor.rememberAccelerometerMonitor
+import com.ifts18.unadecisionmas.ui.components.BalanceWithdrawPill
+import com.ifts18.unadecisionmas.ui.components.CashierDepositModal
+import com.ifts18.unadecisionmas.ui.components.WithdrawBonusModal
 import com.ifts18.unadecisionmas.ui.theme.BordeCyan
 import com.ifts18.unadecisionmas.ui.theme.BordeMagenta
-import com.ifts18.unadecisionmas.ui.theme.BurbujaChat
 import com.ifts18.unadecisionmas.ui.theme.FondoGeneral
 import com.ifts18.unadecisionmas.ui.theme.RojoAlerta
 import com.ifts18.unadecisionmas.ui.theme.SpaceGrotesk
-import com.ifts18.unadecisionmas.ui.theme.TextoSecundario
 import com.ifts18.unadecisionmas.ui.theme.VerdeExito
 import kotlinx.coroutines.launch
 import kotlin.math.pow
@@ -89,6 +83,205 @@ private val GoldBezelLight = Color(0xFFFFE082)
 private val GoldBezelDark = Color(0xFFB45309)
 private val CrimsonCabinetTop = Color(0xFF4A0710)
 private val CrimsonCabinetBottom = Color(0xFF170307)
+
+private const val SLOTS_STARTING_BONUS = 8_000
+private const val SLOTS_WITHDRAWAL_MIN = 30_000
+private const val SLOTS_SAFE_CEILING = 24_500
+private const val SLOTS_MIN_BET = 250
+
+private fun effectiveSlotsBalance(snapshot: SlotsGameState): Int {
+    return if (snapshot.spinsUsed == 0 && snapshot.fakeLockedWinnings == 0 && snapshot.realMoneyLost == 0) {
+        SLOTS_STARTING_BONUS
+    } else {
+        snapshot.fakeLockedWinnings
+    }
+}
+
+private fun formatSlotsPesos(amount: Int): String {
+    val absVal = kotlin.math.abs(amount)
+    val formatted = "%,d".format(absVal).replace(',', '.')
+    return if (amount < 0) "-$$formatted" else "$$formatted"
+}
+
+private enum class SlotSpinOutcomeType {
+    WIN,
+    LDW,
+    NEAR_MISS_TOP,
+    NEAR_MISS_BOTTOM,
+    LOSS
+}
+
+private data class SlotSpinPlan(
+    val type: SlotSpinOutcomeType,
+    val reel1: SlotSymbol,
+    val reel2: SlotSymbol,
+    val reel3: SlotSymbol,
+    val lockedDelta: Int,
+    val banner: String,
+    val stageTitle: String,
+    val explanation: String
+)
+
+private fun resolveSlotSpinPlan(
+    spinNumber: Int,
+    betAmount: Int,
+    balanceBeforeSpin: Int,
+    realMoneyLost: Int
+): SlotSpinPlan {
+    // Fase post-depósito: drena el saldo real cargado
+    if (realMoneyLost > 0) {
+        return when (spinNumber % 3) {
+            1 -> SlotSpinPlan(
+                type = SlotSpinOutcomeType.NEAR_MISS_TOP,
+                reel1 = SlotSymbol.SEVEN,
+                reel2 = SlotSymbol.SEVEN,
+                reel3 = SlotSymbol.CHERRY,
+                lockedDelta = -betAmount,
+                banner = "¡Casi 777! Sin premio esta ronda (-${formatSlotsPesos(betAmount)})",
+                stageTitle = "Saldo disponible: ${formatSlotsPesos((balanceBeforeSpin - betAmount).let { if (it < SLOTS_MIN_BET) 0 else it })}",
+                explanation = "Te faltó 1 símbolo para el premio mayor."
+            )
+            2 -> {
+                val partialReturn = ((betAmount * 0.4) / 250.0).toInt() * 250
+                val displayReturn = if (partialReturn > 0) partialReturn else 100
+                val netLoss = (betAmount - displayReturn).coerceAtLeast(SLOTS_MIN_BET / 2)
+                val after = (balanceBeforeSpin - netLoss).let { if (it < SLOTS_MIN_BET) 0 else it }
+                SlotSpinPlan(
+                    type = SlotSpinOutcomeType.LDW,
+                    reel1 = SlotSymbol.COIN,
+                    reel2 = SlotSymbol.COIN,
+                    reel3 = SlotSymbol.LEMON,
+                    lockedDelta = -netLoss,
+                    banner = "¡Premio +${formatSlotsPesos(displayReturn)}!",
+                    stageTitle = "Saldo disponible: ${formatSlotsPesos(after)}",
+                    explanation = "Sumaste monedas en línea."
+                )
+            }
+            else -> SlotSpinPlan(
+                type = SlotSpinOutcomeType.LOSS,
+                reel1 = SlotSymbol.BAR,
+                reel2 = SlotSymbol.LEMON,
+                reel3 = SlotSymbol.GRAPES,
+                lockedDelta = -betAmount,
+                banner = "Sin línea ganadora (-${formatSlotsPesos(betAmount)})",
+                stageTitle = "Saldo disponible: ${formatSlotsPesos((balanceBeforeSpin - betAmount).let { if (it < SLOTS_MIN_BET) 0 else it })}",
+                explanation = "No se completó ninguna línea de pago en este giro."
+            )
+        }
+    }
+
+    val smallWin = ((betAmount * 2.5) / 250.0).toInt().coerceAtLeast(2) * 250
+    val medWin = ((betAmount * 4.0) / 250.0).toInt().coerceAtLeast(3) * 250
+    val diamondWin = ((betAmount * 6.0) / 250.0).toInt().coerceAtLeast(5) * 250
+    val barWin = ((betAmount * 4.5) / 250.0).toInt().coerceAtLeast(4) * 250
+
+    // Gancho escalonado hasta acercarse a ~$18K-$24.5K (siempre debajo de $30.000)
+    val canSmall = balanceBeforeSpin + smallWin <= SLOTS_SAFE_CEILING
+    val canMed = balanceBeforeSpin + medWin <= SLOTS_SAFE_CEILING
+    val canDiamond = balanceBeforeSpin + diamondWin <= SLOTS_SAFE_CEILING
+    val canBar = balanceBeforeSpin + barWin <= SLOTS_SAFE_CEILING
+
+    val roll = (spinNumber * 29 + betAmount / 50 + balanceBeforeSpin / 100) % 100
+
+    return when {
+        spinNumber == 1 && canSmall -> SlotSpinPlan(
+            type = SlotSpinOutcomeType.WIN,
+            reel1 = SlotSymbol.CHERRY,
+            reel2 = SlotSymbol.CHERRY,
+            reel3 = SlotSymbol.CHERRY,
+            lockedDelta = smallWin,
+            banner = "¡Línea x3 Cereza! +${formatSlotsPesos(smallWin)}",
+            stageTitle = "Bono activo: ${formatSlotsPesos(balanceBeforeSpin + smallWin)}",
+            explanation = "¡Buena racha! Seguí girando para sumar más saldo."
+        )
+        spinNumber == 2 -> SlotSpinPlan(
+            type = SlotSpinOutcomeType.NEAR_MISS_TOP,
+            reel1 = SlotSymbol.SEVEN,
+            reel2 = SlotSymbol.SEVEN,
+            reel3 = SlotSymbol.LEMON,
+            lockedDelta = -betAmount,
+            banner = "¡A un paso del 777! (-${formatSlotsPesos(betAmount)})",
+            stageTitle = "Bono activo: ${formatSlotsPesos((balanceBeforeSpin - betAmount).let { if (it < SLOTS_MIN_BET) 0 else it })}",
+            explanation = "El tercer 777 quedó justo arriba de la línea central."
+        )
+        spinNumber == 3 && canMed -> SlotSpinPlan(
+            type = SlotSpinOutcomeType.WIN,
+            reel1 = SlotSymbol.BELL,
+            reel2 = SlotSymbol.BELL,
+            reel3 = SlotSymbol.BELL,
+            lockedDelta = medWin,
+            banner = "¡Línea x3 Campana! +${formatSlotsPesos(medWin)}",
+            stageTitle = "Bono activo: ${formatSlotsPesos(balanceBeforeSpin + medWin)}",
+            explanation = "¡Línea ganadora de campanas en el centro!"
+        )
+        spinNumber == 4 && canDiamond -> SlotSpinPlan(
+            type = SlotSpinOutcomeType.WIN,
+            reel1 = SlotSymbol.DIAMOND,
+            reel2 = SlotSymbol.DIAMOND,
+            reel3 = SlotSymbol.DIAMOND,
+            lockedDelta = diamondWin,
+            banner = "¡Línea x3 Diamante! +${formatSlotsPesos(diamondWin)}",
+            stageTitle = "Bono activo: ${formatSlotsPesos(balanceBeforeSpin + diamondWin)}",
+            explanation = "¡Premio triple de diamantes acreditado!"
+        )
+        spinNumber in 5..7 && balanceBeforeSpin < 19_000 && canBar && roll < 45 -> SlotSpinPlan(
+            type = SlotSpinOutcomeType.WIN,
+            reel1 = SlotSymbol.BAR,
+            reel2 = SlotSymbol.BAR,
+            reel3 = SlotSymbol.BAR,
+            lockedDelta = barWin,
+            banner = "¡Línea x3 BAR! +${formatSlotsPesos(barWin)}",
+            stageTitle = "Bono activo: ${formatSlotsPesos(balanceBeforeSpin + barWin)}",
+            explanation = "Buena línea en el centro."
+        )
+        roll in 20..44 -> {
+            val partialReturn = ((betAmount * 0.4) / 250.0).toInt() * 250
+            val displayReturn = if (partialReturn > 0) partialReturn else 100
+            val netLoss = (betAmount - displayReturn).coerceAtLeast(SLOTS_MIN_BET / 2)
+            val after = (balanceBeforeSpin - netLoss).let { if (it < SLOTS_MIN_BET) 0 else it }
+            SlotSpinPlan(
+                type = SlotSpinOutcomeType.LDW,
+                reel1 = SlotSymbol.COIN,
+                reel2 = SlotSymbol.COIN,
+                reel3 = SlotSymbol.LEMON,
+                lockedDelta = -netLoss,
+                banner = "¡Premio +${formatSlotsPesos(displayReturn)}!",
+                stageTitle = "Bono activo: ${formatSlotsPesos(after)}",
+                explanation = "Premio por par de monedas."
+            )
+        }
+        roll in 45..69 -> SlotSpinPlan(
+            type = SlotSpinOutcomeType.NEAR_MISS_BOTTOM,
+            reel1 = SlotSymbol.DIAMOND,
+            reel2 = SlotSymbol.DIAMOND,
+            reel3 = SlotSymbol.GRAPES,
+            lockedDelta = -betAmount,
+            banner = "¡Casi Diamante! (-${formatSlotsPesos(betAmount)})",
+            stageTitle = "Bono activo: ${formatSlotsPesos((balanceBeforeSpin - betAmount).let { if (it < SLOTS_MIN_BET) 0 else it })}",
+            explanation = "Faltó 1 símbolo en la línea central para cobrar el premio."
+        )
+        roll in 70..84 -> SlotSpinPlan(
+            type = SlotSpinOutcomeType.NEAR_MISS_TOP,
+            reel1 = SlotSymbol.SEVEN,
+            reel2 = SlotSymbol.SEVEN,
+            reel3 = SlotSymbol.BAR,
+            lockedDelta = -betAmount,
+            banner = "¡Casi 777! (-${formatSlotsPesos(betAmount)})",
+            stageTitle = "Bono activo: ${formatSlotsPesos((balanceBeforeSpin - betAmount).let { if (it < SLOTS_MIN_BET) 0 else it })}",
+            explanation = "El tercer rodillo quedó a un cuadro del pozo mayor."
+        )
+        else -> SlotSpinPlan(
+            type = SlotSpinOutcomeType.LOSS,
+            reel1 = SlotSymbol.GRAPES,
+            reel2 = SlotSymbol.LEMON,
+            reel3 = SlotSymbol.DIAMOND,
+            lockedDelta = -betAmount,
+            banner = "Sin línea ganadora (-${formatSlotsPesos(betAmount)})",
+            stageTitle = "Bono activo: ${formatSlotsPesos((balanceBeforeSpin - betAmount).let { if (it < SLOTS_MIN_BET) 0 else it })}",
+            explanation = "Seguí girando o ajustá el valor de tu apuesta."
+        )
+    }
+}
 
 private fun easeOutBackCustom(t: Float): Float {
     val inv = t.coerceIn(0f, 1f) - 1f
@@ -119,10 +312,12 @@ fun SlotsTrapGameScreen(
     val scope = rememberCoroutineScope()
 
     val symbols = remember { SlotSymbol.entries }
+    var lastOutcomeType by remember { mutableStateOf<SlotSpinOutcomeType?>(null) }
 
-    val settledGrid = remember(state.spinsUsed, state.reel1, state.reel2, state.reel3) {
+    val settledGrid = remember(state.spinsUsed, state.reel1, state.reel2, state.reel3, lastOutcomeType) {
         resolveThreeByThreeGrid(
             spinsUsed = state.spinsUsed,
+            outcomeType = lastOutcomeType,
             centerRow = listOf(state.reel1, state.reel2, state.reel3)
         )
     }
@@ -146,6 +341,13 @@ fun SlotsTrapGameScreen(
     var isIntrigueActive by remember { mutableStateOf(false) }
     var intriguePulseAlpha by remember { mutableFloatStateOf(0f) }
     var turboEnabled by remember { mutableStateOf(false) }
+    var showDepositModal by remember { mutableStateOf(false) }
+    var showWithdrawModal by remember { mutableStateOf(false) }
+    val slotBetOptions = remember { listOf(250, 500, 1000) }
+    var selectedBetIndex by remember { mutableStateOf(1) } // $500 por defecto
+
+    val currentBalance = effectiveSlotsBalance(state)
+    val canAffordSpin = currentBalance >= SLOTS_MIN_BET
 
     val currentState by rememberUpdatedState(state)
     var sessionOpenedAt by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -189,88 +391,53 @@ fun SlotsTrapGameScreen(
         return activeBeforePauseMillis + extra
     }
 
-    fun buildNextSpinState(snapshot: SlotsGameState, nextSpinNumber: Int, turboSnapshot: Boolean): SlotsGameState {
-        val updatedChips = (snapshot.bonusChips - 1).coerceAtLeast(0)
+    fun buildNextSpinState(
+        snapshot: SlotsGameState,
+        nextSpinNumber: Int,
+        balanceBeforeSpin: Int,
+        plan: SlotSpinPlan
+    ): SlotsGameState {
         val totalElapsed = currentTotalElapsed()
-        return when (nextSpinNumber) {
-            1 -> {
-                val newLocked = snapshot.fakeLockedWinnings + 3500
-                snapshot.copy(
-                    reel1 = SlotSymbol.CHERRY,
-                    reel2 = SlotSymbol.CHERRY,
-                    reel3 = SlotSymbol.CHERRY,
-                    spinsUsed = nextSpinNumber,
-                    bonusChips = updatedChips,
-                    fakeLockedWinnings = newLocked,
-                    elapsedMillis = totalElapsed,
-                    spinStatusBanner = "Línea central x3 Cereza: +$3.500 (Bono x40)",
-                    algorithmStageTitle = "Etapa 1: Gancho inicial",
-                    algorithmExplanation = "Ganás fácil al inicio, pero exigen apostar x40 para poder retirar."
-                )
-            }
-            2 -> {
-                val newLocked = snapshot.fakeLockedWinnings + 3500
-                snapshot.copy(
-                    reel1 = SlotSymbol.BAR,
-                    reel2 = SlotSymbol.BAR,
-                    reel3 = SlotSymbol.BAR,
-                    spinsUsed = nextSpinNumber,
-                    bonusChips = updatedChips,
-                    fakeLockedWinnings = newLocked,
-                    elapsedMillis = totalElapsed,
-                    spinStatusBanner = "Línea central x3 BAR: +$3.500 (Saldo retenido)",
-                    algorithmStageTitle = "Etapa 1: Falsa racha positiva",
-                    algorithmExplanation = "El saldo en bono sube mientras los pozos de arriba siguen trabados."
-                )
-            }
-            3, 4, 5, 6 -> {
-                val pairSymbol = if (nextSpinNumber % 2 == 0) SlotSymbol.SEVEN else SlotSymbol.COIN
-                val missCenter = if (nextSpinNumber % 2 == 0) SlotSymbol.LEMON else SlotSymbol.BELL
-                val posText = if (nextSpinNumber % 2 == 1) "arriba" else "abajo"
-                snapshot.copy(
-                    reel1 = pairSymbol,
-                    reel2 = pairSymbol,
-                    reel3 = missCenter,
-                    spinsUsed = nextSpinNumber,
-                    bonusChips = updatedChips,
-                    elapsedMillis = totalElapsed,
-                    spinStatusBanner = "Casi: salieron 2 ${pairSymbol.label} y el 3ro quedó 1 cuadro $posText",
-                    algorithmStageTitle = "Etapa 2: Casi-acierto (Intriga)",
-                    algorithmExplanation = "El 3er rodillo desacelera dejando el ${pairSymbol.label} pegado a la línea para tentarte."
-                )
-            }
-            else -> {
-                val newLocked = (snapshot.fakeLockedWinnings - 1800).coerceAtLeast(0)
-                snapshot.copy(
-                    reel1 = if (nextSpinNumber % 2 == 0) SlotSymbol.LEMON else SlotSymbol.GRAPES,
-                    reel2 = if (nextSpinNumber % 2 == 0) SlotSymbol.BAR else SlotSymbol.BELL,
-                    reel3 = if (nextSpinNumber % 2 == 0) SlotSymbol.CHERRY else SlotSymbol.DIAMOND,
-                    spinsUsed = nextSpinNumber,
-                    bonusChips = updatedChips,
-                    fakeLockedWinnings = newLocked,
-                    elapsedMillis = totalElapsed,
-                    spinStatusBanner = "Sin línea ganadora • La ventaja matemática es de la casa",
-                    algorithmStageTitle = "Etapa 3: Vaciado estadístico",
-                    algorithmExplanation = if (turboSnapshot) {
-                        "Con Turbo activado gastás las fichas al doble de velocidad y sin pausa."
-                    } else {
-                        "A más tiradas, la ventaja matemática del algoritmo absorbe el bono."
-                    }
-                )
-            }
-        }
+        val newBalance = (balanceBeforeSpin + plan.lockedDelta)
+            .coerceIn(0, SLOTS_SAFE_CEILING)
+            .let { if (it < SLOTS_MIN_BET) 0 else it }
+        val updatedChipsMetric = (newBalance / 500).coerceIn(0, 10)
+
+        return snapshot.copy(
+            reel1 = plan.reel1,
+            reel2 = plan.reel2,
+            reel3 = plan.reel3,
+            spinsUsed = nextSpinNumber,
+            bonusChips = updatedChipsMetric,
+            fakeLockedWinnings = newBalance,
+            elapsedMillis = totalElapsed,
+            spinStatusBanner = plan.banner,
+            algorithmStageTitle = plan.stageTitle,
+            algorithmExplanation = plan.explanation
+        )
     }
 
     fun triggerSpin() {
         val snapshot = currentState
-        if (isSpinning || !isLifecycleResumed || snapshot.spinsUsed >= snapshot.maxSpins || snapshot.bonusChips <= 0) return
+        val balanceBeforeSpin = effectiveSlotsBalance(snapshot)
+        if (isSpinning || !isLifecycleResumed || showDepositModal || showWithdrawModal || balanceBeforeSpin < SLOTS_MIN_BET) return
+
+        var spinBetAmount = slotBetOptions[selectedBetIndex]
+        if (spinBetAmount > balanceBeforeSpin) {
+            val affordableIdx = slotBetOptions.indexOfLast { it <= balanceBeforeSpin }.coerceAtLeast(0)
+            selectedBetIndex = affordableIdx
+            spinBetAmount = slotBetOptions[affordableIdx]
+        }
 
         val nextSpinNumber = snapshot.spinsUsed + 1
         val turboSnapshot = turboEnabled
-        val isNearMissSpin = nextSpinNumber in 3..6
-        val nextState = buildNextSpinState(snapshot, nextSpinNumber, turboSnapshot)
+        val nextPlan = resolveSlotSpinPlan(nextSpinNumber, spinBetAmount, balanceBeforeSpin, snapshot.realMoneyLost)
+        val isNearMissSpin = nextPlan.type == SlotSpinOutcomeType.NEAR_MISS_TOP ||
+            nextPlan.type == SlotSpinOutcomeType.NEAR_MISS_BOTTOM
+        val nextState = buildNextSpinState(snapshot, nextSpinNumber, balanceBeforeSpin, nextPlan)
         val targetGrid = resolveThreeByThreeGrid(
             spinsUsed = nextSpinNumber,
+            outcomeType = nextPlan.type,
             centerRow = listOf(nextState.reel1, nextState.reel2, nextState.reel3)
         )
 
@@ -397,12 +564,17 @@ fun SlotsTrapGameScreen(
                 SoundManager.stopSlotSpinLoop()
                 isIntrigueActive = false
                 intriguePulseAlpha = 0f
+                lastOutcomeType = nextPlan.type
+                if (nextState.fakeLockedWinnings in SLOTS_MIN_BET until slotBetOptions[selectedBetIndex]) {
+                    selectedBetIndex = slotBetOptions.indexOfLast { it <= nextState.fakeLockedWinnings }.coerceAtLeast(0)
+                }
                 onStateChange(nextState)
 
-                if (nextSpinNumber in 1..2) {
-                    SoundManager.playSlotWinChime()
-                } else if (nextSpinNumber in 3..6) {
-                    SoundManager.playSlotNearMiss()
+                when (nextPlan.type) {
+                    SlotSpinOutcomeType.WIN, SlotSpinOutcomeType.LDW -> SoundManager.playSlotWinChime()
+                    SlotSpinOutcomeType.NEAR_MISS_TOP, SlotSpinOutcomeType.NEAR_MISS_BOTTOM, SlotSpinOutcomeType.LOSS -> {
+                        SoundManager.playSlotNearMiss()
+                    }
                 }
                 HapticFeedbackHelper.vibrateShort(context, 40L)
                 isSpinning = false
@@ -416,18 +588,20 @@ fun SlotsTrapGameScreen(
     }
 
     val sensorReading by rememberAccelerometerMonitor(
-        enabled = !isSpinning && isLifecycleResumed && state.spinsUsed < state.maxSpins,
+        enabled = !isSpinning && isLifecycleResumed && !showDepositModal && !showWithdrawModal && canAffordSpin,
         shakeThresholdG = 1.42f,
         minIntervalMs = 600L
     ) {
         triggerSpin()
     }
 
-    val isCenterWin = !isSpinning && state.spinsUsed in 1..2
+    val isCenterWin = !isSpinning && state.spinsUsed > 0 &&
+        (lastOutcomeType == SlotSpinOutcomeType.WIN || lastOutcomeType == SlotSpinOutcomeType.LDW)
     val nearMissRowInCol2 = when {
-        isSpinning || state.spinsUsed !in 3..6 -> -1
-        state.spinsUsed % 2 == 1 -> 0
-        else -> 2
+        isSpinning || state.spinsUsed == 0 -> -1
+        lastOutcomeType == SlotSpinOutcomeType.NEAR_MISS_TOP -> 0
+        lastOutcomeType == SlotSpinOutcomeType.NEAR_MISS_BOTTOM -> 2
+        else -> -1
     }
 
     Box(
@@ -440,8 +614,9 @@ fun SlotsTrapGameScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 14.dp, vertical = 6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // 1. CABECERA CON CONTADOR DE FICHAS
             Row(
@@ -475,9 +650,8 @@ fun SlotsTrapGameScreen(
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            lineHeight = 18.sp,
+                            color = Color.White
                         )
                         Text(
                             text = "Agitá para girar • ${"%.2f".format(sensorReading.gForce)} G",
@@ -491,87 +665,27 @@ fun SlotsTrapGameScreen(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(BordeMagenta.copy(alpha = 0.22f))
-                        .border(1.dp, BordeMagenta, RoundedCornerShape(10.dp))
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Fichas: ${state.bonusChips}/${state.maxSpins}",
-                        fontFamily = SpaceGrotesk,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                        color = Color.White,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // 2. BARRA COMPACTA DE BONO TRABADO Y PROGRESO DE FICHAS (SIN DUPLICAR CONTADOR)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(BurbujaChat.copy(alpha = 0.90f))
-                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 12.dp, vertical = 7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = "Bloqueado",
-                        tint = BordeMagenta,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Text(
-                        text = "Bono trabado:",
-                        fontFamily = SpaceGrotesk,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 11.5.sp,
-                        color = TextoSecundario
-                    )
-                    Text(
-                        text = "$${state.fakeLockedWinnings}",
-                        fontFamily = SpaceGrotesk,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp,
-                        color = Color.White,
-                        maxLines = 1
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                LinearProgressIndicator(
-                    progress = { state.bonusChips.toFloat() / state.maxSpins.toFloat() },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(4.dp)),
-                    color = if (state.bonusChips > 3) BordeCyan else RojoAlerta,
-                    trackColor = Color.White.copy(alpha = 0.12f)
+                BalanceWithdrawPill(
+                    currentBalance = currentBalance,
+                    withdrawalMinimum = SLOTS_WITHDRAWAL_MIN,
+                    isLowBalance = !canAffordSpin,
+                    enabled = !isSpinning && !showDepositModal,
+                    onClick = { showWithdrawModal = true }
                 )
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // 3. MÁQUINA 3x3 (9 CUADROS) ADAPTABLE SIN SCROLL VERTICAL
-            Column(
+            // 2. MÁQUINA 3x3 (9 CUADROS) AL 85% DEL ALTO DISPONIBLE CON MARGEN SUPERIOR E INFERIOR
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f, fill = false)
-                    .clip(RoundedCornerShape(18.dp))
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.85f)
+                        .clip(RoundedCornerShape(18.dp))
                     .background(
                         Brush.verticalGradient(
                             listOf(Color(0xFF28070F), Color(0xFF11070E))
@@ -655,17 +769,17 @@ fun SlotsTrapGameScreen(
                 BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f, fill = false)
+                        .weight(1f)
                 ) {
                     val gridHeight = if (maxHeight == Dp.Infinity) {
-                        192.dp
+                        260.dp
                     } else {
-                        maxHeight.coerceAtMost(196.dp)
+                        maxHeight.coerceAtLeast(150.dp)
                     }
                     val viewportHeightDp = (gridHeight - 20.dp).coerceAtLeast(60.dp)
                     val stepDp = viewportHeightDp / 3f
                     val stepPx = with(LocalDensity.current) { stepDp.toPx() }
-                    val iconSizeDp = (stepDp.value * 0.62f).toInt().coerceIn(22, 36)
+                    val iconSizeDp = (stepDp.value * 0.56f).toInt().coerceIn(24, 52)
 
                     Box(
                         modifier = Modifier
@@ -786,50 +900,234 @@ fun SlotsTrapGameScreen(
                     text = state.spinStatusBanner,
                     fontFamily = SpaceGrotesk,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 11.5.sp,
-                    lineHeight = 14.sp,
+                    fontSize = 12.sp,
+                    lineHeight = 15.sp,
                     color = if (isCenterWin) GoldBezelLight else VerdeExito,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    textAlign = TextAlign.Center
                 )
+                }
+            }
 
-                Spacer(modifier = Modifier.height(7.dp))
-
-                if (state.spinsUsed < state.maxSpins) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                Brush.horizontalGradient(
-                                    if (isSpinning) listOf(Color.Gray, Color.DarkGray)
-                                    else listOf(GoldBezelDark, BordeMagenta)
-                                )
-                            )
-                            .border(1.dp, GoldBezelLight.copy(alpha = 0.7f), RoundedCornerShape(12.dp))
-                            .clickable(enabled = !isSpinning) { triggerSpin() }
-                            .padding(horizontal = 12.dp),
-                        contentAlignment = Alignment.Center
+            // 3. CONTROLES INFERIORES EN ZONA DEL PULGAR (IDÉNTICO A RULETA)
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (canAffordSpin) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Vibration,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (isSpinning) "Girando rodillos..." else "Agitá o tocá para girar (${state.bonusChips})",
-                                fontFamily = SpaceGrotesk,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = Color.White,
-                                maxLines = 1,
-                                textAlign = TextAlign.Center
-                            )
+                        Text(
+                            text = "Apuesta:",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.5.sp,
+                            color = Color.White.copy(alpha = 0.78f)
+                        )
+                        slotBetOptions.forEachIndexed { idx, optionAmount ->
+                            val isSelected = idx == selectedBetIndex
+                            val isAffordable = optionAmount <= currentBalance
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(38.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        when {
+                                            isSelected -> GoldBezelLight.copy(alpha = 0.24f)
+                                            isAffordable -> Color.Black.copy(alpha = 0.35f)
+                                            else -> Color.Black.copy(alpha = 0.18f)
+                                        }
+                                    )
+                                    .border(
+                                        width = if (isSelected) 1.4.dp else 0.9.dp,
+                                        color = when {
+                                            isSelected -> GoldBezelLight
+                                            isAffordable -> Color.White.copy(alpha = 0.28f)
+                                            else -> Color.White.copy(alpha = 0.10f)
+                                        },
+                                        shape = RoundedCornerShape(10.dp)
+                                    )
+                                    .clickable(enabled = !isSpinning && !showDepositModal && !showWithdrawModal && isAffordable) {
+                                        SoundManager.playClick()
+                                        selectedBetIndex = idx
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = formatSlotsPesos(optionAmount),
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = when {
+                                        isSelected -> GoldBezelLight
+                                        isAffordable -> Color.White
+                                        else -> Color.White.copy(alpha = 0.32f)
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1.15f)
+                                .height(46.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        if (isSpinning) listOf(Color.Gray, Color.DarkGray)
+                                        else listOf(GoldBezelDark, BordeMagenta)
+                                    )
+                                )
+                                .border(1.dp, GoldBezelLight.copy(alpha = 0.7f), RoundedCornerShape(12.dp))
+                                .clickable(enabled = !isSpinning && !showDepositModal && !showWithdrawModal) { triggerSpin() }
+                                .padding(horizontal = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Vibration,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = if (isSpinning) "Girando..." else "Agitá o girar",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = Color.White,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+
+                        if (state.spinsUsed >= 1) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(46.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
+                                    .clickable(enabled = !isSpinning) {
+                                        SoundManager.playClick()
+                                        hasFinished = true
+                                        val stoppedBeforeDrain = canAffordSpin && state.realMoneyLost == 0
+                                        onGameFinished(
+                                            stoppedBeforeDrain,
+                                            state.spinsUsed,
+                                            (currentBalance / 500).coerceIn(0, 10),
+                                            state.realMoneyLost,
+                                            currentTotalElapsed()
+                                        )
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Shield,
+                                        contentDescription = null,
+                                        tint = Color.Black,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "Plantarse",
+                                        fontFamily = SpaceGrotesk,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = Color.Black,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else if (state.realMoneyLost == 0) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Text(
+                            text = "Saldo agotado. Cargá para seguir jugando:",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.5.sp,
+                            color = RojoAlerta,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth(),
+                            maxLines = 1
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1.35f)
+                                    .height(42.dp)
+                                    .clip(RoundedCornerShape(11.dp))
+                                    .background(RojoAlerta.copy(alpha = 0.22f))
+                                    .border(1.2.dp, RojoAlerta, RoundedCornerShape(11.dp))
+                                    .clickable {
+                                        SoundManager.playClick()
+                                        showDepositModal = true
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Cargar $5.000 para seguir",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = Color.White,
+                                    maxLines = 1
+                                )
+                            }
+                            if (state.spinsUsed >= 1) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(0.75f)
+                                        .height(42.dp)
+                                        .clip(RoundedCornerShape(11.dp))
+                                        .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
+                                        .clickable {
+                                            SoundManager.playClick()
+                                            hasFinished = true
+                                            onGameFinished(
+                                                false,
+                                                state.spinsUsed,
+                                                (currentBalance / 500).coerceIn(0, 10),
+                                                state.realMoneyLost,
+                                                currentTotalElapsed()
+                                            )
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Cerrar",
+                                        fontFamily = SpaceGrotesk,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = Color.Black,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
                         }
                     }
                 } else {
@@ -838,10 +1136,10 @@ fun SlotsTrapGameScreen(
                         verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         Text(
-                            text = "Sin fichas de bono. El casino te pide depositar:",
+                            text = "Te quedaste sin saldo (${formatSlotsPesos(state.realMoneyLost)} cargados, $1.000 en comisiones).",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 11.5.sp,
+                            fontSize = 11.sp,
                             color = RojoAlerta,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth(),
@@ -852,17 +1150,17 @@ fun SlotsTrapGameScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(42.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(RojoAlerta.copy(alpha = 0.2f))
-                                .border(1.dp, RojoAlerta, RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(11.dp))
+                                .background(RojoAlerta.copy(alpha = 0.28f))
+                                .border(1.2.dp, RojoAlerta, RoundedCornerShape(11.dp))
                                 .clickable {
                                     SoundManager.playClick()
                                     hasFinished = true
                                     onGameFinished(
                                         false,
                                         state.spinsUsed,
-                                        state.bonusChips,
-                                        state.realMoneyLost + 5000,
+                                        0,
+                                        state.realMoneyLost,
                                         currentTotalElapsed()
                                     )
                                 }
@@ -870,7 +1168,7 @@ fun SlotsTrapGameScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "Cargar $5.000 reales para destrabar el bono",
+                                text = "Saldo vaciado • Ver resultado final",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp,
@@ -882,125 +1180,82 @@ fun SlotsTrapGameScreen(
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // 4. LECTURA DEL ALGORITMO
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF141B29))
-                    .border(1.dp, BordeCyan.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
-                    .padding(horizontal = 11.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    text = state.algorithmStageTitle,
-                    fontFamily = SpaceGrotesk,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    color = BordeCyan,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = state.algorithmExplanation,
-                    fontFamily = SpaceGrotesk,
-                    fontSize = 11.5.sp,
-                    lineHeight = 14.5.sp,
-                    color = Color.White.copy(alpha = 0.90f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            // 5. BOTÓN PLANTARSE SIEMPRE VISIBLE DENTRO DEL VIEWPORT SIN SCROLL
-            AnimatedVisibility(
-                visible = state.spinsUsed >= 1,
-                enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 2 }
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
-                            .clickable {
-                                SoundManager.playClick()
-                                hasFinished = true
-                                val stoppedBeforeDrain = state.spinsUsed < state.maxSpins
-                                onGameFinished(
-                                    stoppedBeforeDrain,
-                                    state.spinsUsed,
-                                    state.bonusChips,
-                                    state.realMoneyLost,
-                                    currentTotalElapsed()
-                                )
-                            }
-                            .padding(horizontal = 14.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Shield,
-                                contentDescription = null,
-                                tint = Color.Black,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (state.spinsUsed < state.maxSpins) "Plantarse" else "Cerrar sin depositar",
-                                fontFamily = SpaceGrotesk,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = Color.Black,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                }
-            }
         }
+
+        WithdrawBonusModal(
+            visible = showWithdrawModal,
+            currentBalance = currentBalance,
+            withdrawalMinimum = SLOTS_WITHDRAWAL_MIN,
+            isBonusBalance = state.realMoneyLost == 0,
+            onOpenDeposit = {
+                showWithdrawModal = false
+                showDepositModal = true
+            },
+            onDismiss = {
+                showWithdrawModal = false
+            }
+        )
+
+        CashierDepositModal(
+            visible = showDepositModal,
+            currentBalance = currentBalance,
+            onConfirmDeposit = { totalPaid, creditedAmount ->
+                showDepositModal = false
+                selectedBetIndex = slotBetOptions.indexOfLast { it <= creditedAmount }.coerceAtLeast(1)
+                lastOutcomeType = null
+                onStateChange(
+                    currentState.copy(
+                        bonusChips = (creditedAmount / 500).coerceIn(0, 10),
+                        fakeLockedWinnings = creditedAmount,
+                        realMoneyLost = currentState.realMoneyLost + totalPaid,
+                        elapsedMillis = currentTotalElapsed(),
+                        spinStatusBanner = "Carga acreditada: ${formatSlotsPesos(creditedAmount)}",
+                        algorithmStageTitle = "Saldo disponible: ${formatSlotsPesos(creditedAmount)}",
+                        algorithmExplanation = "Elegí tu apuesta y girá los rodillos."
+                    )
+                )
+            },
+            onDismiss = {
+                showDepositModal = false
+            }
+        )
     }
 }
 
 private fun resolveThreeByThreeGrid(
     spinsUsed: Int,
+    outcomeType: SlotSpinOutcomeType?,
     centerRow: List<SlotSymbol>
 ): List<List<SlotSymbol>> {
     val c0 = centerRow.getOrElse(0) { SlotSymbol.SEVEN }
     val c1 = centerRow.getOrElse(1) { SlotSymbol.COIN }
     val c2 = centerRow.getOrElse(2) { SlotSymbol.BAR }
 
-    return when (spinsUsed) {
-        0 -> listOf(
+    if (spinsUsed == 0 || outcomeType == null) {
+        return listOf(
             listOf(SlotSymbol.LEMON, c0, SlotSymbol.CHERRY),
             listOf(SlotSymbol.GRAPES, c1, SlotSymbol.BAR),
             listOf(SlotSymbol.COIN, c2, SlotSymbol.BELL)
         )
-        1 -> listOf(
+    }
+
+    return when (outcomeType) {
+        SlotSpinOutcomeType.WIN, SlotSpinOutcomeType.LDW -> listOf(
             listOf(SlotSymbol.COIN, c0, SlotSymbol.LEMON),
             listOf(SlotSymbol.BAR, c1, SlotSymbol.GRAPES),
-            listOf(SlotSymbol.BELL, c2, SlotSymbol.COIN)
+            listOf(SlotSymbol.BELL, c2, SlotSymbol.DIAMOND)
         )
-        2 -> listOf(
-            listOf(SlotSymbol.GRAPES, c0, SlotSymbol.COIN),
-            listOf(SlotSymbol.LEMON, c1, SlotSymbol.SEVEN),
-            listOf(SlotSymbol.CHERRY, c2, SlotSymbol.DIAMOND)
+        SlotSpinOutcomeType.NEAR_MISS_TOP -> listOf(
+            listOf(SlotSymbol.LEMON, c0, SlotSymbol.GRAPES),
+            listOf(SlotSymbol.CHERRY, c1, SlotSymbol.BELL),
+            listOf(c0, c2, SlotSymbol.GRAPES)
         )
-        in 3..6 -> {
-            val topCol2 = if (spinsUsed % 2 == 1) c0 else SlotSymbol.BAR
-            val botCol2 = if (spinsUsed % 2 == 0) c0 else SlotSymbol.GRAPES
-            listOf(
-                listOf(SlotSymbol.LEMON, c0, SlotSymbol.GRAPES),
-                listOf(SlotSymbol.CHERRY, c1, SlotSymbol.BELL),
-                listOf(topCol2, c2, botCol2)
-            )
-        }
-        else -> listOf(
+        SlotSpinOutcomeType.NEAR_MISS_BOTTOM -> listOf(
+            listOf(SlotSymbol.LEMON, c0, SlotSymbol.GRAPES),
+            listOf(SlotSymbol.CHERRY, c1, SlotSymbol.BELL),
+            listOf(SlotSymbol.BAR, c2, c0)
+        )
+        SlotSpinOutcomeType.LOSS -> listOf(
             listOf(SlotSymbol.COIN, c0, SlotSymbol.BELL),
             listOf(SlotSymbol.SEVEN, c1, SlotSymbol.LEMON),
             listOf(SlotSymbol.GRAPES, c2, SlotSymbol.BAR)
@@ -1049,13 +1304,13 @@ private fun SlotSymbolVectorIcon(symbol: SlotSymbol, iconSizeDp: Int = 34) {
     val iconSize = iconSizeDp.dp
     when (symbol) {
         SlotSymbol.SEVEN -> {
-            val fontSize = (iconSizeDp * 0.48f).coerceIn(13f, 18f).sp
+            val fontSize = (iconSizeDp * 0.48f).coerceIn(14f, 24f).sp
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
                     .background(Color(0xFF7F1D1D))
                     .border(1.2.dp, GoldBezelLight, RoundedCornerShape(6.dp))
-                    .padding(horizontal = 7.dp, vertical = 2.dp),
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -1069,7 +1324,7 @@ private fun SlotSymbolVectorIcon(symbol: SlotSymbol, iconSizeDp: Int = 34) {
             }
         }
         SlotSymbol.BAR -> {
-            val fontSize = (iconSizeDp * 0.38f).coerceIn(11f, 14f).sp
+            val fontSize = (iconSizeDp * 0.38f).coerceIn(12f, 20f).sp
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))

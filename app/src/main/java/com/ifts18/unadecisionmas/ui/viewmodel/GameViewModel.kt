@@ -27,9 +27,14 @@ import com.ifts18.unadecisionmas.data.remote.AuthRepository
 import com.ifts18.unadecisionmas.data.remote.FirebaseRankingRepository
 import com.ifts18.unadecisionmas.data.repository.GameScenariosRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -79,7 +84,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val savedName = prefs.getString(KEY_PREF_PLAYER_NAME, "Mateo")?.ifBlank { "Mateo" } ?: "Mateo"
         val savedAvatarIndex = prefs.getInt(KEY_PREF_AVATAR_INDEX, 1)
         val savedAvatarRes = FirebaseRankingRepository.indexToAvatarRes(savedAvatarIndex)
-        val tutorialDone = prefs.getBoolean(KEY_PREF_TUTORIAL_COMPLETED, false)
+        val initialUid = authState.value.uid
+        val tutorialDone = isTutorialCompletedForUid(initialUid)
         return GameState(
             profile = PlayerProfile(name = savedName, avatarResId = savedAvatarRes),
             isTutorialCompleted = tutorialDone,
@@ -87,42 +93,94 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    private fun tutorialKey(uid: String) = "${KEY_PREF_TUTORIAL_COMPLETED}_$uid"
+
+    private fun isTutorialCompletedForUid(uid: String): Boolean {
+        if (uid.isBlank()) return false
+        return prefs.getBoolean(tutorialKey(uid), false)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     private fun observeRoomState() {
+        val uidFlow = authState.map { it.uid }.distinctUntilChanged()
+
         viewModelScope.launch(Dispatchers.IO) {
-            gameDao.getMinigameProgress(KEY_SLOTS)?.let { saved ->
-                _slotsState.value = SlotsGameState(
-                    reel1 = runCatching { SlotSymbol.valueOf(saved.reel1Name) }.getOrDefault(SlotSymbol.SEVEN),
-                    reel2 = runCatching { SlotSymbol.valueOf(saved.reel2Name) }.getOrDefault(SlotSymbol.DIAMOND),
-                    reel3 = runCatching { SlotSymbol.valueOf(saved.reel3Name) }.getOrDefault(SlotSymbol.CHERRY),
-                    spinsUsed = saved.spinsUsed,
-                    bonusChips = saved.bonusChips,
-                    fakeLockedWinnings = saved.fakeLockedWinnings,
-                    realMoneyLost = saved.realMoneyLost,
-                    elapsedMillis = saved.elapsedMillis,
-                    algorithmStageTitle = saved.stageTitle.ifBlank { "Tenés ${saved.bonusChips} fichas de bono" },
-                    algorithmExplanation = saved.stageExplanation.ifBlank { "Agitá o tocá Girar para seguir." },
-                    spinStatusBanner = saved.statusBanner.ifBlank { "3 iguales suman saldo de bono" }
-                )
-            }
-            gameDao.getMinigameProgress(KEY_ROULETTE)?.let { saved ->
-                _rouletteState.value = RouletteGameState(
-                    selectedNumberIndex = saved.selectedNumberIndex.coerceIn(0, 36),
-                    selectedBetMode = saved.selectedBetMode.ifBlank { "PLENO" },
-                    landedPocketIndex = saved.landedPocketIndex.coerceIn(0, 36),
-                    spinsUsed = saved.spinsUsed,
-                    bonusChips = saved.bonusChips,
-                    fakeLockedWinnings = saved.fakeLockedWinnings,
-                    realMoneyLost = saved.realMoneyLost,
-                    elapsedMillis = saved.elapsedMillis,
-                    resultBannerText = saved.statusBanner.ifBlank { "Elegí tu apuesta y agitá para girar" },
-                    algorithmStageTitle = saved.stageTitle.ifBlank { "${saved.bonusChips} fichas activas" },
-                    algorithmExplanation = saved.stageExplanation.ifBlank { "Probá el paño y mirá qué pasa." }
-                )
+            uidFlow.collect { uid ->
+                _gameState.update { current ->
+                    current.copy(
+                        currentDayIndex = 0,
+                        currentDebt = 0,
+                        currentSavings = 15000,
+                        wellbeingPoints = 20,
+                        correctDecisionsCount = 0,
+                        incorrectDecisionsCount = 0,
+                        totalDecisionTimeMillis = 0L,
+                        decisionHistory = emptyList(),
+                        sessionAchievementIds = emptySet(),
+                        newlyUnlockedAchievement = null,
+                        betMomMoneyOnTuesday = false,
+                        isPunishedNoPhone = false,
+                        punishmentReasonTitle = "",
+                        punishmentReasonBody = "",
+                        isGameOver = false,
+                        isTutorialCompleted = isTutorialCompletedForUid(uid)
+                    )
+                }
+
+                if (uid.isBlank()) {
+                    _slotsState.value = SlotsGameState()
+                    _rouletteState.value = RouletteGameState()
+                    return@collect
+                }
+
+                val savedSlots = gameDao.getMinigameProgress(uid, KEY_SLOTS)
+                _slotsState.value = if (savedSlots != null) {
+                    SlotsGameState(
+                        reel1 = runCatching { SlotSymbol.valueOf(savedSlots.reel1Name) }.getOrDefault(SlotSymbol.SEVEN),
+                        reel2 = runCatching { SlotSymbol.valueOf(savedSlots.reel2Name) }.getOrDefault(SlotSymbol.DIAMOND),
+                        reel3 = runCatching { SlotSymbol.valueOf(savedSlots.reel3Name) }.getOrDefault(SlotSymbol.CHERRY),
+                        spinsUsed = savedSlots.spinsUsed,
+                        bonusChips = savedSlots.bonusChips,
+                        fakeLockedWinnings = savedSlots.fakeLockedWinnings,
+                        realMoneyLost = savedSlots.realMoneyLost,
+                        elapsedMillis = savedSlots.elapsedMillis,
+                        algorithmStageTitle = savedSlots.stageTitle.ifBlank { "Saldo: $${savedSlots.fakeLockedWinnings}" },
+                        algorithmExplanation = savedSlots.stageExplanation.ifBlank { "Elegí tu apuesta y girá." },
+                        spinStatusBanner = savedSlots.statusBanner.ifBlank { "3 iguales suman saldo a tu cuenta" }
+                    )
+                } else {
+                    SlotsGameState()
+                }
+
+                val savedRoulette = gameDao.getMinigameProgress(uid, KEY_ROULETTE)
+                _rouletteState.value = if (savedRoulette != null) {
+                    RouletteGameState(
+                        selectedNumberIndex = savedRoulette.selectedNumberIndex.coerceIn(0, 36),
+                        selectedBetMode = savedRoulette.selectedBetMode.ifBlank { "PLENO" },
+                        landedPocketIndex = savedRoulette.landedPocketIndex.coerceIn(0, 36),
+                        spinsUsed = savedRoulette.spinsUsed,
+                        bonusChips = savedRoulette.bonusChips,
+                        fakeLockedWinnings = savedRoulette.fakeLockedWinnings,
+                        realMoneyLost = savedRoulette.realMoneyLost,
+                        elapsedMillis = savedRoulette.elapsedMillis,
+                        resultBannerText = savedRoulette.statusBanner.ifBlank { "Elegí tu apuesta y agitá para girar" },
+                        algorithmStageTitle = savedRoulette.stageTitle.ifBlank { "Bono activo" },
+                        algorithmExplanation = savedRoulette.stageExplanation.ifBlank { "Elegí tu ficha y girá." }
+                    )
+                } else {
+                    RouletteGameState()
+                }
+
+                launch {
+                    syncUserAchievementsWithCloud(uid)
+                }
             }
         }
 
         viewModelScope.launch {
-            gameDao.observeSavedGame().collect { saved ->
+            uidFlow.flatMapLatest { uid ->
+                if (uid.isBlank()) flowOf(null) else gameDao.observeSavedGame(uid)
+            }.collect { saved ->
                 val dayName = if (saved != null) {
                     val list = GameScenariosRepository.getScenarios(saved.playerName)
                     list.getOrNull(saved.currentDayIndex)?.dayName ?: "En curso"
@@ -138,7 +196,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch {
-            gameDao.observeAchievements().collect { list ->
+            uidFlow.flatMapLatest { uid ->
+                if (uid.isBlank()) flowOf(emptyList()) else gameDao.observeAchievements(uid)
+            }.collect { list ->
                 val ids = list.map { it.achievementId }.toSet()
                 _gameState.update { current ->
                     current.copy(unlockedAchievementIds = ids)
@@ -147,13 +207,36 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch {
-            gameDao.observeTopScores().collect { scores ->
+            uidFlow.flatMapLatest { uid ->
+                if (uid.isBlank()) flowOf(emptyList()) else gameDao.observeTopScoresByUid(uid)
+            }.collect { scores ->
                 val bestByMode = scores
                     .groupBy { it.gameMode }
                     .mapValues { (_, list) -> list.maxOfOrNull { it.score } ?: 0 }
                 _gameState.update { current ->
                     current.copy(bestScoresByMode = bestByMode)
                 }
+            }
+        }
+    }
+
+    private suspend fun syncUserAchievementsWithCloud(uid: String) {
+        val cloudAchievements = authRepository.fetchCloudAchievements(uid)
+        if (cloudAchievements.isNotEmpty()) {
+            val entities = cloudAchievements.mapNotNull { (id, ts) ->
+                if (AchievementsCatalog.findById(id) != null) {
+                    AchievementEntity(uid = uid, achievementId = id, unlockedAt = ts)
+                } else null
+            }
+            if (entities.isNotEmpty()) {
+                gameDao.insertAchievementsIfAbsent(entities)
+            }
+        }
+
+        val localAchievements = gameDao.getAchievements(uid)
+        for (local in localAchievements) {
+            if (!cloudAchievements.containsKey(local.achievementId)) {
+                authRepository.pushAchievementToCloud(uid, local.achievementId, local.unlockedAt)
             }
         }
     }
@@ -221,7 +304,42 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun signOut() {
+        val outgoingUid = authState.value.uid
+        if (outgoingUid.isNotBlank()) {
+            prefs.edit().putBoolean(tutorialKey(outgoingUid), false).apply()
+        }
+        prefs.edit()
+            .remove(KEY_PREF_PLAYER_NAME)
+            .remove(KEY_PREF_AVATAR_INDEX)
+            .apply()
         authRepository.signOut()
+        _slotsState.value = SlotsGameState()
+        _rouletteState.value = RouletteGameState()
+        _gameState.update { current ->
+            current.copy(
+                profile = PlayerProfile(),
+                currentDayIndex = 0,
+                currentDebt = 0,
+                currentSavings = 15000,
+                wellbeingPoints = 20,
+                correctDecisionsCount = 0,
+                incorrectDecisionsCount = 0,
+                totalDecisionTimeMillis = 0L,
+                decisionHistory = emptyList(),
+                unlockedAchievementIds = emptySet(),
+                sessionAchievementIds = emptySet(),
+                newlyUnlockedAchievement = null,
+                hasSavedGameInRoom = false,
+                savedGameDayName = "",
+                bestScoresByMode = emptyMap(),
+                betMomMoneyOnTuesday = false,
+                isPunishedNoPhone = false,
+                punishmentReasonTitle = "",
+                punishmentReasonBody = "",
+                isGameOver = false,
+                isTutorialCompleted = false
+            )
+        }
     }
 
     fun markIntroSplashCompleted() {
@@ -229,12 +347,18 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun markTutorialCompleted() {
-        prefs.edit().putBoolean(KEY_PREF_TUTORIAL_COMPLETED, true).apply()
+        val uid = authState.value.uid
+        if (uid.isNotBlank()) {
+            prefs.edit().putBoolean(tutorialKey(uid), true).apply()
+        }
         _gameState.update { it.copy(isTutorialCompleted = true) }
     }
 
     fun restartTutorial() {
-        prefs.edit().putBoolean(KEY_PREF_TUTORIAL_COMPLETED, false).apply()
+        val uid = authState.value.uid
+        if (uid.isNotBlank()) {
+            prefs.edit().putBoolean(tutorialKey(uid), false).apply()
+        }
         _gameState.update { it.copy(isTutorialCompleted = false) }
     }
 
@@ -269,8 +393,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
-        viewModelScope.launch(Dispatchers.IO) {
-            gameDao.clearSavedGame()
+        val uid = authState.value.uid
+        if (uid.isNotBlank()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                gameDao.clearSavedGame(uid)
+            }
         }
     }
 
@@ -278,8 +405,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
      * Recupera desde Room/SQLite la partida que quedó a mitad de semana.
      */
     fun resumeSavedGameFromRoom(onLoaded: () -> Unit) {
+        val uid = authState.value.uid
+        if (uid.isBlank()) return
         viewModelScope.launch {
-            val saved = gameDao.getSavedGame() ?: return@launch
+            val saved = gameDao.getSavedGame(uid) ?: return@launch
             scenarios = GameScenariosRepository.getScenarios(saved.playerName)
             val history = SavedGameEntity.deserializeHistory(saved.serializedHistory)
             val restoredSessionAchievements = saved.serializedSessionAchievements
@@ -479,8 +608,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         if (shouldTriggerPunishment) {
-            viewModelScope.launch(Dispatchers.IO) {
-                gameDao.clearSavedGame()
+            val uid = authState.value.uid
+            if (uid.isNotBlank()) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    gameDao.clearSavedGame(uid)
+                }
             }
         } else if (isLastDay) {
             finalizeWeekGame(newDebt, newCorrect, newIncorrect)
@@ -528,8 +660,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
-        viewModelScope.launch(Dispatchers.IO) {
-            gameDao.clearSavedGame()
+        val uid = authState.value.uid
+        if (uid.isNotBlank()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                gameDao.clearSavedGame(uid)
+            }
         }
     }
 
@@ -563,11 +698,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         betMomMoneyOnTuesday: Boolean,
         sessionAchievements: Set<String>
     ) {
+        val uid = authState.value.uid
+        if (uid.isBlank()) return
         val profile = _gameState.value.profile
         viewModelScope.launch(Dispatchers.IO) {
             gameDao.saveGameProgress(
                 SavedGameEntity(
-                    id = 1,
+                    uid = uid,
                     playerName = profile.name,
                     avatarResId = profile.avatarResId,
                     currentDayIndex = nextDayIndex,
@@ -586,8 +723,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun finalizeWeekGame(finalDebt: Int, correctCount: Int, incorrectCount: Int) {
-        viewModelScope.launch(Dispatchers.IO) {
-            gameDao.clearSavedGame()
+        val uid = authState.value.uid
+        if (uid.isNotBlank()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                gameDao.clearSavedGame(uid)
+            }
         }
 
         if (finalDebt == 0) {
@@ -660,9 +800,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateSlotsProgress(state: SlotsGameState) {
         _slotsState.value = state
+        val uid = authState.value.uid
+        if (uid.isBlank()) return
         viewModelScope.launch(Dispatchers.IO) {
             gameDao.saveMinigameProgress(
                 MinigameProgressEntity(
+                    uid = uid,
                     gameKey = KEY_SLOTS,
                     spinsUsed = state.spinsUsed,
                     bonusChips = state.bonusChips,
@@ -682,9 +825,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateRouletteProgress(state: RouletteGameState) {
         _rouletteState.value = state
+        val uid = authState.value.uid
+        if (uid.isBlank()) return
         viewModelScope.launch(Dispatchers.IO) {
             gameDao.saveMinigameProgress(
                 MinigameProgressEntity(
+                    uid = uid,
                     gameKey = KEY_ROULETTE,
                     spinsUsed = state.spinsUsed,
                     bonusChips = state.bonusChips,
@@ -723,15 +869,21 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 (realMoneyLost / 2) +
                 (sessionEarned.size * 600)
 
-        val summary = if (stoppedEarly) {
-            "Te plantaste en el tiro $spinsUsed/10 y frenaste antes de que la casa vaciara tus fichas."
-        } else {
-            "Completaste los $spinsUsed tiros del tragamonedas: viste el gancho inicial, los casi-aciertos y la pérdida del final."
+        val summary = when {
+            realMoneyLost > 0 ->
+                "Cargaste $$realMoneyLost reales ($1.000 descontados en comisiones) y la máquina maniatada te vació sin dejarte llegar al mínimo de retiro ($30.000)."
+            stoppedEarly ->
+                "Te plantaste tras $spinsUsed giros antes de agotar el bono ni caer en depósitos con comisiones."
+            else ->
+                "Jugaste $spinsUsed giros sin depositar: comprobaste que el algoritmo da premios chicos pero nunca alcanza el mínimo de retiro ($30.000)."
         }
 
         _slotsState.value = SlotsGameState()
-        viewModelScope.launch(Dispatchers.IO) {
-            gameDao.clearMinigameProgress(KEY_SLOTS)
+        val uid = authState.value.uid
+        if (uid.isNotBlank()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                gameDao.clearMinigameProgress(uid, KEY_SLOTS)
+            }
         }
 
         _gameState.update { state ->
@@ -775,15 +927,21 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 (realMoneyLost / 2) +
                 (sessionEarned.size * 600)
 
-        val summary = if (stoppedEarly) {
-            "Te plantaste en la tirada $spinsUsed/10 antes de que la banca vaciara tus fichas."
-        } else {
-            "Completaste las $spinsUsed tiradas de ruleta y comprobaste cómo el 0 Verde inclina la ventaja."
+        val summary = when {
+            realMoneyLost > 0 ->
+                "Cargaste $$realMoneyLost reales ($1.000 descontados en comisiones) y la ruleta maniatada te vació sin dejarte alcanzar el mínimo de retiro ($30.000)."
+            stoppedEarly ->
+                "Te plantaste tras $spinsUsed rondas antes de caer en comisiones ni depósitos reales."
+            else ->
+                "Jugaste $spinsUsed rondas sin depositar y comprobaste cómo la banca bloquea el mínimo de retiro ($30.000)."
         }
 
         _rouletteState.value = RouletteGameState()
-        viewModelScope.launch(Dispatchers.IO) {
-            gameDao.clearMinigameProgress(KEY_ROULETTE)
+        val uid = authState.value.uid
+        if (uid.isNotBlank()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                gameDao.clearMinigameProgress(uid, KEY_ROULETTE)
+            }
         }
 
         _gameState.update { state ->
@@ -830,6 +988,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         achievementId: String,
         resetSessionTo: Set<String>? = null
     ) {
+        val uid = authState.value.uid
+        if (uid.isBlank()) return
         val def = AchievementsCatalog.findById(achievementId) ?: return
         val alreadyUnlocked = _gameState.value.unlockedAchievementIds.contains(achievementId)
 
@@ -843,8 +1003,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         if (!alreadyUnlocked) {
+            val now = System.currentTimeMillis()
             viewModelScope.launch(Dispatchers.IO) {
-                gameDao.unlockAchievement(AchievementEntity(achievementId = achievementId))
+                gameDao.unlockAchievement(
+                    AchievementEntity(
+                        uid = uid,
+                        achievementId = achievementId,
+                        unlockedAt = now
+                    )
+                )
+                authRepository.pushAchievementToCloud(uid, achievementId, now)
             }
         }
     }
