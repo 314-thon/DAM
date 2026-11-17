@@ -2,6 +2,7 @@ package com.ifts18.unadecisionmas.ui.viewmodel
 
 import android.app.Application
 import android.content.Context
+import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ifts18.unadecisionmas.R
@@ -12,6 +13,7 @@ import com.ifts18.unadecisionmas.data.local.MinigameProgressEntity
 import com.ifts18.unadecisionmas.data.local.SavedGameEntity
 import com.ifts18.unadecisionmas.data.model.AchievementDef
 import com.ifts18.unadecisionmas.data.model.AchievementsCatalog
+import com.ifts18.unadecisionmas.data.model.AuthUiState
 import com.ifts18.unadecisionmas.data.model.DecisionOption
 import com.ifts18.unadecisionmas.data.model.DecisionRecord
 import com.ifts18.unadecisionmas.data.model.GameScenario
@@ -21,6 +23,7 @@ import com.ifts18.unadecisionmas.data.model.RankingEntry
 import com.ifts18.unadecisionmas.data.model.RouletteGameState
 import com.ifts18.unadecisionmas.data.model.SlotSymbol
 import com.ifts18.unadecisionmas.data.model.SlotsGameState
+import com.ifts18.unadecisionmas.data.remote.AuthRepository
 import com.ifts18.unadecisionmas.data.remote.FirebaseRankingRepository
 import com.ifts18.unadecisionmas.data.repository.GameScenariosRepository
 import kotlinx.coroutines.Dispatchers
@@ -34,8 +37,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private val database = AppDatabase.getInstance(application)
     private val gameDao = database.gameDao()
+    private val authRepository = AuthRepository(application)
     private val rankingRepository = FirebaseRankingRepository(application, gameDao)
     private val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    val authState: StateFlow<AuthUiState> = authRepository.authState
 
     private val _gameState = MutableStateFlow(loadInitialGameState())
     val gameState: StateFlow<GameState> = _gameState.asStateFlow()
@@ -54,6 +60,19 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         observeRoomState()
+        observeAuthProfile()
+    }
+
+    private fun observeAuthProfile() {
+        viewModelScope.launch {
+            authRepository.loadedProfile.collect { profile ->
+                if (profile != null) {
+                    val (nickname, avatarIndex) = profile
+                    val avatarRes = FirebaseRankingRepository.indexToAvatarRes(avatarIndex)
+                    applyProfileLocally(nickname, avatarRes)
+                }
+            }
+        }
     }
 
     private fun loadInitialGameState(): GameState {
@@ -142,6 +161,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun setPlayerProfile(name: String, avatarResId: Int) {
         val cleanName = name.trim().ifEmpty { "Mateo" }
         val resolvedAvatar = if (avatarResId != 0) avatarResId else R.drawable.avatar_1
+        applyProfileLocally(cleanName, resolvedAvatar)
+        authRepository.updateProfileIfAuthenticated(
+            nickname = cleanName,
+            avatarIndex = FirebaseRankingRepository.avatarResToIndex(resolvedAvatar)
+        )
+    }
+
+    private fun applyProfileLocally(name: String, avatarResId: Int) {
+        val cleanName = name.trim().ifEmpty { "Mateo" }
+        val resolvedAvatar = if (avatarResId != 0) avatarResId else R.drawable.avatar_1
         scenarios = GameScenariosRepository.getScenarios(cleanName)
         prefs.edit()
             .putString(KEY_PREF_PLAYER_NAME, cleanName)
@@ -155,6 +184,44 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 )
             )
         }
+    }
+
+    fun signInAnonymously(nickname: String, avatarResId: Int) {
+        viewModelScope.launch {
+            val avatarIndex = FirebaseRankingRepository.avatarResToIndex(avatarResId)
+            authRepository.signInAnonymouslyWithProfile(nickname, avatarIndex)
+        }
+    }
+
+    fun signInWithEmail(email: String, password: String, isRegister: Boolean) {
+        viewModelScope.launch {
+            authRepository.signInOrRegisterWithEmail(email, password, isRegister)
+        }
+    }
+
+    fun buildGoogleSignInIntent(activityContext: Context): Intent? {
+        return authRepository.buildGoogleSignInIntent(activityContext)
+    }
+
+    fun onGoogleSignInResult(data: Intent?) {
+        viewModelScope.launch {
+            authRepository.handleGoogleSignInResult(data)
+        }
+    }
+
+    fun completeNicknameSetup(nickname: String, avatarResId: Int) {
+        viewModelScope.launch {
+            val avatarIndex = FirebaseRankingRepository.avatarResToIndex(avatarResId)
+            authRepository.saveNicknameAndAvatar(nickname, avatarIndex)
+        }
+    }
+
+    fun clearAuthError() {
+        authRepository.clearError()
+    }
+
+    fun signOut() {
+        authRepository.signOut()
     }
 
     fun markIntroSplashCompleted() {
@@ -245,8 +312,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun getCurrentScenario(): GameScenario {
-        val index = _gameState.value.currentDayIndex.coerceIn(0, scenarios.lastIndex)
+    fun getCurrentScenario(state: GameState = _gameState.value): GameScenario {
+        val index = state.currentDayIndex.coerceIn(0, scenarios.lastIndex)
+        if (index == 6) {
+            return GameScenariosRepository.getSundayScenario(
+                playerName = state.profile.name,
+                hasCajeroDebt = state.hasCajeroDebt(),
+                hasGambledInWeek = state.incorrectDecisionsCount > 0 || state.currentDebt > 0
+            )
+        }
         return scenarios[index]
     }
 

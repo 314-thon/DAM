@@ -1,6 +1,8 @@
 package com.ifts18.unadecisionmas.ui.screens
 
 import android.view.SoundEffectConstants
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -41,14 +43,16 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -99,18 +103,26 @@ import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.ifts18.unadecisionmas.R
 import com.ifts18.unadecisionmas.audio.SoundManager
+import com.ifts18.unadecisionmas.data.model.AuthProviderType
+import com.ifts18.unadecisionmas.data.model.AuthUiState
+import com.ifts18.unadecisionmas.data.remote.AuthRepository
 import com.ifts18.unadecisionmas.sensor.HapticFeedbackHelper
+import com.ifts18.unadecisionmas.ui.components.AuthOnboardingModal
 import com.ifts18.unadecisionmas.ui.components.SoundToggleButton
 import com.ifts18.unadecisionmas.ui.components.TutorialCoachmarkOverlay
 import com.ifts18.unadecisionmas.ui.components.TutorialStep
+import com.ifts18.unadecisionmas.ui.qr.QrCaptureActivity
 import com.ifts18.unadecisionmas.ui.theme.BordeCyan
 import com.ifts18.unadecisionmas.ui.theme.BordeMagenta
 import com.ifts18.unadecisionmas.ui.theme.GlowCyan
 import com.ifts18.unadecisionmas.ui.theme.GlowVioleta
 import com.ifts18.unadecisionmas.ui.theme.JuegoLimpioTheme
+import com.ifts18.unadecisionmas.ui.theme.RojoAlerta
 import com.ifts18.unadecisionmas.ui.theme.SpaceGrotesk
 import com.ifts18.unadecisionmas.ui.theme.TextoSecundario
 import com.ifts18.unadecisionmas.ui.theme.VerdeExito
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.delay
 
 private enum class IntroLogoStage {
@@ -122,11 +134,8 @@ private enum class IntroLogoStage {
 private data class HubGameCardSpec(
     val modeKey: String,
     val title: String,
-    val categoryTag: String,
-    val defaultBadge: String,
     @DrawableRes val coverImageRes: Int,
     val borderAccent: Color,
-    val dotColor: Color,
     val onClick: () -> Unit
 )
 
@@ -139,6 +148,7 @@ private const val LOTTIE_HERO_SETTLED_PROGRESS = 0.50f
 fun WelcomeScreen(
     initialPlayerName: String = "Mateo",
     initialAvatarResId: Int = R.drawable.avatar_1,
+    authState: AuthUiState = AuthUiState(isAuthenticated = true),
     hasSavedGame: Boolean = false,
     savedGameDayName: String = "",
     unlockedAchievementsCount: Int = 0,
@@ -146,6 +156,12 @@ fun WelcomeScreen(
     isTutorialCompleted: Boolean = true,
     hasPlayedIntroSplash: Boolean = false,
     onProfileChanged: (String, Int) -> Unit = { _, _ -> },
+    onSignInAnonymous: (String, Int) -> Unit = { _, _ -> },
+    onSignInEmail: (String, String, Boolean) -> Unit = { _, _, _ -> },
+    onSignInGoogle: () -> Unit = {},
+    onCompleteNickname: (String, Int) -> Unit = { _, _ -> },
+    onSignOut: () -> Unit = {},
+    onClearAuthError: () -> Unit = {},
     onIntroSplashCompleted: () -> Unit = {},
     onTutorialCompleted: () -> Unit = {},
     onRestartTutorial: () -> Unit = {},
@@ -155,12 +171,12 @@ fun WelcomeScreen(
     onStartSlotsTrapGame: (String, Int) -> Unit,
     onStartRouletteTrapGame: (String, Int) -> Unit = { _, _ -> },
     onOpenLeaderboard: (String, Int) -> Unit,
+    onQrCodeScanned: (String) -> Boolean = { false },
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val view = LocalView.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    val scrollState = rememberScrollState()
 
     var playerName by remember(initialPlayerName) {
         mutableStateOf(initialPlayerName.ifBlank { "Mateo" })
@@ -179,10 +195,32 @@ fun WelcomeScreen(
     val isSplashLoading = introStage == IntroLogoStage.SPLASH_LOADING
     val isLogoSettled = introStage == IntroLogoStage.SETTLED
 
-    // Control de modales del Hub (Edición de Apodo, Selector de Avatares, Modal Partida Guardada)
+    // Control de modales del Hub (Edición de Apodo/Cuenta, Selector de Avatares, Modal Partida Guardada)
     var showNicknameModal by remember { mutableStateOf(false) }
     var showAvatarModal by remember { mutableStateOf(false) }
     var showSavedWeekModal by remember { mutableStateOf(false) }
+
+    val qrScannerLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        val contents = result.contents
+        if (!contents.isNullOrBlank()) {
+            val unlocked = onQrCodeScanned(contents)
+            if (unlocked) {
+                Toast.makeText(
+                    context,
+                    "Medalla secreta desbloqueada: SixSeven (#67)",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else {
+                Toast.makeText(
+                    context,
+                    "QR leído: $contents",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    val needsOnboarding = !authState.isAuthenticated || authState.needsNicknameSetup
 
     // Control del Tutorial Guiado de 5 pasos (se activa cuando el logo ya terminó de viajar a su lugar)
     var activeTutorialStep by remember { mutableStateOf<TutorialStep?>(null) }
@@ -270,19 +308,11 @@ fun WelcomeScreen(
         }
     }
 
-    // Inicia automáticamente el tutorial en el primer lanzamiento apenas el logo queda fijo en cabecera
-    LaunchedEffect(isLogoSettled, isTutorialCompleted) {
-        if (isLogoSettled && !isTutorialCompleted && !hasAutoStartedTutorial) {
+    // Inicia automáticamente el tutorial en el primer lanzamiento apenas el logo queda fijo y el login/apodo está listo
+    LaunchedEffect(isLogoSettled, isTutorialCompleted, needsOnboarding) {
+        if (isLogoSettled && !needsOnboarding && !isTutorialCompleted && !hasAutoStartedTutorial) {
             hasAutoStartedTutorial = true
-            scrollState.scrollTo(0)
             activeTutorialStep = TutorialStep.NICKNAME
-        }
-    }
-
-    // Si se reinicia o muestra el tutorial, garantiza que el scroll vuelva arriba para encuadrar todos los botones
-    LaunchedEffect(activeTutorialStep != null) {
-        if (activeTutorialStep != null && scrollState.value != 0) {
-            scrollState.scrollTo(0)
         }
     }
 
@@ -343,8 +373,18 @@ fun WelcomeScreen(
     ) {
         val screenHeight = maxHeight
         val isCompactHeight = screenHeight < 680.dp
-        val settledLogoHeight = if (isCompactHeight) 96.dp else 112.dp
-        val cardImageHeight = if (isCompactHeight) 124.dp else 136.dp
+        val cardImageHeight = when {
+            screenHeight < 600.dp -> 96.dp
+            isCompactHeight -> 110.dp
+            else -> 130.dp
+        }
+        // Altura de Top Bar + Perfil + Título + Grilla 2x2 (con margen extra para evitar desbordes por fontScale)
+        val nonLogoFixedHeight = 176.dp + (cardImageHeight * 2)
+        val availableForLogoAndGaps = (screenHeight - nonLogoFixedHeight).coerceAtLeast(80.dp)
+        val settledLogoHeight = (availableForLogoAndGaps * 0.72f).coerceIn(72.dp, 200.dp)
+        val remainingVerticalSpace = (availableForLogoAndGaps - settledLogoHeight).coerceAtLeast(4.dp)
+        val settledLogoTopGap = if (isCompactHeight) 4.dp else (remainingVerticalSpace * 0.40f).coerceAtLeast(4.dp)
+        val settledLogoBottomGap = if (isCompactHeight) 4.dp else (remainingVerticalSpace * 0.45f).coerceAtLeast(4.dp)
 
         // Animación fluida del viaje del logo desde el centro de la pantalla hasta su cabecera fija
         val logoHeight by animateDpAsState(
@@ -356,7 +396,7 @@ fun WelcomeScreen(
             label = "logoHeight"
         )
         val logoExtraTopOffset by animateDpAsState(
-            targetValue = if (isSplashLoading) (screenHeight * 0.22f) else 6.dp,
+            targetValue = if (isSplashLoading) (screenHeight * 0.14f).coerceAtLeast(24.dp) else settledLogoTopGap,
             animationSpec = tween(
                 durationMillis = 680,
                 easing = FastOutSlowInEasing
@@ -383,157 +423,145 @@ fun WelcomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState, enabled = isLogoSettled && activeTutorialStep == null)
                 .padding(horizontal = 18.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 1. TOP HUD BAR: PERFIL DEL JUGADOR (AVATAR + APODO + NIVEL) A LA IZQUIERDA + '?' Y SONIDO A LA DERECHA
+            // 1. TOP HUD BAR: RANKING Y MEDALLAS A LA IZQUIERDA + PERFIL/CUENTA, TUTORIAL (?) Y MUTE A LA DERECHA
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .graphicsLayer { alpha = hubAlpha },
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Perfil del jugador en su ubicación natural superior izquierda (coherente con GameTopBar)
-                Row(
+                // Acceso a Ranking y medallas en la fila superior
+                Box(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(end = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .onGloballyPositioned { coords ->
+                            rankingButtonBounds = coords.boundsInRoot()
+                        }
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color(0xFF0F172A).copy(alpha = 0.92f),
+                                    Color(0xFF0C2233).copy(alpha = 0.92f)
+                                )
+                            )
+                        )
+                        .border(
+                            width = 1.3.dp,
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(
+                                    BordeCyan.copy(alpha = 0.80f),
+                                    BordeMagenta.copy(alpha = 0.55f)
+                                )
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                        .clickable(enabled = !isSplashLoading) {
+                            playClickFeedback()
+                            keyboardController?.hide()
+                            val clean = currentCleanName()
+                            onProfileChanged(clean, selectedAvatarResId)
+                            onOpenLeaderboard(clean, selectedAvatarResId)
+                        }
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
                 ) {
-                    // Avatar circular con aro neón cyan-magenta y botón flotante de cámara
-                    Box(
-                        modifier = Modifier
-                            .onGloballyPositioned { coords ->
-                                avatarBounds = coords.boundsInRoot()
-                            }
-                            .size(52.dp)
-                            .clickable(enabled = !isSplashLoading) {
-                                playClickFeedback()
-                                HapticFeedbackHelper.vibrateShort(context, 35L)
-                                showAvatarModal = true
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .shadow(
-                                    elevation = 10.dp,
-                                    shape = CircleShape,
-                                    ambientColor = BordeCyan,
-                                    spotColor = BordeMagenta
-                                )
-                                .clip(CircleShape)
-                                .background(
-                                    Brush.linearGradient(
-                                        colors = listOf(BordeCyan, BordeMagenta)
-                                    )
-                                )
-                                .padding(2.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF0F172A)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Image(
-                                painter = painterResource(id = selectedAvatarResId),
-                                contentDescription = "Avatar de ${currentCleanName()}",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape)
-                            )
-                        }
-
-                        // Badge flotante de cámara/editar avatar (esquina inferior derecha)
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .size(19.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    Brush.linearGradient(
-                                        colors = listOf(Color(0xFF06B6D4), Color(0xFF2DD4BF))
-                                    )
-                                )
-                                .border(1.5.dp, Color(0xFF091122), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CameraAlt,
-                                contentDescription = "Cambiar avatar",
-                                tint = Color(0xFF041019),
-                                modifier = Modifier.size(10.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    // Apodo editable + Nivel y rango debajo
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.Center
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
-                            modifier = Modifier
-                                .onGloballyPositioned { coords ->
-                                    nicknameBounds = coords.boundsInRoot()
-                                }
-                                .clip(RoundedCornerShape(50))
-                                .background(Color(0xFF0F172A).copy(alpha = 0.85f))
-                                .border(
-                                    width = 1.dp,
-                                    color = Color.White.copy(alpha = 0.18f),
-                                    shape = RoundedCornerShape(50)
-                                )
-                                .clickable(enabled = !isSplashLoading) {
-                                    playClickFeedback()
-                                    showNicknameModal = true
-                                }
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
                         ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .clip(CircleShape)
+                                    .background(BordeCyan.copy(alpha = 0.16f))
+                                    .border(1.dp, BordeCyan.copy(alpha = 0.45f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.EmojiEvents,
+                                    contentDescription = "Ranking y Medallas",
+                                    tint = BordeCyan,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = currentCleanName(),
+                                text = "Ranking y medallas",
                                 fontFamily = SpaceGrotesk,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
+                                fontSize = 11.sp,
                                 color = Color.White,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "Editar apodo",
-                                tint = BordeCyan,
-                                modifier = Modifier.size(12.5.dp)
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(3.dp))
+                        Spacer(modifier = Modifier.width(5.dp))
 
-                        Text(
-                            text = playerRankLabel.uppercase(),
-                            fontFamily = SpaceGrotesk,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 9.5.sp,
-                            letterSpacing = 0.6.sp,
-                            color = Color(0xFF2DD4BF).copy(alpha = 0.92f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(BordeCyan.copy(alpha = 0.16f))
+                                .border(1.dp, BordeCyan.copy(alpha = 0.55f), RoundedCornerShape(50))
+                                .padding(horizontal = 7.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "$unlockedAchievementsCount/7",
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.5.sp,
+                                color = Color(0xFFA5F3FC)
+                            )
+                        }
                     }
                 }
 
-                // Acciones derechas: Repetir Tutorial (?) + Botón de Mute
+                // Acciones derechas: Escanear QR + Repetir Tutorial (?) + Botón de Mute
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1B1E28).copy(alpha = 0.90f))
+                            .border(
+                                width = 1.dp,
+                                color = BordeCyan.copy(alpha = 0.65f),
+                                shape = CircleShape
+                            )
+                            .clickable(enabled = !isSplashLoading) {
+                                playClickFeedback()
+                                HapticFeedbackHelper.vibrateShort(context, 35L)
+                                val options = ScanOptions().apply {
+                                    setCaptureActivity(QrCaptureActivity::class.java)
+                                    setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                                    setPrompt("Escanea un QR de un compañero")
+                                    setBeepEnabled(true)
+                                    setOrientationLocked(false)
+                                }
+                                qrScannerLauncher.launch(options)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.QrCode2,
+                            contentDescription = "Escanear QR",
+                            tint = BordeCyan,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
                     Box(
                         modifier = Modifier
                             .size(38.dp)
@@ -575,7 +603,143 @@ fun WelcomeScreen(
                 }
             }
 
-            // 2. HERO LOGO: Lottie en el Splash inicial -> viaja arriba y pasa al ícono oficial de la app
+            Spacer(modifier = Modifier.height(if (isCompactHeight) 8.dp else 10.dp))
+
+            // 2. PERFIL DEL JUGADOR JUSTO DEBAJO DEL RANKING: FOTO DE PERFIL + APODO + NIVEL
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer { alpha = hubAlpha },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Avatar circular con aro neón cyan-magenta y botón flotante de cámara
+                Box(
+                    modifier = Modifier
+                        .onGloballyPositioned { coords ->
+                            avatarBounds = coords.boundsInRoot()
+                        }
+                        .size(52.dp)
+                        .clickable(enabled = !isSplashLoading) {
+                            playClickFeedback()
+                            HapticFeedbackHelper.vibrateShort(context, 35L)
+                            showAvatarModal = true
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .shadow(
+                                elevation = 10.dp,
+                                shape = CircleShape,
+                                ambientColor = BordeCyan,
+                                spotColor = BordeMagenta
+                            )
+                            .clip(CircleShape)
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(BordeCyan, BordeMagenta)
+                                )
+                            )
+                            .padding(2.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF0F172A)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = selectedAvatarResId),
+                            contentDescription = "Avatar de ${currentCleanName()}",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                        )
+                    }
+
+                    // Badge flotante de cámara/editar avatar (esquina inferior derecha)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(19.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF06B6D4), Color(0xFF2DD4BF))
+                                )
+                            )
+                            .border(1.5.dp, Color(0xFF091122), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = "Cambiar avatar",
+                            tint = Color(0xFF041019),
+                            modifier = Modifier.size(10.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                // Apodo editable + Nivel y rango debajo
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .onGloballyPositioned { coords ->
+                                nicknameBounds = coords.boundsInRoot()
+                            }
+                            .clip(RoundedCornerShape(50))
+                            .background(Color(0xFF0F172A).copy(alpha = 0.85f))
+                            .border(
+                                width = 1.dp,
+                                color = Color.White.copy(alpha = 0.18f),
+                                shape = RoundedCornerShape(50)
+                            )
+                            .clickable(enabled = !isSplashLoading) {
+                                playClickFeedback()
+                                showNicknameModal = true
+                            }
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = currentCleanName(),
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Editar apodo",
+                            tint = BordeCyan,
+                            modifier = Modifier.size(12.5.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    Text(
+                        text = playerRankLabel.uppercase(),
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 9.5.sp,
+                        letterSpacing = 0.6.sp,
+                        color = Color(0xFF2DD4BF).copy(alpha = 0.92f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            // 3. HERO LOGO: Lottie en el Splash inicial -> viaja arriba y pasa al ícono oficial de la app
             Spacer(modifier = Modifier.height(logoExtraTopOffset))
 
             Box(
@@ -660,7 +824,7 @@ fun WelcomeScreen(
                 }
             }
 
-            // 3. CONTENIDO DEL HUB REDISEÑADO (Aparece mientras el logo viaja a su lugar fijo)
+            // 4. CONTENIDO DEL HUB REDISEÑADO (Aparece mientras el logo viaja a su lugar fijo)
             if (!isSplashLoading) {
                 Column(
                     modifier = Modifier
@@ -668,9 +832,9 @@ fun WelcomeScreen(
                         .graphicsLayer { alpha = hubAlpha },
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Spacer(modifier = Modifier.height(if (isCompactHeight) 6.dp else 10.dp))
+                    Spacer(modifier = Modifier.height(settledLogoBottomGap))
 
-                    // 4. SECCIÓN DE JUEGOS: GRILLA 2x2 CON IMÁGENES TEMÁTICAS Y SHADER DE SOMBRA
+                    // 5. SECCIÓN DE JUEGOS: GRILLA 2x2 CON IMÁGENES TEMÁTICAS Y SHADER DE SOMBRA (Zona del pulgar)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -703,24 +867,12 @@ fun WelcomeScreen(
 
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        val weekBest = bestScoresByMode["La Semana"]
-                        val scrollBest = bestScoresByMode["Scroll sin Caer"]
-                        val slotsBest = bestScoresByMode["Trampa del Jackpot"]
-                        val rouletteBest = bestScoresByMode["La Ruleta del 29"]
-
                         val cards = listOf(
                             HubGameCardSpec(
                                 modeKey = "La Semana",
                                 title = "LA SEMANA:\nUNA DECISIÓN MÁS",
-                                categoryTag = "Historia • 7 Días",
-                                defaultBadge = when {
-                                    hasSavedGame -> "En curso ($savedGameDayName)"
-                                    weekBest != null && weekBest > 0 -> "Récord: $weekBest pts"
-                                    else -> "7 Días • Chat"
-                                },
                                 coverImageRes = R.drawable.ad_prestamo_express,
                                 borderAccent = BordeCyan,
-                                dotColor = if (hasSavedGame) VerdeExito else BordeCyan,
                                 onClick = {
                                     playClickFeedback()
                                     keyboardController?.hide()
@@ -736,15 +888,8 @@ fun WelcomeScreen(
                             HubGameCardSpec(
                                 modeKey = "Scroll sin Caer",
                                 title = "SCROLL\nSIN CAER",
-                                categoryTag = "Feed • Acelerómetro",
-                                defaultBadge = if (scrollBest != null && scrollBest > 0) {
-                                    "Récord: $scrollBest pts"
-                                } else {
-                                    "Feed • Sensor"
-                                },
                                 coverImageRes = R.drawable.ad_fitness_casino,
                                 borderAccent = BordeMagenta,
-                                dotColor = VerdeExito,
                                 onClick = {
                                     playClickFeedback()
                                     keyboardController?.hide()
@@ -756,15 +901,8 @@ fun WelcomeScreen(
                             HubGameCardSpec(
                                 modeKey = "Trampa del Jackpot",
                                 title = "TRAGAMONEDAS\nJACKPOT 777",
-                                categoryTag = "Slots 3x3 • Sensor",
-                                defaultBadge = if (slotsBest != null && slotsBest > 0) {
-                                    "Récord: $slotsBest pts"
-                                } else {
-                                    "Slots 3x3"
-                                },
                                 coverImageRes = R.drawable.card_slots_jackpot,
                                 borderAccent = Color(0xFFF59E0B),
-                                dotColor = Color(0xFFFBBF24),
                                 onClick = {
                                     playClickFeedback()
                                     keyboardController?.hide()
@@ -776,15 +914,8 @@ fun WelcomeScreen(
                             HubGameCardSpec(
                                 modeKey = "La Ruleta del 29",
                                 title = "LA RULETA\nDEL 29",
-                                categoryTag = "Ruleta • Sensor",
-                                defaultBadge = if (rouletteBest != null && rouletteBest > 0) {
-                                    "Récord: $rouletteBest pts"
-                                } else {
-                                    "Ruleta Europea"
-                                },
                                 coverImageRes = R.drawable.card_roulette_wheel,
                                 borderAccent = Color(0xFFA855F7),
-                                dotColor = BordeMagenta,
                                 onClick = {
                                     playClickFeedback()
                                     keyboardController?.hide()
@@ -831,122 +962,13 @@ fun WelcomeScreen(
                             )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(if (isCompactHeight) 10.dp else 14.dp))
-
-                    // 5. ACCESO DESTACADO A RANKING Y MEDALLAS (Zona inferior ergonómica)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onGloballyPositioned { coords ->
-                                rankingButtonBounds = coords.boundsInRoot()
-                            }
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(
-                                Brush.horizontalGradient(
-                                    colors = listOf(
-                                        Color(0xFF0F172A).copy(alpha = 0.92f),
-                                        Color(0xFF0C2233).copy(alpha = 0.92f)
-                                    )
-                                )
-                            )
-                            .border(
-                                width = 1.3.dp,
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        BordeCyan.copy(alpha = 0.80f),
-                                        BordeMagenta.copy(alpha = 0.55f)
-                                    )
-                                ),
-                                shape = RoundedCornerShape(16.dp)
-                            )
-                            .clickable(enabled = !isSplashLoading) {
-                                playClickFeedback()
-                                keyboardController?.hide()
-                                val clean = currentCleanName()
-                                onProfileChanged(clean, selectedAvatarResId)
-                                onOpenLeaderboard(clean, selectedAvatarResId)
-                            }
-                            .padding(horizontal = 14.dp, vertical = 11.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(34.dp)
-                                        .clip(CircleShape)
-                                        .background(BordeCyan.copy(alpha = 0.16f))
-                                        .border(1.dp, BordeCyan.copy(alpha = 0.45f), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.EmojiEvents,
-                                        contentDescription = "Ranking y Medallas",
-                                        tint = BordeCyan,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text(
-                                        text = "Ranking y medallas",
-                                        fontFamily = SpaceGrotesk,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
-                                        color = Color.White
-                                    )
-                                    Text(
-                                        text = "Tabla global y vitrina de logros",
-                                        fontFamily = SpaceGrotesk,
-                                        fontWeight = FontWeight.Medium,
-                                        fontSize = 11.sp,
-                                        color = TextoSecundario
-                                    )
-                                }
-                            }
-
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(50))
-                                        .background(BordeCyan.copy(alpha = 0.16f))
-                                        .border(1.dp, BordeCyan.copy(alpha = 0.55f), RoundedCornerShape(50))
-                                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = "$unlockedAchievementsCount/7",
-                                        fontFamily = SpaceGrotesk,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp,
-                                        color = Color(0xFFA5F3FC)
-                                    )
-                                }
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = null,
-                                    tint = BordeCyan,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
                 }
             }
         }
 
-        // 5. TUTORIAL GUIADO INTERACTIVO (Sombreado + Mano apuntando a cada sección)
+        // 6. TUTORIAL GUIADO INTERACTIVO (Sombreado + Mano apuntando a cada sección)
         val tutorialStep = activeTutorialStep
-        if (isLogoSettled && tutorialStep != null && !showAvatarModal && !showNicknameModal) {
+        if (isLogoSettled && !needsOnboarding && tutorialStep != null && !showAvatarModal && !showNicknameModal) {
             val currentTargetBounds = when (tutorialStep) {
                 TutorialStep.NICKNAME -> nicknameBounds
                 TutorialStep.AVATAR -> avatarBounds
@@ -1021,7 +1043,7 @@ fun WelcomeScreen(
             )
         }
 
-        // 6. MODAL PARA EDITAR NOMBRE / APODO
+        // 6. MODAL PARA EDITAR NOMBRE / APODO, PRIVACIDAD Y CERRAR SESIÓN
         AnimatedVisibility(
             visible = showNicknameModal,
             enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.92f),
@@ -1029,6 +1051,7 @@ fun WelcomeScreen(
         ) {
             NicknameEditModal(
                 initialName = playerName,
+                authState = authState,
                 isTutorialMode = activeTutorialStep == TutorialStep.NICKNAME,
                 onDismiss = {
                     showNicknameModal = false
@@ -1044,6 +1067,11 @@ fun WelcomeScreen(
                         hasConfirmedAvatarInTutorial = false
                         activeTutorialStep = TutorialStep.AVATAR
                     }
+                },
+                onSignOut = {
+                    playClickFeedback()
+                    showNicknameModal = false
+                    onSignOut()
                 }
             )
         }
@@ -1105,156 +1133,100 @@ fun WelcomeScreen(
                 }
             )
         }
+
+        // 9. ONBOARDING OBLIGATORIO DE LOGIN + APODO PRIVADO
+        AnimatedVisibility(
+            visible = !isSplashLoading && needsOnboarding,
+            enter = fadeIn(tween(220)),
+            exit = fadeOut(tween(180))
+        ) {
+            AuthOnboardingModal(
+                authState = authState,
+                avatarResIds = avatarResList,
+                onSignInAnonymous = onSignInAnonymous,
+                onSignInEmail = onSignInEmail,
+                onSignInGoogle = onSignInGoogle,
+                onCompleteNickname = onCompleteNickname,
+                onSignOut = onSignOut,
+                onClearError = onClearAuthError
+            )
+        }
     }
 }
 
 /**
- * Tarjeta visual para la grilla 2x2 inspirada en la referencia de categorías (Twitch/Kick)
- * y el diseño "Hub de Juego - Inicio Rediseñado" de Stitch:
+ * Tarjeta visual para la grilla 2x2:
  * - Imagen temática a sangre ocupando la tarjeta
- * - Badge superior con indicador luminoso y récord/estado
  * - Shader/sombra oscura profunda en la base para lectura nítida del título en mayúsculas
- * - Chip de categoría debajo
  */
 @Composable
 private fun VisualGameCard(
     spec: HubGameCardSpec,
-    cardHeight: Dp = 136.dp,
+    cardHeight: Dp = 132.dp,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier.clickable(onClick = spec.onClick)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(cardHeight)
-                .clip(RoundedCornerShape(16.dp))
-                .border(
-                    width = 1.5.dp,
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            spec.borderAccent.copy(alpha = 0.75f),
-                            spec.borderAccent.copy(alpha = 0.28f)
-                        )
-                    ),
-                    shape = RoundedCornerShape(16.dp)
-                )
-        ) {
-            // 1. Imagen relacionada al juego a sangre
-            Image(
-                painter = painterResource(id = spec.coverImageRes),
-                contentDescription = spec.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-
-            // 2. Shader / Sombra oscura de fondo en la parte inferior para lectura del título
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colorStops = arrayOf(
-                                0.0f to Color.Black.copy(alpha = 0.18f),
-                                0.38f to Color.Transparent,
-                                0.65f to Color(0xCC050811),
-                                1.0f to Color(0xF503060C)
-                            )
-                        )
-                    )
-            )
-
-            // 3. Pill superior izquierdo (como el "• 44,7 mil" de la referencia)
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(8.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(Color(0xD9090D16))
-                    .border(
-                        width = 1.dp,
-                        color = Color.White.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(50)
-                    )
-                    .padding(horizontal = 8.dp, vertical = 3.5.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(spec.dotColor)
-                    )
-                    Text(
-                        text = spec.defaultBadge,
-                        fontFamily = SpaceGrotesk,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 10.sp,
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            // 4. Nombre del juego en grande sobre el shader inferior con sombra tipográfica
-            Text(
-                text = spec.title,
-                style = TextStyle(
-                    fontFamily = SpaceGrotesk,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 15.sp,
-                    lineHeight = 17.5.sp,
-                    color = Color.White,
-                    textAlign = TextAlign.Center,
-                    shadow = Shadow(
-                        color = Color.Black,
-                        offset = Offset(0f, 3f),
-                        blurRadius = 10f
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(cardHeight)
+            .clip(RoundedCornerShape(16.dp))
+            .border(
+                width = 1.5.dp,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        spec.borderAccent.copy(alpha = 0.75f),
+                        spec.borderAccent.copy(alpha = 0.28f)
                     )
                 ),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 10.dp)
+                shape = RoundedCornerShape(16.dp)
             )
-        }
+            .clickable(onClick = spec.onClick)
+    ) {
+        // 1. Imagen relacionada al juego a sangre
+        Image(
+            painter = painterResource(id = spec.coverImageRes),
+            contentDescription = spec.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
 
-        Spacer(modifier = Modifier.height(5.dp))
-
-        // Chip de categoría inferior estilo referencia
-        Row(
+        // 2. Shader / Sombra oscura de fondo en la parte inferior para lectura del título
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(Color(0xFF151E2E))
-                    .border(
-                        width = 1.dp,
-                        color = spec.borderAccent.copy(alpha = 0.35f),
-                        shape = RoundedCornerShape(50)
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.Black.copy(alpha = 0.18f),
+                            0.38f to Color.Transparent,
+                            0.65f to Color(0xCC050811),
+                            1.0f to Color(0xF503060C)
+                        )
                     )
-                    .padding(horizontal = 9.dp, vertical = 2.5.dp)
-            ) {
-                Text(
-                    text = spec.categoryTag,
-                    fontFamily = SpaceGrotesk,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 10.5.sp,
-                    color = Color(0xFFCBD5E1),
-                    maxLines = 1
                 )
-            }
-        }
+        )
+
+        // 3. Nombre del juego en grande sobre el shader inferior con sombra tipográfica
+        Text(
+            text = spec.title,
+            style = TextStyle(
+                fontFamily = SpaceGrotesk,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 15.sp,
+                lineHeight = 17.5.sp,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                shadow = Shadow(
+                    color = Color.Black,
+                    offset = Offset(0f, 3f),
+                    blurRadius = 10f
+                )
+            ),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 10.dp)
+        )
     }
 }
 
@@ -1507,19 +1479,39 @@ private fun MediumAvatarOptionItem(
 }
 
 /**
- * Modal para ingresar o editar el nombre/apodo del jugador.
+ * Modal para ingresar o editar el nombre/apodo del jugador, ver el aviso de identidad protegida y cerrar sesión.
  */
 @Composable
 private fun NicknameEditModal(
     initialName: String,
+    authState: AuthUiState,
     isTutorialMode: Boolean,
     onDismiss: () -> Unit,
-    onConfirmName: (String) -> Unit
+    onConfirmName: (String) -> Unit,
+    onSignOut: () -> Unit
 ) {
     var draftName by remember(initialName) {
         mutableStateOf(if (isTutorialMode && initialName == "Mateo") "" else initialName)
     }
+    var validationError by remember { mutableStateOf<String?>(null) }
     val keyboardController = LocalSoftwareKeyboardController.current
+    val submitValidatedName: () -> Unit = {
+        val clean = AuthRepository.normalizeNickname(draftName)
+        val err = AuthRepository.validateNickname(clean)
+        if (err != null) {
+            validationError = err
+        } else {
+            validationError = null
+            keyboardController?.hide()
+            onConfirmName(clean)
+        }
+    }
+    val providerLabel = when (authState.providerType) {
+        AuthProviderType.ANONYMOUS -> "Invitado rápido (sesión anónima)"
+        AuthProviderType.EMAIL -> "Email y contraseña (apodo privado)"
+        AuthProviderType.GOOGLE -> "Google Sign-In (identidad real protegida)"
+        AuthProviderType.NONE -> "Sin sesión activa"
+    }
 
     Box(
         modifier = Modifier
@@ -1531,7 +1523,7 @@ private fun NicknameEditModal(
             ) {
                 if (!isTutorialMode) onDismiss()
             }
-            .padding(horizontal = 22.dp),
+            .padding(horizontal = 22.dp, vertical = 16.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -1548,18 +1540,41 @@ private fun NicknameEditModal(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
                 ) {}
+                .verticalScroll(rememberScrollState())
                 .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = "Tu Nombre o Apodo",
-                fontFamily = SpaceGrotesk,
-                fontWeight = FontWeight.Bold,
-                fontSize = 19.sp,
-                color = Color.White
-            )
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Tu Nombre o Apodo",
+                    fontFamily = SpaceGrotesk,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 19.sp,
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+                if (!isTutorialMode) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1E293B))
+                            .clickable { onDismiss() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Cerrar",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
                 text = "Con este nombre vas a aparecer en los chats y en el ranking con tus amigos.",
@@ -1575,6 +1590,7 @@ private fun NicknameEditModal(
                 value = draftName,
                 onValueChange = { input ->
                     if (input.length <= 22 && !input.contains("\n")) {
+                        validationError = null
                         draftName = input
                     }
                 },
@@ -1613,18 +1629,25 @@ private fun NicknameEditModal(
                     imeAction = ImeAction.Done
                 ),
                 keyboardActions = KeyboardActions(
-                    onDone = {
-                        keyboardController?.hide()
-                        val finalName = draftName.trim().ifEmpty { "Mateo" }
-                        onConfirmName(finalName)
-                    }
+                    onDone = { submitValidatedName() }
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            validationError?.let { err ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = err,
+                    fontFamily = SpaceGrotesk,
+                    fontSize = 12.sp,
+                    color = Color(0xFFFCA5A5),
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
 
             Box(
                 modifier = Modifier
@@ -1632,11 +1655,7 @@ private fun NicknameEditModal(
                     .height(46.dp)
                     .clip(RoundedCornerShape(13.dp))
                     .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
-                    .clickable {
-                        keyboardController?.hide()
-                        val finalName = draftName.trim().ifEmpty { "Mateo" }
-                        onConfirmName(finalName)
-                    },
+                    .clickable { submitValidatedName() },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -1646,6 +1665,75 @@ private fun NicknameEditModal(
                     fontSize = 14.5.sp,
                     color = Color(0xFF041019)
                 )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Aviso de identidad protegida
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF111C2F))
+                    .border(1.dp, BordeCyan.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Shield,
+                    contentDescription = null,
+                    tint = BordeCyan,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Identidad protegida",
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.5.sp,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "$providerLabel. Nunca mostramos tu nombre real ni tu correo.",
+                        fontFamily = SpaceGrotesk,
+                        fontSize = 11.sp,
+                        lineHeight = 14.5.sp,
+                        color = TextoSecundario
+                    )
+                }
+            }
+
+            if (!isTutorialMode && authState.isAuthenticated) {
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(RojoAlerta.copy(alpha = 0.14f))
+                        .border(1.dp, RojoAlerta.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                        .clickable { onSignOut() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Logout,
+                            contentDescription = null,
+                            tint = RojoAlerta,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Cerrar sesión / Cambiar cuenta",
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = RojoAlerta
+                        )
+                    }
+                }
             }
         }
     }

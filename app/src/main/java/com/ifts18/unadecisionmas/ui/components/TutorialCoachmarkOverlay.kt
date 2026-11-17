@@ -75,7 +75,7 @@ enum class TutorialStep(
     NICKNAME(
         stepNumber = 1,
         title = "Tu Nombre o Apodo",
-        description = "Escribí tu nombre acá para identificarte en las partidas y en la tabla de posiciones."
+        description = "Escribí tu nombre acá para identificarte en las partidas y en la tabla de posiciones. También podés consultar tu identidad protegida o cerrar sesión desde acá."
     ),
     AVATAR(
         stepNumber = 2,
@@ -324,8 +324,8 @@ fun TutorialCoachmarkOverlay(
             modifier = Modifier
                 .align(if (placeCardAtTop) Alignment.TopCenter else Alignment.BottomCenter)
                 .padding(
-                    top = if (placeCardAtTop) 22.dp else 0.dp,
-                    bottom = if (!placeCardAtTop) 22.dp else 0.dp,
+                    top = if (placeCardAtTop) 10.dp else 0.dp,
+                    bottom = if (!placeCardAtTop) 16.dp else 0.dp,
                     start = 18.dp,
                     end = 18.dp
                 )
@@ -341,30 +341,14 @@ fun TutorialCoachmarkOverlay(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
                 ) {}
-                .padding(horizontal = 18.dp, vertical = 15.dp)
+                .padding(horizontal = 18.dp, vertical = 12.dp)
         ) {
+            // Indicadores de progreso de los 5 pasos (solo parte derecha)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(BordeCyan.copy(alpha = 0.16f))
-                        .border(1.dp, BordeCyan.copy(alpha = 0.6f), RoundedCornerShape(50))
-                        .padding(horizontal = 10.dp, vertical = 3.dp)
-                ) {
-                    Text(
-                        text = "TUTORIAL • PASO ${currentStep.stepNumber}/5",
-                        fontFamily = SpaceGrotesk,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 10.5.sp,
-                        color = BordeCyan
-                    )
-                }
-
-                // Indicadores de progreso de los 5 pasos
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     TutorialStep.entries.forEach { step ->
                         val active = step.stepNumber <= currentStep.stepNumber
@@ -383,7 +367,7 @@ fun TutorialCoachmarkOverlay(
                 }
             }
 
-            Spacer(modifier = Modifier.height(9.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
                 text = currentStep.title,
@@ -393,27 +377,26 @@ fun TutorialCoachmarkOverlay(
                 color = Color.White
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(3.dp))
 
             Text(
                 text = currentStep.description,
                 fontFamily = SpaceGrotesk,
                 fontSize = 13.5.sp,
-                lineHeight = 18.5.sp,
+                lineHeight = 18.sp,
                 color = TextoSecundario
             )
 
-            Spacer(modifier = Modifier.height(13.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             if (currentStep == TutorialStep.AVATAR && !canAdvanceCurrentStep) {
                 // En el paso 2 es obligatorio tocar el avatar y elegir otro para avanzar
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
+                        .height(42.dp)
                         .clip(RoundedCornerShape(13.dp))
-                        .background(BordeCyan.copy(alpha = 0.18f))
-                        .border(1.4.dp, BordeCyan, RoundedCornerShape(13.dp))
+                        .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
                         .clickable { onTargetClicked() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -424,7 +407,7 @@ fun TutorialCoachmarkOverlay(
                         Icon(
                             imageVector = Icons.Default.TouchApp,
                             contentDescription = null,
-                            tint = BordeCyan,
+                            tint = Color(0xFF041019),
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -433,7 +416,7 @@ fun TutorialCoachmarkOverlay(
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.5.sp,
-                            color = Color.White,
+                            color = Color(0xFF041019),
                             textAlign = TextAlign.Center
                         )
                     }
@@ -449,7 +432,7 @@ fun TutorialCoachmarkOverlay(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
+                        .height(42.dp)
                         .clip(RoundedCornerShape(13.dp))
                         .background(
                             if (canAdvanceCurrentStep) {

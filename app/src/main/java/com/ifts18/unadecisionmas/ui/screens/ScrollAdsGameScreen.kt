@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
@@ -165,7 +166,7 @@ private data class IgFeedPostItem(
 @Composable
 fun ScrollAdsGameScreen(
     playerName: String,
-    @Suppress("UNUSED_PARAMETER") onBackToHub: () -> Unit,
+    onBackToHub: () -> Unit,
     onGameFinished: (adsShakenOff: Int, adTrapsClicked: Int, elapsedMillis: Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -502,7 +503,10 @@ fun ScrollAdsGameScreen(
                     enabled = isFeedInteractive // Se bloquea el scroll cuando salta una publicidad invasiva o el pop-up inicial
                 )
         ) {
-            IgFeedTopBar(playerName = playerName)
+            IgFeedTopBar(
+                playerName = playerName,
+                onBackToHub = onBackToHub
+            )
 
             IgStoriesStrip(stories = igStories)
 
@@ -1012,7 +1016,10 @@ private val IgStoryRingGradient = Brush.linearGradient(
  * Barra superior estilo Instagram en modo oscuro (+, Instagram v, corazón).
  */
 @Composable
-private fun IgFeedTopBar(playerName: String) {
+private fun IgFeedTopBar(
+    playerName: String,
+    onBackToHub: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1020,12 +1027,29 @@ private fun IgFeedTopBar(playerName: String) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = Icons.Outlined.AddBox,
-            contentDescription = "Crear",
-            tint = Color.White,
-            modifier = Modifier.size(23.dp)
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Volver al menú",
+                tint = Color.White,
+                modifier = Modifier
+                    .size(23.dp)
+                    .clip(CircleShape)
+                    .clickable {
+                        SoundManager.playClick()
+                        onBackToHub()
+                    }
+            )
+            Icon(
+                imageVector = Icons.Outlined.AddBox,
+                contentDescription = "Crear",
+                tint = Color.White,
+                modifier = Modifier.size(22.dp)
+            )
+        }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(

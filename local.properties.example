@@ -1,0 +1,8 @@
+# Copiá este archivo como local.properties (sin commitear) y completá tus valores locales.
+# sdk.dir=C\:\\Users\\TU_USUARIO\\AppData\\Local\\Android\\Sdk
+
+FIREBASE_DB_URL=https://TU-PROYECTO-default-rtdb.firebaseio.com
+FIREBASE_PROJECT_ID=tu-proyecto-firebase
+FIREBASE_API_KEY=TU_FIREBASE_API_KEY
+FIREBASE_APP_ID=1:000000000000:android:0000000000000000000000
+GOOGLE_WEB_CLIENT_ID=000000000000-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com

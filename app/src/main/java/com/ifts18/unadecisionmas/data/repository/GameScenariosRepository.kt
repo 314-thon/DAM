@@ -321,8 +321,30 @@ object GameScenariosRepository {
                 pedagogicalFocus = "Desarmar la presión social durante grandes eventos deportivos como el Superclásico."
             ),
 
-            // Domingo: Extorsión del cajero ilegal y cierre de semana
-            GameScenario(
+            // Domingo: Cierre de semana adaptado según si contrajo deuda con un cajero o no
+            getSundayScenario(
+                playerName = name,
+                hasCajeroDebt = false,
+                hasGambledInWeek = false
+            )
+        )
+    }
+
+    /**
+     * Genera el escenario del Domingo según el historial real del jugador:
+     * - Si contrajo deuda/fiado con un cajero o app de préstamos (Jueves/Viernes): extorsión del cajero.
+     * - Si apostó plata durante la semana pero sin pedir fiado ni préstamo: anzuelo de "bono revancha".
+     * - Si mantuvo la semana limpia sin apostar: última tentación de bienvenida antes de cerrar.
+     */
+    fun getSundayScenario(
+        playerName: String,
+        hasCajeroDebt: Boolean,
+        hasGambledInWeek: Boolean
+    ): GameScenario {
+        val name = playerName.ifBlank { "Mateo" }
+
+        if (hasCajeroDebt) {
+            return GameScenario(
                 dayIndex = 6,
                 dayName = "Domingo",
                 title = "Amenaza del cajero",
@@ -371,6 +393,109 @@ object GameScenariosRepository {
                 decisionTimeSeconds = 25,
                 pedagogicalFocus = "Promover el pedido de ayuda a adultos y líneas oficiales (141 / Boti) frente al hostigamiento de cajeros ilegales."
             )
+        }
+
+        if (hasGambledInWeek) {
+            return GameScenario(
+                dayIndex = 6,
+                dayName = "Domingo",
+                title = "El anzuelo de la revancha",
+                messages = listOf(
+                    ChatMessage(
+                        sender = "Cajero VIP Nocturno",
+                        message = "Buenas $name, vi que estuviste jugando esta semana pero cerraste abajo.",
+                        delayAfterMillis = 1500L
+                    ),
+                    ChatMessage(
+                        sender = "Cajero VIP Nocturno",
+                        message = "Hoy domingo te habilito un bono revancha: ponés $4.000 o te los fío y en dos tiros recuperás lo perdido.",
+                        delayAfterMillis = 1600L
+                    ),
+                    ChatMessage(
+                        sender = "Cajero VIP Nocturno",
+                        message = "Arrancás el lunes en cero si entrás ahora. ¿Te paso el alias?",
+                        delayAfterMillis = 1300L
+                    )
+                ),
+                safeOption = DecisionOption(
+                    text = "Bloquear y cortar acá",
+                    isSafe = true,
+                    penaltyAmount = 0,
+                    savingsDelta = 0,
+                    wellbeingDelta = 18,
+                    educationalFeedback = "Bloquear al cajero a tiempo evita que una pérdida puntual se transforme en deuda."
+                ),
+                alternativeOption = DecisionOption(
+                    text = "Aceptar la pérdida y cerrar",
+                    isSafe = true,
+                    penaltyAmount = 0,
+                    savingsDelta = 0,
+                    wellbeingDelta = 15,
+                    educationalFeedback = "Intentar recuperar lo perdido con otra apuesta ('perseguir pérdidas') es la trampa que más hunde."
+                ),
+                riskyOption = DecisionOption(
+                    text = "Apostar $4.000 de revancha",
+                    isSafe = false,
+                    penaltyAmount = 4000,
+                    savingsDelta = -4000,
+                    wellbeingDelta = -18,
+                    educationalFeedback = "El 'bono revancha' busca que sigas poniendo plata hasta quedar fiado con el cajero."
+                ),
+                timeoutPenalty = 3000,
+                decisionTimeSeconds = 25,
+                pedagogicalFocus = "Desarmar el sesgo de perseguir pérdidas y la oferta de crédito o bonos revancha para volver a apostar."
+            )
+        }
+
+        return GameScenario(
+            dayIndex = 6,
+            dayName = "Domingo",
+            title = "Última carnada de domingo",
+            messages = listOf(
+                ChatMessage(
+                    sender = "Lucas",
+                    message = "Che $name, aguantaste toda la semana sin poner un peso, re bien.",
+                    delayAfterMillis = 1500L
+                ),
+                ChatMessage(
+                    sender = "Promo VIP Domingo",
+                    message = "¡Último tiro del domingo! Bono de bienvenida gratis para cuentas nuevas. Retirá tus ganancias antes de las 00 hs.",
+                    delayAfterMillis = 1600L,
+                    isForwarded = true
+                ),
+                ChatMessage(
+                    sender = "Lucas",
+                    message = "¿Posta vas a cerrar la semana sin probar aunque sea $3.000 con el bono?",
+                    delayAfterMillis = 1300L
+                )
+            ),
+            safeOption = DecisionOption(
+                text = "Cerrar la semana en limpio",
+                isSafe = true,
+                penaltyAmount = 0,
+                savingsDelta = 0,
+                wellbeingDelta = 20,
+                educationalFeedback = "Completaste los 7 días sin caer en ninguna trampa. Cuidaste tus ahorros y tu tranquilidad."
+            ),
+            alternativeOption = DecisionOption(
+                text = "Ignorar promos y descansar",
+                isSafe = true,
+                penaltyAmount = 0,
+                savingsDelta = 0,
+                wellbeingDelta = 16,
+                educationalFeedback = "Los bonos de 'último momento' buscan quebrar una buena racha de autocuidado."
+            ),
+            riskyOption = DecisionOption(
+                text = "Probar el bono con $3.000",
+                isSafe = false,
+                penaltyAmount = 3000,
+                savingsDelta = -3000,
+                wellbeingDelta = -18,
+                educationalFeedback = "Ningún bono de bienvenida es gratis: exige apostar varias veces tu plata antes de retirar."
+            ),
+            timeoutPenalty = 3000,
+            decisionTimeSeconds = 25,
+            pedagogicalFocus = "Sostener las decisiones saludables hasta el cierre de la semana frente a bonos de bienvenida engañosos."
         )
     }
 }

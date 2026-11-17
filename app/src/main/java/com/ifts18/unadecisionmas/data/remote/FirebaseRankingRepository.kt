@@ -1,10 +1,10 @@
 package com.ifts18.unadecisionmas.data.remote
 
 import android.content.Context
-import com.google.firebase.FirebaseApp
-import com.google.firebase.FirebaseOptions
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 import com.ifts18.unadecisionmas.BuildConfig
@@ -27,13 +27,14 @@ import java.net.URL
 import java.util.UUID
 
 /**
- * Repositorio de Ranking compartido con soporte para Firebase Realtime Database,
- * sincronización automática y respaldo local en Room ante cortes de conexión.
+ * Repositorio de Ranking compartido con Firebase Realtime Database autenticado,
+ * reglas de seguridad por UID, sincronización automática y respaldo offline en Room.
  */
 class FirebaseRankingRepository(
     private val context: Context,
     private val gameDao: GameDao
 ) {
+    private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val _rankingList = MutableStateFlow<List<RankingEntry>>(emptyList())
@@ -46,45 +47,56 @@ class FirebaseRankingRepository(
     val connectionStatusMessage: StateFlow<String> = _connectionStatusMessage.asStateFlow()
 
     private var firebaseDb: FirebaseDatabase? = null
+    private var firebaseAuth: FirebaseAuth? = null
+    private var rankingRef: DatabaseReference? = null
+    private var valueListener: ValueEventListener? = null
+
+    @Volatile
+    private var latestRemoteEntries: List<RankingEntry> = emptyList()
+
+    @Volatile
+    private var latestLocalEntries: List<RankingEntry> = emptyList()
+
+    private val authStateListener = FirebaseAuth.AuthStateListener { auth ->
+        if (auth.currentUser != null) {
+            attachRealtimeListener()
+            scope.launch { refreshRanking() }
+        } else {
+            detachRealtimeListener()
+            latestRemoteEntries = emptyList()
+            _isOnlineSynced.value = false
+            _connectionStatusMessage.value = "Iniciá sesión para sincronizar con Firebase"
+            publishMergedRanking()
+        }
+    }
 
     init {
         initFirebaseSdkIfConfigured()
-        observeLocalAndCloudScores()
+        observeLocalScores()
     }
 
     private fun initFirebaseSdkIfConfigured() {
-        try {
-            val existingApps = FirebaseApp.getApps(context)
-            if (existingApps.isEmpty() &&
-                BuildConfig.FIREBASE_API_KEY.isNotBlank() &&
-                BuildConfig.FIREBASE_APP_ID.isNotBlank()
-            ) {
-                val options = FirebaseOptions.Builder()
-                    .setApiKey(BuildConfig.FIREBASE_API_KEY)
-                    .setApplicationId(BuildConfig.FIREBASE_APP_ID)
-                    .setDatabaseUrl(BuildConfig.FIREBASE_DB_URL)
-                    .setProjectId(BuildConfig.FIREBASE_PROJECT_ID)
-                    .build()
-                FirebaseApp.initializeApp(context, options)
-            }
+        firebaseAuth = FirebaseInitializer.getAuthOrNull(appContext)
+        firebaseDb = FirebaseInitializer.getDatabaseOrNull(appContext)
+        firebaseAuth?.addAuthStateListener(authStateListener)
 
-            if (FirebaseApp.getApps(context).isNotEmpty()) {
-                firebaseDb = if (BuildConfig.FIREBASE_DB_URL.isNotBlank()) {
-                    FirebaseDatabase.getInstance(BuildConfig.FIREBASE_DB_URL)
-                } else {
-                    FirebaseDatabase.getInstance()
-                }
-                attachRealtimeListener()
-            }
-        } catch (_: Exception) {
-            firebaseDb = null
+        if (firebaseAuth?.currentUser != null) {
+            attachRealtimeListener()
+        } else {
+            _isOnlineSynced.value = false
+            _connectionStatusMessage.value = "Iniciá sesión para sincronizar con Firebase"
         }
     }
 
     private fun attachRealtimeListener() {
+        if (valueListener != null) return
+        val db = firebaseDb ?: FirebaseInitializer.getDatabaseOrNull(appContext)?.also { firebaseDb = it } ?: return
+        val currentUser = firebaseAuth?.currentUser ?: return
+        if (currentUser.uid.isBlank()) return
+
         try {
-            val ref = firebaseDb?.getReference("ranking_juego_limpio") ?: return
-            ref.addValueEventListener(object : ValueEventListener {
+            val ref = db.getReference("ranking_juego_limpio")
+            val listener = object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
                     scope.launch {
                         try {
@@ -94,6 +106,7 @@ class FirebaseRankingRepository(
                                 remoteEntries.add(
                                     RankingEntry(
                                         id = child.key ?: UUID.randomUUID().toString(),
+                                        uid = (map["uid"] as? String).orEmpty(),
                                         playerName = (map["playerName"] as? String) ?: "Jugador",
                                         avatarIndex = ((map["avatarIndex"] as? Number)?.toInt()) ?: 1,
                                         score = ((map["score"] as? Number)?.toInt()) ?: 0,
@@ -109,31 +122,42 @@ class FirebaseRankingRepository(
                                     )
                                 )
                             }
+                            latestRemoteEntries = remoteEntries
                             _isOnlineSynced.value = true
                             _connectionStatusMessage.value = "Firebase en tiempo real activo"
-                            mergeAndPublish(remoteEntries)
+                            publishMergedRanking()
                         } catch (_: Exception) {}
                     }
                 }
 
                 override fun onCancelled(error: DatabaseError) {
                     _isOnlineSynced.value = false
-                    _connectionStatusMessage.value = "Ranking local Room activo (Firebase sin conexión)"
+                    _connectionStatusMessage.value = when (error.code) {
+                        DatabaseError.PERMISSION_DENIED -> "Ranking local Room (requiere sesión activa)"
+                        else -> "Ranking local Room activo (Firebase sin conexión)"
+                    }
                 }
-            })
+            }
+            ref.addValueEventListener(listener)
+            rankingRef = ref
+            valueListener = listener
         } catch (_: Exception) {}
     }
 
-    private fun observeLocalAndCloudScores() {
+    private fun detachRealtimeListener() {
+        val listener = valueListener
+        if (listener != null) {
+            runCatching { rankingRef?.removeEventListener(listener) }
+        }
+        valueListener = null
+        rankingRef = null
+    }
+
+    private fun observeLocalScores() {
         scope.launch {
-            // Observar los puntajes locales en Room continuamente
             gameDao.observeTopScores().collect { localEntities ->
-                val localMapped = localEntities.map { it.toRankingEntry() }
-                if (_rankingList.value.isEmpty() && localMapped.isEmpty()) {
-                    seedInitialClassmatesIfEmpty()
-                } else {
-                    mergeAndPublish(localMapped)
-                }
+                latestLocalEntries = localEntities.map { it.toRankingEntry() }
+                publishMergedRanking()
             }
         }
         scope.launch {
@@ -144,95 +168,135 @@ class FirebaseRankingRepository(
     /**
      * Registra un nuevo puntaje:
      * 1) Lo guarda inmediatamente en Room/SQLite local.
-     * 2) Lo envía a Firebase Realtime Database (SDK o REST JSON).
+     * 2) Lo envía a Firebase Realtime Database autenticado (SDK o REST con ID token).
      */
     suspend fun submitScore(entry: RankingEntry) = withContext(Dispatchers.IO) {
-        val remoteId = entry.id.ifBlank { UUID.randomUUID().toString() }
+        val activeUid = firebaseAuth?.currentUser?.uid.orEmpty()
+        val modeSlug = entry.gameMode.trim().lowercase()
+            .replace(Regex("[^a-z0-9]+"), "_")
+            .trim('_')
+            .ifBlank { "general" }
+        val remoteId = entry.id.ifBlank {
+            if (activeUid.isNotBlank()) "${activeUid}_$modeSlug" else UUID.randomUUID().toString()
+        }
+        val entryToSave = entry.copy(id = remoteId, uid = activeUid)
+
         val localId = gameDao.insertScore(
             LocalScoreEntity(
                 remoteId = remoteId,
-                playerName = entry.playerName,
-                avatarIndex = entry.avatarIndex,
-                score = entry.score,
-                debt = entry.debt,
-                savings = entry.savings,
-                wellbeingPoints = entry.wellbeingPoints,
-                totalTimeMillis = entry.totalTimeMillis,
-                achievementsCount = entry.achievementsCount,
-                hasSixSeven = entry.hasSixSeven,
-                gameMode = entry.gameMode,
-                timestamp = entry.timestamp,
+                playerName = entryToSave.playerName,
+                avatarIndex = entryToSave.avatarIndex,
+                score = entryToSave.score,
+                debt = entryToSave.debt,
+                savings = entryToSave.savings,
+                wellbeingPoints = entryToSave.wellbeingPoints,
+                totalTimeMillis = entryToSave.totalTimeMillis,
+                achievementsCount = entryToSave.achievementsCount,
+                hasSixSeven = entryToSave.hasSixSeven,
+                gameMode = entryToSave.gameMode,
+                timestamp = entryToSave.timestamp,
                 isSynced = false
             )
         )
 
-        val uploaded = pushToFirebase(entry.copy(id = remoteId))
+        // Si ya existe un puntaje remoto mejor para este mismo ID (mismo usuario y modo), conservamos el récord
+        val existingRemote = latestRemoteEntries.find { it.id == remoteId }
+        val bestToUpload = if (existingRemote != null && !isBetterRankingEntry(entryToSave, existingRemote)) {
+            existingRemote
+        } else {
+            entryToSave
+        }
+
+        val uploaded = pushToFirebase(bestToUpload)
         if (uploaded) {
             gameDao.markScoreSynced(localId)
             _isOnlineSynced.value = true
             _connectionStatusMessage.value = "Sincronizado con Firebase Cloud"
         } else {
             _isOnlineSynced.value = false
-            _connectionStatusMessage.value = "Guardado en Room (pendiente de red Firebase)"
+            _connectionStatusMessage.value = if (activeUid.isBlank()) {
+                "Guardado en Room (iniciá sesión para subir)"
+            } else {
+                "Guardado en Room (pendiente de red Firebase)"
+            }
         }
         refreshFromFirebaseRestFallback()
     }
 
     suspend fun refreshRanking() = withContext(Dispatchers.IO) {
-        // Reintentar subir puntajes pendientes
-        val unsynced = gameDao.getUnsyncedScores()
-        for (item in unsynced) {
-            if (pushToFirebase(item.toRankingEntry())) {
-                gameDao.markScoreSynced(item.id)
+        val currentUser = firebaseAuth?.currentUser
+        if (currentUser != null) {
+            attachRealtimeListener()
+            val unsynced = gameDao.getUnsyncedScores()
+            for (item in unsynced) {
+                val entry = item.toRankingEntry().copy(uid = currentUser.uid)
+                if (pushToFirebase(entry)) {
+                    gameDao.markScoreSynced(item.id)
+                }
             }
         }
         refreshFromFirebaseRestFallback()
     }
 
     private suspend fun pushToFirebase(entry: RankingEntry): Boolean = withContext(Dispatchers.IO) {
-        // 1. Intentar vía SDK de Firebase si está inicializado
+        val currentUser = firebaseAuth?.currentUser ?: return@withContext false
+        val uid = currentUser.uid
+        val sanitizedName = entry.playerName.trim().ifBlank { "Jugador" }.take(30)
+        val safeAvatar = entry.avatarIndex.coerceIn(1, 5)
+        val safeScore = entry.score.coerceAtLeast(0)
+        val safeDebt = entry.debt.coerceAtLeast(0)
+        val safeTime = entry.totalTimeMillis.coerceAtLeast(0L)
+        val safeAchievements = entry.achievementsCount.coerceAtLeast(0)
+
+        // 1. Intentar vía SDK autenticado de Firebase
         try {
-            val db = firebaseDb
+            val db = firebaseDb ?: FirebaseInitializer.getDatabaseOrNull(appContext)?.also { firebaseDb = it }
             if (db != null) {
                 val payload = mapOf(
-                    "playerName" to entry.playerName,
-                    "avatarIndex" to entry.avatarIndex,
-                    "score" to entry.score,
-                    "debt" to entry.debt,
+                    "uid" to uid,
+                    "playerName" to sanitizedName,
+                    "avatarIndex" to safeAvatar,
+                    "score" to safeScore,
+                    "debt" to safeDebt,
                     "savings" to entry.savings,
                     "wellbeingPoints" to entry.wellbeingPoints,
-                    "totalTimeMillis" to entry.totalTimeMillis,
-                    "achievementsCount" to entry.achievementsCount,
+                    "totalTimeMillis" to safeTime,
+                    "achievementsCount" to safeAchievements,
                     "hasSixSeven" to entry.hasSixSeven,
                     "gameMode" to entry.gameMode,
                     "timestamp" to entry.timestamp
                 )
-                db.getReference("ranking_juego_limpio").child(entry.id).setValue(payload)
+                db.getReference("ranking_juego_limpio")
+                    .child(entry.id)
+                    .setValue(payload)
+                    .awaitTask()
                 return@withContext true
             }
         } catch (_: Exception) {}
 
-        // 2. Intentar vía endpoint REST de Firebase Realtime Database
+        // 2. Respaldo vía endpoint REST autenticado con ID Token
         try {
             val baseUrl = BuildConfig.FIREBASE_DB_URL.trimEnd('/')
-            if (baseUrl.startsWith("https://")) {
-                val url = URL("$baseUrl/ranking_juego_limpio/${entry.id}.json")
+            val idToken = currentUser.getIdToken(false).awaitTask().token
+            if (baseUrl.startsWith("https://") && !idToken.isNullOrBlank()) {
+                val url = URL("$baseUrl/ranking_juego_limpio/${entry.id}.json?auth=$idToken")
                 val conn = (url.openConnection() as HttpURLConnection).apply {
                     requestMethod = "PUT"
-                    connectTimeout = 3500
-                    readTimeout = 3500
+                    connectTimeout = 4000
+                    readTimeout = 4000
                     doOutput = true
                     setRequestProperty("Content-Type", "application/json; charset=UTF-8")
                 }
                 val json = JSONObject().apply {
-                    put("playerName", entry.playerName)
-                    put("avatarIndex", entry.avatarIndex)
-                    put("score", entry.score)
-                    put("debt", entry.debt)
+                    put("uid", uid)
+                    put("playerName", sanitizedName)
+                    put("avatarIndex", safeAvatar)
+                    put("score", safeScore)
+                    put("debt", safeDebt)
                     put("savings", entry.savings)
                     put("wellbeingPoints", entry.wellbeingPoints)
-                    put("totalTimeMillis", entry.totalTimeMillis)
-                    put("achievementsCount", entry.achievementsCount)
+                    put("totalTimeMillis", safeTime)
+                    put("achievementsCount", safeAchievements)
                     put("hasSixSeven", entry.hasSixSeven)
                     put("gameMode", entry.gameMode)
                     put("timestamp", entry.timestamp)
@@ -253,22 +317,24 @@ class FirebaseRankingRepository(
 
     private suspend fun refreshFromFirebaseRestFallback() = withContext(Dispatchers.IO) {
         try {
+            val currentUser = firebaseAuth?.currentUser ?: return@withContext
             val baseUrl = BuildConfig.FIREBASE_DB_URL.trimEnd('/')
             if (!baseUrl.startsWith("https://")) return@withContext
 
-            val url = URL("$baseUrl/ranking_juego_limpio.json")
+            val idToken = currentUser.getIdToken(false).awaitTask().token ?: return@withContext
+            val url = URL("$baseUrl/ranking_juego_limpio.json?auth=$idToken")
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
-                connectTimeout = 3500
-                readTimeout = 3500
+                connectTimeout = 4000
+                readTimeout = 4000
             }
             val code = conn.responseCode
             if (code in 200..299) {
                 val body = conn.inputStream.bufferedReader().use { it.readText() }
                 conn.disconnect()
+                val fetched = mutableListOf<RankingEntry>()
                 if (body.isNotBlank() && body != "null") {
                     val root = JSONObject(body)
-                    val fetched = mutableListOf<RankingEntry>()
                     val keys = root.keys()
                     while (keys.hasNext()) {
                         val key = keys.next()
@@ -276,6 +342,7 @@ class FirebaseRankingRepository(
                         fetched.add(
                             RankingEntry(
                                 id = key,
+                                uid = obj.optString("uid", ""),
                                 playerName = obj.optString("playerName", "Jugador"),
                                 avatarIndex = obj.optInt("avatarIndex", 1),
                                 score = obj.optInt("score", 0),
@@ -291,109 +358,66 @@ class FirebaseRankingRepository(
                             )
                         )
                     }
-                    _isOnlineSynced.value = true
-                    _connectionStatusMessage.value = "Firebase Cloud conectado en vivo"
-                    mergeAndPublish(fetched)
-                    return@withContext
                 }
+                latestRemoteEntries = fetched
+                _isOnlineSynced.value = true
+                _connectionStatusMessage.value = "Firebase Cloud conectado en vivo"
+                publishMergedRanking()
+                return@withContext
             }
             conn.disconnect()
         } catch (_: Exception) {}
     }
 
-    private suspend fun seedInitialClassmatesIfEmpty() {
-        val samplePeers = listOf(
-            LocalScoreEntity(
-                remoteId = "seed_evelyn",
-                playerName = "Evelyn G.",
-                avatarIndex = 2,
-                score = 16450,
-                debt = 0,
-                savings = 22000,
-                wellbeingPoints = 95,
-                totalTimeMillis = 28400L,
-                achievementsCount = 4,
-                hasSixSeven = false,
-                gameMode = "La Semana",
-                isSynced = true
-            ),
-            LocalScoreEntity(
-                remoteId = "seed_martin",
-                playerName = "Martín A.",
-                avatarIndex = 1,
-                score = 15980,
-                debt = 0,
-                savings = 19500,
-                wellbeingPoints = 88,
-                totalTimeMillis = 31200L,
-                achievementsCount = 4,
-                hasSixSeven = true,
-                gameMode = "Scroll sin Caer",
-                isSynced = true
-            ),
-            LocalScoreEntity(
-                remoteId = "seed_lucia",
-                playerName = "Lucía P.",
-                avatarIndex = 3,
-                score = 14820,
-                debt = 0,
-                savings = 18000,
-                wellbeingPoints = 82,
-                totalTimeMillis = 34500L,
-                achievementsCount = 3,
-                hasSixSeven = false,
-                gameMode = "Trampa del Jackpot",
-                isSynced = true
-            ),
-            LocalScoreEntity(
-                remoteId = "seed_juan",
-                playerName = "Juan C.",
-                avatarIndex = 4,
-                score = 14100,
-                debt = 0,
-                savings = 16500,
-                wellbeingPoints = 78,
-                totalTimeMillis = 36800L,
-                achievementsCount = 3,
-                hasSixSeven = false,
-                gameMode = "La Semana",
-                isSynced = true
-            ),
-            LocalScoreEntity(
-                remoteId = "seed_roberto",
-                playerName = "Roberto A.",
-                avatarIndex = 5,
-                score = 13650,
-                debt = 0,
-                savings = 15000,
-                wellbeingPoints = 75,
-                totalTimeMillis = 39100L,
-                achievementsCount = 2,
-                hasSixSeven = false,
-                gameMode = "La Semana",
-                isSynced = true
-            )
-        )
-        samplePeers.forEach { gameDao.insertScore(it) }
-    }
+    private fun publishMergedRanking() {
+        val byId = LinkedHashMap<String, RankingEntry>()
+        for (local in latestLocalEntries) {
+            val key = local.id.ifBlank { "${local.playerName}_${local.score}_${local.totalTimeMillis}" }
+            byId[key] = local
+        }
+        for (remote in latestRemoteEntries) {
+            val key = remote.id.ifBlank { "${remote.playerName}_${remote.score}_${remote.totalTimeMillis}" }
+            byId[key] = remote
+        }
 
-    private fun mergeAndPublish(incoming: List<RankingEntry>) {
-        val combined = (_rankingList.value + incoming)
-            .associateBy { it.id.ifBlank { "${it.playerName}_${it.score}_${it.totalTimeMillis}" } }
-            .values
-            // Ordenamiento oficial: 1° Mayor Puntaje, 2° Menor Tiempo (desempate), 3° Más Logros
+        // Deduplicación por apodo normalizado (case-insensitive):
+        // Si alguien desinstaló la app y volvió a entrar rápido con el mismo apodo (otro UID),
+        // la tabla muestra una sola fila por apodo conservando su mejor marca.
+        val dedupByNickname = LinkedHashMap<String, RankingEntry>()
+        for (entry in byId.values) {
+            val nickKey = entry.playerName.trim().replace(Regex("\\s+"), " ").lowercase()
+                .ifBlank { entry.id }
+            val currentBest = dedupByNickname[nickKey]
+            if (currentBest == null || isBetterRankingEntry(entry, currentBest)) {
+                dedupByNickname[nickKey] = entry
+            }
+        }
+
+        // Ordenamiento oficial: 1° Mayor Puntaje, 2° Menor Tiempo (desempate), 3° Más Logros
+        _rankingList.value = dedupByNickname.values
             .sortedWith(
                 compareByDescending<RankingEntry> { it.score }
                     .thenBy { it.totalTimeMillis }
                     .thenByDescending { it.achievementsCount }
             )
             .take(30)
-        _rankingList.value = combined
+    }
+
+    private fun isBetterRankingEntry(candidate: RankingEntry, current: RankingEntry): Boolean {
+        if (candidate.score != current.score) return candidate.score > current.score
+        if (candidate.totalTimeMillis != current.totalTimeMillis) {
+            return candidate.totalTimeMillis < current.totalTimeMillis
+        }
+        if (candidate.achievementsCount != current.achievementsCount) {
+            return candidate.achievementsCount > current.achievementsCount
+        }
+        return candidate.isSynced && !current.isSynced
     }
 
     private fun LocalScoreEntity.toRankingEntry(): RankingEntry {
         return RankingEntry(
             id = remoteId.ifBlank { "local_$id" },
+            uid = firebaseAuth?.currentUser?.uid.orEmpty(),
             playerName = playerName,
             avatarIndex = avatarIndex,
             score = score,

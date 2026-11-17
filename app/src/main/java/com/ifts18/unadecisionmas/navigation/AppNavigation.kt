@@ -1,5 +1,7 @@
 package com.ifts18.unadecisionmas.navigation
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,6 +54,13 @@ fun AppNavigation(
     navController: NavHostController = rememberNavController(),
     viewModel: GameViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+    val authState by viewModel.authState.collectAsStateWithLifecycle()
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        viewModel.onGoogleSignInResult(result.data)
+    }
     val gameState by viewModel.gameState.collectAsStateWithLifecycle()
     val slotsState by viewModel.slotsState.collectAsStateWithLifecycle()
     val rouletteState by viewModel.rouletteState.collectAsStateWithLifecycle()
@@ -75,6 +85,7 @@ fun AppNavigation(
                 WelcomeScreen(
                     initialPlayerName = gameState.profile.name,
                     initialAvatarResId = gameState.profile.avatarResId,
+                    authState = authState,
                     hasSavedGame = gameState.hasSavedGameInRoom,
                     savedGameDayName = gameState.savedGameDayName,
                     unlockedAchievementsCount = gameState.unlockedAchievementIds.size,
@@ -83,6 +94,27 @@ fun AppNavigation(
                     hasPlayedIntroSplash = gameState.hasPlayedIntroSplash,
                     onProfileChanged = { playerName, avatarResId ->
                         viewModel.setPlayerProfile(playerName, avatarResId)
+                    },
+                    onSignInAnonymous = { nickname, avatarResId ->
+                        viewModel.signInAnonymously(nickname, avatarResId)
+                    },
+                    onSignInEmail = { email, password, isRegister ->
+                        viewModel.signInWithEmail(email, password, isRegister)
+                    },
+                    onSignInGoogle = {
+                        val intent = viewModel.buildGoogleSignInIntent(context)
+                        if (intent != null) {
+                            googleSignInLauncher.launch(intent)
+                        }
+                    },
+                    onCompleteNickname = { nickname, avatarResId ->
+                        viewModel.completeNicknameSetup(nickname, avatarResId)
+                    },
+                    onSignOut = {
+                        viewModel.signOut()
+                    },
+                    onClearAuthError = {
+                        viewModel.clearAuthError()
                     },
                     onIntroSplashCompleted = {
                         viewModel.markIntroSplashCompleted()
@@ -117,6 +149,9 @@ fun AppNavigation(
                     onOpenLeaderboard = { playerName, avatarResId ->
                         viewModel.setPlayerProfile(playerName, avatarResId)
                         navController.navigate(Screen.Leaderboard.route)
+                    },
+                    onQrCodeScanned = { scanned ->
+                        viewModel.onQrCodeScanned(scanned)
                     }
                 )
             }
@@ -202,9 +237,6 @@ fun AppNavigation(
                     onOpenLeaderboard = {
                         navController.navigate(Screen.Leaderboard.route)
                     },
-                    onQrCodeScanned = { scanned ->
-                        viewModel.onQrCodeScanned(scanned)
-                    },
                     onRestartGame = {
                         viewModel.restartGame()
                         navController.navigate(Screen.Welcome.route) {
@@ -218,10 +250,10 @@ fun AppNavigation(
                 LeaderboardScreen(
                     gameState = gameState,
                     rankingList = rankingList,
+                    currentAuthUid = authState.uid,
                     isFirebaseOnline = isFirebaseOnline,
                     firebaseStatusText = firebaseStatusText,
                     onRefreshRanking = { viewModel.refreshOnlineRanking() },
-                    onQrCodeScanned = { scanned -> viewModel.onQrCodeScanned(scanned) },
                     onBack = { navController.popBackStack() }
                 )
             }

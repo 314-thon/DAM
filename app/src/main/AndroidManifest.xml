@@ -30,11 +30,11 @@
             </intent-filter>
         </activity>
 
-        <!-- Actividad del escáner QR en orientación vertical -->
+        <!-- Actividad del escáner QR con HUD superior -->
         <activity
-            android:name="com.journeyapps.barcodescanner.CaptureActivity"
+            android:name="com.ifts18.unadecisionmas.ui.qr.QrCaptureActivity"
             android:screenOrientation="fullSensor"
-            tools:replace="android:screenOrientation" />
+            android:theme="@android:style/Theme.Material.NoActionBar" />
     </application>
 
 </manifest>

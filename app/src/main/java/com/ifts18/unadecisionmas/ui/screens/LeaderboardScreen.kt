@@ -1,7 +1,5 @@
 package com.ifts18.unadecisionmas.ui.screens
 
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,8 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CloudDone
-import androidx.compose.material.icons.filled.QrCode2
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Icon
@@ -36,7 +32,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -45,13 +40,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.ifts18.unadecisionmas.audio.SoundManager
 import com.ifts18.unadecisionmas.data.model.AchievementsCatalog
 import com.ifts18.unadecisionmas.data.model.GameState
@@ -65,60 +58,23 @@ import com.ifts18.unadecisionmas.ui.theme.RojoAlerta
 import com.ifts18.unadecisionmas.ui.theme.SpaceGrotesk
 import com.ifts18.unadecisionmas.ui.theme.TextoSecundario
 import com.ifts18.unadecisionmas.ui.theme.VerdeExito
-import com.ifts18.unadecisionmas.util.QrCodeHelper
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
 
 /**
- * Pantalla de Ranking Compartido (Firebase + Room) y Galería de Medallas con Escáner QR SIXSEVEN.
+ * Pantalla de Ranking Compartido (Firebase + Room) y Galería de Medallas.
  */
 @Composable
 fun LeaderboardScreen(
     gameState: GameState,
     rankingList: List<RankingEntry>,
+    currentAuthUid: String = "",
     isFirebaseOnline: Boolean,
     firebaseStatusText: String,
     onRefreshRanking: () -> Unit,
-    onQrCodeScanned: (String) -> Boolean,
     onBack: () -> Unit,
     initialTab: Int = 0,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(initialTab) }
-    var showQrGeneratorDialog by remember { mutableStateOf(false) }
-
-    val qrScannerLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
-        val contents = result.contents
-        if (!contents.isNullOrBlank()) {
-            val unlocked = onQrCodeScanned(contents)
-            if (unlocked) {
-                Toast.makeText(
-                    context,
-                    "Medalla secreta desbloqueada: SixSeven (#67)",
-                    Toast.LENGTH_LONG
-                ).show()
-                selectedTab = 1
-            } else {
-                Toast.makeText(
-                    context,
-                    "QR leído: $contents",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
-        }
-    }
-
-    val launchQrCamera: () -> Unit = {
-        SoundManager.playClick()
-        val options = ScanOptions().apply {
-            setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-            setPrompt("Apuntá al código QR de otro jugador")
-            setBeepEnabled(true)
-            setOrientationLocked(false)
-        }
-        qrScannerLauncher.launch(options)
-    }
 
     Box(
         modifier = modifier
@@ -244,99 +200,51 @@ fun LeaderboardScreen(
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
                     )
 
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        itemsIndexed(rankingList) { index, item ->
-                            RankingRowItem(
-                                position = index + 1,
-                                entry = item,
-                                isCurrentPlayer = item.playerName.equals(gameState.profile.name, ignoreCase = true)
+                    if (rankingList.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 18.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color(0xFF141824))
+                                .border(1.dp, BordeCyan.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                                .padding(20.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Todavía no hay partidas registradas.\n¡Completá un modo de juego para estrenar el ranking global!",
+                                fontFamily = SpaceGrotesk,
+                                fontSize = 13.sp,
+                                lineHeight = 19.sp,
+                                color = TextoSecundario,
+                                textAlign = TextAlign.Center
                             )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            itemsIndexed(rankingList) { index, item ->
+                                val isMine = (currentAuthUid.isNotBlank() && item.uid == currentAuthUid) ||
+                                    (currentAuthUid.isBlank() && item.playerName.equals(gameState.profile.name, ignoreCase = true))
+                                RankingRowItem(
+                                    position = index + 1,
+                                    entry = item,
+                                    isCurrentPlayer = isMine
+                                )
+                            }
                         }
                     }
                 }
             } else {
-                // PESTAÑA 2: MEDALLAS EN ROOM + ESCÁNER QR EASTER EGG SIXSEVEN
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                // PESTAÑA 2: MEDALLAS EN ROOM
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Banner de acción QR entre dispositivos
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color(0xFF1A1429))
-                            .border(1.5.dp, BordeCyan, RoundedCornerShape(14.dp))
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(46.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Brush.horizontalGradient(listOf(BordeMagenta, BordeCyan)))
-                                .clickable { launchQrCamera() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.QrCodeScanner,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Escanear QR",
-                                    fontFamily = SpaceGrotesk,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    color = Color.White
-                                )
-                            }
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(46.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF121824))
-                                .border(1.dp, BordeCyan, RoundedCornerShape(10.dp))
-                                .clickable {
-                                    SoundManager.playClick()
-                                    showQrGeneratorDialog = true
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.QrCode2,
-                                    contentDescription = null,
-                                    tint = BordeCyan,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Mostrar mi QR",
-                                    fontFamily = SpaceGrotesk,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    color = BordeCyan
-                                )
-                            }
-                        }
-                    }
-
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
                         itemsIndexed(AchievementsCatalog.all) { _, achievement ->
                             val isUnlocked = gameState.unlockedAchievementIds.contains(achievement.id)
                             Box(
@@ -405,17 +313,9 @@ fun LeaderboardScreen(
                                 }
                             }
                         }
-                    }
                 }
             }
         }
-    }
-
-    if (showQrGeneratorDialog) {
-        SixSevenQrDialog(
-            playerName = gameState.profile.name,
-            onDismiss = { showQrGeneratorDialog = false }
-        )
     }
 }
 
@@ -526,95 +426,6 @@ private fun RankingRowItem(
                 fontSize = 10.5.sp,
                 color = BordeCyan
             )
-        }
-    }
-}
-
-@Composable
-fun SixSevenQrDialog(
-    playerName: String,
-    onDismiss: () -> Unit
-) {
-    val qrBitmap = remember {
-        QrCodeHelper.generateQrImageBitmap(
-            content = "${AchievementsCatalog.QR_EASTER_EGG_PAYLOAD}|FROM:$playerName",
-            sizePx = 520
-        )
-    }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xFF141824))
-                .border(
-                    width = 2.dp,
-                    brush = Brush.horizontalGradient(listOf(BordeMagenta, BordeCyan)),
-                    shape = RoundedCornerShape(22.dp)
-                )
-                .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "Código QR de jugador",
-                fontFamily = SpaceGrotesk,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-                color = BordeCyan,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = "Mostrale este código a otra persona que tenga la app o escaneá el suyo.",
-                fontFamily = SpaceGrotesk,
-                fontSize = 12.5.sp,
-                lineHeight = 17.sp,
-                color = Color.White.copy(alpha = 0.9f),
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            if (qrBitmap != null) {
-                Box(
-                    modifier = Modifier
-                        .size(220.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF0D1117))
-                        .border(2.dp, BordeCyan, RoundedCornerShape(16.dp))
-                        .padding(10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        bitmap = qrBitmap,
-                        contentDescription = "Código QR de jugador",
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Brush.horizontalGradient(listOf(BordeMagenta, BordeCyan)))
-                    .clickable { onDismiss() },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Cerrar QR",
-                    fontFamily = SpaceGrotesk,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = Color.White
-                )
-            }
         }
     }
 }

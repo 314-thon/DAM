@@ -49,6 +49,11 @@ android {
             "FIREBASE_APP_ID",
             "\"${localProps.getProperty("FIREBASE_APP_ID", "")}\""
         )
+        buildConfigField(
+            "String",
+            "GOOGLE_WEB_CLIENT_ID",
+            "\"${localProps.getProperty("GOOGLE_WEB_CLIENT_ID", "")}\""
+        )
     }
 
     buildTypes {
@@ -114,10 +119,14 @@ dependencies {
     implementation("androidx.room:room-ktx:$roomVersion")
     kapt("androidx.room:room-compiler:$roomVersion")
 
-    // Ranking en linea: Firebase (Realtime Database y Cloud Firestore)
+    // Ranking en linea y autenticacion: Firebase (Auth + Realtime Database + Cloud Firestore)
     implementation(platform("com.google.firebase:firebase-bom:32.7.4"))
+    implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-database-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
+
+    // Google Sign-In via Google Play Services (compatible con Android 7..16 sin depender de CredentialSelector)
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
 
     // Generacion y escaneo de codigos QR (Easter Egg SIXSEVEN)
     implementation("com.google.zxing:core:3.5.3")

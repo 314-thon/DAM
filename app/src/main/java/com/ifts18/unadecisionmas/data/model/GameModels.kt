@@ -112,7 +112,7 @@ object AchievementsCatalog {
         AchievementDef(
             id = ID_EVITANDO_TENTACION,
             codeNumber = "#03",
-            title = "Sin caer en el scroll",
+            title = "Ad evadido",
             description = "Sacudiste el teléfono para frenar el bombardeo de anuncios.",
             bonusPoints = 1300
         ),
@@ -202,10 +202,35 @@ data class RouletteGameState(
 )
 
 /**
+ * Proveedores de autenticación soportados por Firebase Auth.
+ */
+enum class AuthProviderType {
+    NONE,
+    ANONYMOUS,
+    EMAIL,
+    GOOGLE
+}
+
+/**
+ * Estado observable de autenticación y configuración obligatoria de apodo.
+ */
+data class AuthUiState(
+    val isAuthenticated: Boolean = false,
+    val uid: String = "",
+    val providerType: AuthProviderType = AuthProviderType.NONE,
+    val needsNicknameSetup: Boolean = false,
+    val loadingProvider: AuthProviderType? = null,
+    val errorMessage: String? = null
+) {
+    val isLoading: Boolean get() = loadingProvider != null
+}
+
+/**
  * Entrada del Ranking Global (Firebase + caché local Room).
  */
 data class RankingEntry(
     val id: String = "",
+    val uid: String = "",
     val playerName: String = "Mateo",
     val avatarIndex: Int = 1,
     val score: Int = 0,
@@ -251,6 +276,18 @@ data class GameState(
     val isTutorialCompleted: Boolean = true,
     val hasPlayedIntroSplash: Boolean = false
 ) {
+    /**
+     * Indica si el jugador contrajo deuda con algún cajero o app de préstamos durante la semana
+     * (Jueves: préstamo exprés; Viernes: plata fiada del cajero), excluyendo vencimientos por tiempo.
+     */
+    fun hasCajeroDebt(): Boolean {
+        return decisionHistory.any { record ->
+            !record.isSafe &&
+                !record.chosenOptionText.startsWith("Tiempo agotado") &&
+                (record.dayName == "Jueves" || record.dayName == "Viernes")
+        }
+    }
+
     /**
      * Calcula el puntaje competitivo combinando ahorro conservado, ausencia de deuda,
      * puntos de bienestar, logros y bonus por velocidad de respuesta (evita empates).

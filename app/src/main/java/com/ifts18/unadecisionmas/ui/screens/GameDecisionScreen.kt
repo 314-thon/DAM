@@ -23,6 +23,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,14 +36,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Done
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PhonelinkErase
@@ -61,7 +59,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -99,7 +96,6 @@ import com.ifts18.unadecisionmas.ui.theme.TextoSecundario
 import com.ifts18.unadecisionmas.ui.theme.VerdeExito
 import com.ifts18.unadecisionmas.ui.viewmodel.GameViewModel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @Composable
 fun GameDecisionScreen(
@@ -110,9 +106,7 @@ fun GameDecisionScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val currentScenario = viewModel.getCurrentScenario()
-    val scrollState = rememberScrollState()
-    val scope = rememberCoroutineScope()
+    val currentScenario = viewModel.getCurrentScenario(gameState)
     var previewImageResId by remember(gameState.currentDayIndex) { mutableStateOf<Int?>(null) }
 
     var isLifecycleResumed by remember { mutableStateOf(true) }
@@ -254,9 +248,6 @@ fun GameDecisionScreen(
             delayWhileForeground(if (index == 0) 450L else chatMsg.delayAfterMillis)
             playNotification()
             loadedMessagesCount = index + 1
-            try {
-                scrollState.animateScrollTo(scrollState.maxValue)
-            } catch (_: Throwable) {}
         }
 
         while (previewImageResId != null || !isLifecycleResumed) {
@@ -300,16 +291,6 @@ fun GameDecisionScreen(
 
     val remainingSecs = ((totalTimeMillis - elapsedDecisionMillis) / 1000L).coerceAtLeast(0L)
 
-    // Cuando aparecen los botones inferiores o cambia la altura del chat, acompañar con scroll al último mensaje
-    LaunchedEffect(isTimerActive, loadedMessagesCount, isShakeChallengeActive) {
-        if (loadedMessagesCount > 0) {
-            delay(if (isTimerActive) 280L else 80L)
-            try {
-                scrollState.animateScrollTo(scrollState.maxValue)
-            } catch (_: Throwable) {}
-        }
-    }
-
     val backgroundBrush = remember {
         Brush.radialGradient(
             colors = listOf(
@@ -322,18 +303,20 @@ fun GameDecisionScreen(
         )
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(backgroundBrush)
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
+        val isCompactHeight = maxHeight < 710.dp
+
         if (!gameState.isPunishedNoPhone) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = if (isCompactHeight) 6.dp else 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
             // 1. TOP BAR FIJA CON AHORRO, DEUDA, BIENESTAR Y DÍA
@@ -342,20 +325,15 @@ fun GameDecisionScreen(
                 currentDayName = currentScenario.dayName
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(if (isCompactHeight) 6.dp else 10.dp))
 
-            // 2. CHAT DE MENSAJES SECUENCIALES
-            Box(
+            // 2. CHAT DE MENSAJES SECUENCIALES (Sin scroll vertical)
+            Column(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth()
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(if (isCompactHeight) 5.dp else 7.dp)
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(scrollState),
-                    verticalArrangement = Arrangement.spacedBy(7.dp)
-                ) {
                     currentScenario.messages.forEachIndexed { index, msg ->
                         val isVisible = index < loadedMessagesCount
                         AnimatedVisibility(
@@ -385,7 +363,10 @@ fun GameDecisionScreen(
                                     )
                                     .clip(RoundedCornerShape(16.dp))
                                     .background(BurbujaChat.copy(alpha = 0.85f))
-                                    .padding(horizontal = 13.dp, vertical = 9.dp)
+                                    .padding(
+                                        horizontal = 12.dp,
+                                        vertical = if (isCompactHeight) 7.dp else 9.dp
+                                    )
                             ) {
                                 Column(modifier = Modifier.fillMaxWidth()) {
                                     Row(
@@ -438,7 +419,7 @@ fun GameDecisionScreen(
                                                 alignment = Alignment.TopCenter,
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .height(140.dp)
+                                                    .height(if (isCompactHeight) 104.dp else 124.dp)
                                             )
                                             Box(
                                                 modifier = Modifier
@@ -460,13 +441,13 @@ fun GameDecisionScreen(
                                     }
 
                                     if (msg.message.isNotBlank()) {
-                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Spacer(modifier = Modifier.height(3.dp))
                                         Text(
                                             text = msg.message,
                                             fontFamily = SpaceGrotesk,
-                                            fontSize = 15.5.sp,
+                                            fontSize = if (isCompactHeight) 14.sp else 15.sp,
                                             fontWeight = FontWeight.Normal,
-                                            lineHeight = 20.5.sp,
+                                            lineHeight = if (isCompactHeight) 18.sp else 19.5.sp,
                                             color = Color.White
                                         )
                                     }
@@ -493,54 +474,9 @@ fun GameDecisionScreen(
                             )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
-                if (scrollState.canScrollForward) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .height(38.dp)
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(Color.Transparent, FondoGeneral.copy(alpha = 0.92f))
-                                )
-                            )
-                    )
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 4.dp)
-                            .clip(RoundedCornerShape(50))
-                            .background(Color(0xFF1A2234))
-                            .border(1.dp, BordeCyan.copy(alpha = 0.65f), RoundedCornerShape(50))
-                            .clickable {
-                                scope.launch { scrollState.animateScrollTo(scrollState.maxValue) }
-                            }
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = "Bajar",
-                            tint = BordeCyan,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(
-                            text = "Deslizá para leer más",
-                            fontFamily = SpaceGrotesk,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 10.5.sp,
-                            color = BordeCyan
-                        )
-                    }
-                }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(if (isCompactHeight) 6.dp else 8.dp))
 
             // 3. ZONA CALIENTE DEL PULGAR: TEMPORIZADOR DE 25s Y LAS 3 OPCIONES DE DECISIÓN
             AnimatedVisibility(
@@ -557,7 +493,7 @@ fun GameDecisionScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(7.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (isCompactHeight) 5.dp else 7.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     // Barra de temporizador en Canvas de 25s
@@ -587,6 +523,7 @@ fun GameDecisionScreen(
                         DecisionButton(
                             text = option.text,
                             enabled = !isShakeChallengeActive,
+                            compact = isCompactHeight,
                             onClick = {
                                 if (isTimerActive && !isShakeChallengeActive) {
                                     isTimerActive = false
@@ -606,7 +543,7 @@ fun GameDecisionScreen(
         }
         }
 
-        // Pop-up modal real del Jueves: interrumpe la pantalla hasta agitar o descartarlo
+        // Pop-up modal real del Jueves: ofrece aceptar el préstamo al instante o agitar para descartarlo
         AnimatedVisibility(
             visible = isShakeChallengeActive && isTimerActive && !gameState.isPunishedNoPhone,
             enter = fadeIn(tween(180)) + scaleIn(
@@ -620,7 +557,17 @@ fun GameDecisionScreen(
                 remainingSecs = remainingSecs,
                 isUrgent = isUrgent,
                 joltOffsetPx = popupJoltX.value,
-                onManualDismissStep = { advancePopupDismiss(0.5f) }
+                onAcceptLoan = {
+                    if (isTimerActive && isShakeChallengeActive) {
+                        isTimerActive = false
+                        isShakeChallengeActive = false
+                        HapticFeedbackHelper.vibrateShort(context, 45L)
+                        viewModel.selectOption(
+                            option = currentScenario.riskyOption,
+                            responseTimeMillis = elapsedDecisionMillis
+                        )
+                    }
+                }
             )
         }
 
@@ -630,7 +577,6 @@ fun GameDecisionScreen(
             enter = fadeIn(tween(260)) + scaleIn(initialScale = 0.92f),
             exit = fadeOut(tween(180))
         ) {
-            val punishmentScrollState = rememberScrollState()
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -641,7 +587,6 @@ fun GameDecisionScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .verticalScroll(punishmentScrollState)
                         .clip(RoundedCornerShape(24.dp))
                         .background(Color(0xFF181224))
                         .border(
@@ -938,6 +883,7 @@ private fun DecisionButton(
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
     isPulsing: Boolean = false,
     pulseScale: () -> Float = { 1.0f }
 ) {
@@ -956,7 +902,7 @@ private fun DecisionButton(
                 scaleY = scale
                 alpha = if (enabled) 1f else 0.45f
             }
-            .height(46.dp)
+            .height(if (compact) 42.dp else 46.dp)
             .border(
                 width = if (isPulsing) 2.dp else 1.3.dp,
                 brush = borderBrush,
@@ -987,7 +933,7 @@ private fun LoanPopupOverlay(
     remainingSecs: Long,
     isUrgent: Boolean,
     joltOffsetPx: Float,
-    onManualDismissStep: () -> Unit
+    onAcceptLoan: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -1117,6 +1063,27 @@ private fun LoanPopupOverlay(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(VerdeExito)
+                        .clickable(onClick = onAcceptLoan)
+                        .padding(vertical = 13.dp, horizontal = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Aceptar préstamo de $20.000",
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color(0xFF0A140F),
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1137,7 +1104,7 @@ private fun LoanPopupOverlay(
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
-                            text = "Agitá el celular para cerrarlo",
+                            text = "Agitá el celular para descartarlo",
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,
@@ -1156,28 +1123,6 @@ private fun LoanPopupOverlay(
                         color = VerdeExito,
                         trackColor = Color.White.copy(alpha = 0.15f)
                     )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(BordeCyan.copy(alpha = 0.14f))
-                            .border(1.dp, BordeCyan.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
-                            .clickable(onClick = onManualDismissStep)
-                            .padding(vertical = 8.dp, horizontal = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Tocar para descartar (${(shakeProgress * 100).toInt()}%)",
-                            fontFamily = SpaceGrotesk,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.5.sp,
-                            color = BordeCyan,
-                            textAlign = TextAlign.Center
-                        )
-                    }
                 }
             }
         }

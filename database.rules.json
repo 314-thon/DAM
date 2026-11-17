@@ -1,0 +1,24 @@
+{
+  "rules": {
+    "ranking_juego_limpio": {
+      ".read": "auth != null",
+      ".indexOn": ["score"],
+      "$entryId": {
+        ".write": "auth != null && (!data.exists() || data.child('uid').val() === auth.uid) && newData.child('uid').val() === auth.uid",
+        ".validate": "newData.hasChildren(['uid', 'playerName', 'avatarIndex', 'score', 'debt', 'savings', 'wellbeingPoints', 'totalTimeMillis', 'achievementsCount', 'hasSixSeven', 'gameMode', 'timestamp']) && newData.child('uid').isString() && newData.child('uid').val() === auth.uid && newData.child('playerName').isString() && newData.child('playerName').val().length >= 1 && newData.child('playerName').val().length <= 30 && newData.child('avatarIndex').isNumber() && newData.child('avatarIndex').val() >= 1 && newData.child('avatarIndex').val() <= 5 && newData.child('score').isNumber() && newData.child('score').val() >= 0 && newData.child('debt').isNumber() && newData.child('debt').val() >= 0 && newData.child('savings').isNumber() && newData.child('wellbeingPoints').isNumber() && newData.child('totalTimeMillis').isNumber() && newData.child('totalTimeMillis').val() >= 0 && newData.child('achievementsCount').isNumber() && newData.child('achievementsCount').val() >= 0 && newData.child('hasSixSeven').isBoolean() && newData.child('gameMode').isString() && newData.child('timestamp').isNumber()"
+      }
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "nickname": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 22"
+        },
+        "avatarIndex": {
+          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 5"
+        }
+      }
+    }
+  }
+}
