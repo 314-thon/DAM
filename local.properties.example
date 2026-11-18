@@ -1,8 +1,19 @@
-# Copiá este archivo como local.properties (sin commitear) y completá tus valores locales.
+# Configuracion local de Firebase (NO commitear ni subir a GitHub).
+#
+# Si Android Studio ya genero local.properties con tu sdk.dir, NO lo reemplaces:
+# agrega las 5 lineas de abajo al final de tu local.properties existente.
+# Si todavia no existe local.properties, copia este archivo como local.properties
+# y descomenta sdk.dir con la ruta real de tu Android SDK.
+#
 # sdk.dir=C\:\\Users\\TU_USUARIO\\AppData\\Local\\Android\\Sdk
 
+# Realtime Database -> Data -> URL de la instancia
 FIREBASE_DB_URL=https://TU-PROYECTO-default-rtdb.firebaseio.com
+# Project Settings -> General -> Project ID
 FIREBASE_PROJECT_ID=tu-proyecto-firebase
+# Project Settings -> General -> Web API Key
 FIREBASE_API_KEY=TU_FIREBASE_API_KEY
+# Project Settings -> General -> App Android (paquete com.ifts18.unadecisionmas) -> App ID
 FIREBASE_APP_ID=1:000000000000:android:0000000000000000000000
+# Authentication -> Sign-in method -> Google -> Web SDK configuration -> Web client ID
 GOOGLE_WEB_CLIENT_ID=000000000000-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com

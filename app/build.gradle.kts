@@ -13,6 +13,45 @@ val localProps = Properties().apply {
     }
 }
 
+val requiredFirebaseProps = listOf("FIREBASE_API_KEY", "FIREBASE_APP_ID")
+val missingRequiredFirebaseProps = requiredFirebaseProps.filter {
+    localProps.getProperty(it).isNullOrBlank()
+}
+val missingOptionalFirebaseProps = listOf(
+    "FIREBASE_DB_URL",
+    "FIREBASE_PROJECT_ID",
+    "GOOGLE_WEB_CLIENT_ID"
+).filter { localProps.getProperty(it).isNullOrBlank() }
+
+if (missingOptionalFirebaseProps.isNotEmpty() && missingRequiredFirebaseProps.isEmpty()) {
+    logger.warn(
+        "AVISO: Faltan propiedades de Firebase en local.properties " +
+            "(${missingOptionalFirebaseProps.joinToString(", ")}). " +
+            "Revisa local.properties.example y README.md (seccion G)."
+    )
+}
+
+gradle.taskGraph.whenReady {
+    val requiresFirebaseConfig = allTasks.any { task ->
+        task.project == project && (
+            task.name.startsWith("assemble") ||
+                task.name.startsWith("install") ||
+                task.name.startsWith("bundle") ||
+                task.name.startsWith("package") ||
+                task.name.startsWith("compile") ||
+                (task.name.startsWith("generate") && task.name.endsWith("BuildConfig"))
+            )
+    }
+    if (requiresFirebaseConfig && missingRequiredFirebaseProps.isNotEmpty()) {
+        throw GradleException(
+            "Faltan claves obligatorias de Firebase en local.properties: " +
+                "${missingRequiredFirebaseProps.joinToString(", ")}. " +
+                "Agrega las credenciales al final de local.properties (sin borrar sdk.dir) " +
+                "siguiendo local.properties.example y README.md (seccion G)."
+        )
+    }
+}
+
 android {
     namespace = "com.ifts18.unadecisionmas"
     compileSdk = 34

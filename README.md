@@ -132,7 +132,26 @@ Podés ver los recursos de diseño y documentación complementaria en estos enla
 
 ## G. Instrucciones para ejecutar la aplicación
 
+> **Nota de seguridad:** Las credenciales reales de Firebase no se suben al repositorio (`local.properties` y `google-services.json` están excluidos en [`.gitignore`](.gitignore)). Si solo querés probar la app sin compilar, instalá directamente el APK compilado (`app-debug.apk`).
+
+### 1. Requisitos base
+
 1. Clonar el repositorio y abrir la carpeta raíz en Android Studio (Iguana, Jellyfish, Ladybug o superior).
 2. Configurar Gradle con **JDK 17** (*Settings -> Build, Execution, Deployment -> Build Tools -> Gradle -> Gradle JDK = 17*).
-3. Copiar `local.properties.example` como `local.properties` y completar `sdk.dir` junto con las claves de Firebase (`FIREBASE_DB_URL`, `FIREBASE_PROJECT_ID`, `FIREBASE_API_KEY`, `FIREBASE_APP_ID`, `GOOGLE_WEB_CLIENT_ID`).
-4. Compilar con `./gradlew assembleDebug` o correr directo desde Android Studio en un teléfono Android físico (recomendado para probar el acelerómetro y la cámara QR) o en un emulador con Google Play Services.
+
+### 2. Configurar `local.properties` (Firebase)
+
+Si Android Studio ya creó `local.properties` en la raíz con `sdk.dir=...`, **no lo sobrescribas**: solo agregá las 5 variables de [`local.properties.example`](local.properties.example) al final del archivo. Si todavía no existe, copiá `local.properties.example` como `local.properties` y completá `sdk.dir`. Si faltan `FIREBASE_API_KEY` o `FIREBASE_APP_ID`, Gradle detendrá la compilación o instalación del APK con un error explícito antes de generar un build incompleto.
+
+Elegí uno de estos dos caminos para completar las 5 variables (`FIREBASE_DB_URL`, `FIREBASE_PROJECT_ID`, `FIREBASE_API_KEY`, `FIREBASE_APP_ID`, `GOOGLE_WEB_CLIENT_ID`):
+
+* **Opción A (usar el Firebase del grupo):** Pedile por privado a un integrante del equipo las 5 líneas reales y pegalas al final de tu `local.properties` (nunca las subas al repo). Para usar *Continuar con Google* compilando desde otra PC con tu propio `debug.keystore`, hay que registrar tu SHA-1 (`./gradlew signingReport`) en Firebase Console; *Rápido (Apodo)* y *Email* funcionan directo sin ese paso.
+* **Opción B (levantar un proyecto Firebase propio):**
+  1. En Firebase Console, creá un proyecto, registrá una app Android con el paquete `com.ifts18.unadecisionmas` y cargá el SHA-1 de tu certificado de debug (`./gradlew signingReport`).
+  2. Habilitá **Authentication** con los proveedores **Anónimo**, **Correo electrónico/contraseña** y **Google** (de la configuración Web SDK copiá el *Web client ID* en `GOOGLE_WEB_CLIENT_ID`).
+  3. Creá una **Realtime Database** y desplegá las reglas del repositorio con `firebase deploy --only database` (usa [`database.rules.json`](database.rules.json) y [`firebase.json`](firebase.json)).
+  4. Copiá `FIREBASE_DB_URL`, `FIREBASE_PROJECT_ID`, `FIREBASE_API_KEY` y `FIREBASE_APP_ID` desde *Project Settings* en tu `local.properties`.
+
+### 3. Compilar y correr
+
+Ejecutá `./gradlew assembleDebug` (o **Run** desde Android Studio) en un teléfono Android físico (recomendado para probar el acelerómetro y la cámara QR) o en un emulador con Google Play Services.
