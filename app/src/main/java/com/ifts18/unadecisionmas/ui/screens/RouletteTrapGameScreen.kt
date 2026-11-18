@@ -260,14 +260,15 @@ fun RouletteTrapGameScreen(
     val wheelPockets = remember { buildEuropeanPockets() }
     val chipSpecs = remember {
         listOf(
-            CasinoChipSpec("100", 100, Color(0xFFB0BEC5), Color(0xFFECEFF1), Color(0xFF151515)),
             CasinoChipSpec("500", 500, Color(0xFFC62828), Color(0xFFFFFFFF), Color(0xFFFFFFFF)),
             CasinoChipSpec("1K", 1000, Color(0xFF1565C0), Color(0xFFFFFFFF), Color(0xFFFFFFFF)),
+            CasinoChipSpec("2K", 2000, Color(0xFFE65100), Color(0xFFFFE58F), Color(0xFFFFFFFF)),
             CasinoChipSpec("5K", 5000, Color(0xFF4A148C), Color(0xFFFFE58F), Color(0xFFFFFFFF)),
             CasinoChipSpec("10K", 10000, Color(0xFF00695C), Color(0xFFFFE58F), Color(0xFFFFFFFF))
         )
     }
-    var selectedChipIndex by remember { mutableIntStateOf(1) } // Ficha "$500" por defecto
+    // Ficha "$2.000" por defecto: montos más altos acortan la partida (ganás o perdés plata visible más rápido)
+    var selectedChipIndex by remember { mutableIntStateOf(2) }
     val activeChip = chipSpecs[selectedChipIndex]
 
     val selectedNumberIndex = state.selectedNumberIndex.coerceIn(0, wheelPockets.lastIndex)
@@ -285,6 +286,8 @@ fun RouletteTrapGameScreen(
     var showWithdrawModal by remember { mutableStateOf(false) }
     var zeroHitsCount by remember { mutableIntStateOf(0) }
     var promoWinsCount by remember { mutableIntStateOf(0) }
+    var postDepositSpins by remember { mutableIntStateOf(0) }
+    var postDepositWins by remember { mutableIntStateOf(0) }
     var ballVisible by remember { mutableStateOf(state.spinsUsed > 0) }
     var ballRelativeAngle by remember {
         mutableFloatStateOf(-90f + (state.landedPocketIndex.coerceIn(0, wheelPockets.lastIndex) + 0.5f) * sliceAngle)
@@ -304,6 +307,7 @@ fun RouletteTrapGameScreen(
     var activeBeforePauseMillis by remember { mutableStateOf(state.elapsedMillis) }
     var isLifecycleResumed by remember { mutableStateOf(true) }
     var hasFinished by remember { mutableStateOf(false) }
+    var isLeavingScreen by remember { mutableStateOf(false) }
 
     // Giro suave continuo en reposo como Evoplay European Roulette
     LaunchedEffect(isSpinning, isLifecycleResumed) {
@@ -357,6 +361,21 @@ fun RouletteTrapGameScreen(
         return activeBeforePauseMillis + extra
     }
 
+    fun finishRouletteGame(stoppedEarly: Boolean, remainingChips: Int) {
+        if (hasFinished || isLeavingScreen) return
+        SoundManager.playClick()
+        showResultPopup = false
+        showResultPill = false
+        hasFinished = true
+        onGameFinished(
+            stoppedEarly,
+            currentState.spinsUsed,
+            remainingChips,
+            currentState.realMoneyLost,
+            currentTotalElapsed()
+        )
+    }
+
     fun selectBet(mode: String, numberIndex: Int = currentState.selectedNumberIndex) {
         if (isSpinning || showResultPopup || showDepositModal || showWithdrawModal) return
         SoundManager.playClick()
@@ -382,8 +401,21 @@ fun RouletteTrapGameScreen(
         val potentialProfit = ((currentBetAmount * betProfitMultiplier(mode)) / 100.0).toInt() * 100
         val canSafelyWin = balanceBeforeSpin + potentialProfit <= ROULETTE_SAFE_CEILING
 
-        // Fase post-depósito: siempre pierde para vaciar el saldo real cargado
+        // Fase post-depósito: 2 premios garantizados (giros 1 y 3 tras cargar) para que vuelvas a confiar;
+        // después vacía el saldo real cargado
         if (snapshot.realMoneyLost > 0) {
+            val postSpin = postDepositSpins + 1
+            val owesHookWin = postDepositWins < 2 && (postSpin % 2 == 1 || postSpin >= 4)
+            if (owesHookWin && canSafelyWin) {
+                val winningIndices = wheelPockets.indices.filter { idx ->
+                    idx != 0 && doesPocketWinBet(wheelPockets[idx], mode, selNum)
+                }.ifEmpty {
+                    wheelPockets.indices.filter { idx -> doesPocketWinBet(wheelPockets[idx], mode, selNum) }
+                }
+                if (winningIndices.isNotEmpty()) {
+                    return winningIndices[(nextSpinNumber * 7 + selIdx) % winningIndices.size]
+                }
+            }
             if (mode == "PLENO") {
                 val offset = if (nextSpinNumber % 2 == 1) 1 else -1
                 return (selIdx + offset + wheelPockets.size) % wheelPockets.size
@@ -457,9 +489,15 @@ fun RouletteTrapGameScreen(
 
         var spinBetAmount = activeChip.value
         if (spinBetAmount > balanceBeforeSpin) {
-            val affordableIdx = chipSpecs.indexOfLast { it.value <= balanceBeforeSpin }.coerceAtLeast(0)
-            selectedChipIndex = affordableIdx
-            spinBetAmount = chipSpecs[affordableIdx].value
+            val affordableIdx = chipSpecs.indexOfLast { it.value <= balanceBeforeSpin }
+            if (affordableIdx >= 0) {
+                selectedChipIndex = affordableIdx
+                spinBetAmount = chipSpecs[affordableIdx].value
+            } else {
+                // Resto menor a la ficha más chica: se apuesta lo que queda
+                selectedChipIndex = 0
+                spinBetAmount = balanceBeforeSpin
+            }
         }
 
         isSpinning = true
@@ -537,6 +575,10 @@ fun RouletteTrapGameScreen(
             val didWin = doesPocketWinBet(landed, mode, currentSelPocket.number)
             if (didWin && snapshot.realMoneyLost == 0) {
                 promoWinsCount += 1
+            }
+            if (snapshot.realMoneyLost > 0) {
+                postDepositSpins += 1
+                if (didWin) postDepositWins += 1
             }
 
             val newBalance = if (didWin) {
@@ -632,7 +674,16 @@ fun RouletteTrapGameScreen(
                     modifier = Modifier.weight(1f)
                 ) {
                     IconButton(
-                        onClick = onBackToHub,
+                        enabled = !hasFinished && !isLeavingScreen,
+                        onClick = {
+                            if (!hasFinished && !isLeavingScreen &&
+                                lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+                            ) {
+                                isLeavingScreen = true
+                                SoundManager.playClick()
+                                onBackToHub()
+                            }
+                        },
                         modifier = Modifier.size(30.dp)
                     ) {
                         Icon(
@@ -836,7 +887,7 @@ fun RouletteTrapGameScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (canAffordSpin) {
-                    // Fila 1: Selector de fichas ($100, $500, $1K, $5K, $10K)
+                    // Fila 1: Selector de fichas ($500, $1K, $2K, $5K, $10K)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -914,15 +965,10 @@ fun RouletteTrapGameScreen(
                                     .height(46.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
-                                    .clickable(enabled = !isSpinning) {
-                                        SoundManager.playClick()
-                                        hasFinished = true
-                                        onGameFinished(
-                                            realMoneyLost == 0,
-                                            spinsUsed,
-                                            (currentBalance / 500).coerceIn(0, 10),
-                                            realMoneyLost,
-                                            currentTotalElapsed()
+                                    .clickable(enabled = !isSpinning && !hasFinished && !isLeavingScreen) {
+                                        finishRouletteGame(
+                                            stoppedEarly = realMoneyLost == 0,
+                                            remainingChips = (currentBalance / 500).coerceIn(0, 10)
                                         )
                                     },
                                 contentAlignment = Alignment.Center
@@ -994,15 +1040,10 @@ fun RouletteTrapGameScreen(
                                         .height(42.dp)
                                         .clip(RoundedCornerShape(11.dp))
                                         .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
-                                        .clickable {
-                                            SoundManager.playClick()
-                                            hasFinished = true
-                                            onGameFinished(
-                                                false,
-                                                spinsUsed,
-                                                (currentBalance / 500).coerceIn(0, 10),
-                                                realMoneyLost,
-                                                currentTotalElapsed()
+                                        .clickable(enabled = !hasFinished && !isLeavingScreen) {
+                                            finishRouletteGame(
+                                                stoppedEarly = false,
+                                                remainingChips = (currentBalance / 500).coerceIn(0, 10)
                                             )
                                         },
                                     contentAlignment = Alignment.Center
@@ -1039,16 +1080,8 @@ fun RouletteTrapGameScreen(
                                 .clip(RoundedCornerShape(11.dp))
                                 .background(RojoAlerta.copy(alpha = 0.28f))
                                 .border(1.2.dp, RojoAlerta, RoundedCornerShape(11.dp))
-                                .clickable {
-                                    SoundManager.playClick()
-                                    hasFinished = true
-                                    onGameFinished(
-                                        false,
-                                        spinsUsed,
-                                        0,
-                                        realMoneyLost,
-                                        currentTotalElapsed()
-                                    )
+                                .clickable(enabled = !hasFinished && !isLeavingScreen) {
+                                    finishRouletteGame(stoppedEarly = false, remainingChips = 0)
                                 },
                             contentAlignment = Alignment.Center
                         ) {
@@ -1200,17 +1233,10 @@ fun RouletteTrapGameScreen(
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(VerdeExito.copy(alpha = 0.16f))
                                 .border(1.dp, VerdeExito, RoundedCornerShape(12.dp))
-                                .clickable {
-                                    SoundManager.playClick()
-                                    showResultPopup = false
-                                    showResultPill = false
-                                    hasFinished = true
-                                    onGameFinished(
-                                        realMoneyLost == 0,
-                                        spinsUsed,
-                                        (currentBalance / 500).coerceIn(0, 10),
-                                        realMoneyLost,
-                                        currentTotalElapsed()
+                                .clickable(enabled = !hasFinished && !isLeavingScreen) {
+                                    finishRouletteGame(
+                                        stoppedEarly = realMoneyLost == 0,
+                                        remainingChips = (currentBalance / 500).coerceIn(0, 10)
                                     )
                                 },
                             contentAlignment = Alignment.Center

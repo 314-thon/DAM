@@ -6,6 +6,7 @@ import android.view.SoundEffectConstants
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -70,8 +71,11 @@ import com.ifts18.unadecisionmas.R
 import com.ifts18.unadecisionmas.audio.SoundManager
 import com.ifts18.unadecisionmas.data.model.AchievementsCatalog
 import com.ifts18.unadecisionmas.data.model.DecisionRecord
+import com.ifts18.unadecisionmas.data.model.GameModes
 import com.ifts18.unadecisionmas.data.model.GameState
+import com.ifts18.unadecisionmas.data.model.PlayerRankingSummary
 import com.ifts18.unadecisionmas.ui.components.ConfettiEffect
+import com.ifts18.unadecisionmas.ui.components.DidacticReflectionOverlay
 import com.ifts18.unadecisionmas.ui.components.SoundToggleButton
 import com.ifts18.unadecisionmas.ui.theme.BordeCyan
 import com.ifts18.unadecisionmas.ui.theme.BordeMagenta
@@ -87,6 +91,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun GameResultScreen(
     gameState: GameState,
+    currentUserRanking: PlayerRankingSummary? = null,
     onOpenLeaderboard: () -> Unit,
     onRestartGame: () -> Unit,
     modifier: Modifier = Modifier
@@ -95,6 +100,7 @@ fun GameResultScreen(
     val view = LocalView.current
 
     val isWon = gameState.currentDebt == 0
+    var showReflectionOverlay by remember { mutableStateOf(true) }
     var isContentVisible by remember { mutableStateOf(false) }
     var showQrModal by remember { mutableStateOf(false) }
     var showMedalsModal by remember { mutableStateOf(false) }
@@ -110,9 +116,11 @@ fun GameResultScreen(
         )
     }
 
-    LaunchedEffect(Unit) {
-        delay(120L)
-        isContentVisible = true
+    LaunchedEffect(showReflectionOverlay) {
+        if (!showReflectionOverlay) {
+            delay(120L)
+            isContentVisible = true
+        }
     }
 
     val playClickFeedback: () -> Unit = {
@@ -168,27 +176,42 @@ fun GameResultScreen(
     } else {
         gameState.calculateCompetitiveScore()
     }
-
-    BoxWithConstraints(
-        modifier = modifier
-            .fillMaxSize()
-            .background(backgroundBrush)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-    ) {
-        val isCompactHeight = maxHeight < 680.dp
-        val hasDecisionHistory = gameState.decisionHistory.isNotEmpty()
-        val sectionGap = if (isCompactHeight) 5.dp else 7.dp
-        val qrSize = when {
-            isCompactHeight && hasDecisionHistory -> 60.dp
-            isCompactHeight -> 72.dp
-            else -> 82.dp
+    val canonicalCompleted = GameModes.canonicalize(gameState.lastCompletedMode)
+    val mergedBestModes = LinkedHashMap<String, Int>().apply {
+        currentUserRanking?.bestScoreByMode?.forEach { (k, v) -> put(GameModes.canonicalize(k), v) }
+        gameState.bestScoresByMode.forEach { (k, v) ->
+            val c = GameModes.canonicalize(k)
+            put(c, maxOf(this[c] ?: 0, v))
         }
+        put(canonicalCompleted, maxOf(this[canonicalCompleted] ?: 0, displayedScore))
+    }
+    val modesTotalScore = mergedBestModes.values.sum()
+    val albumMedalBonus = AchievementsCatalog.calculateTotalBonus(
+        gameState.unlockedAchievementIds + currentUserRanking?.unlockedMedalIds.orEmpty()
+    )
+    val totalRankingScore = modesTotalScore + albumMedalBonus
 
-        if (isWon) {
-            ConfettiEffect(modifier = Modifier.fillMaxSize())
-        }
+    Box(modifier = modifier.fillMaxSize()) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(backgroundBrush)
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+        ) {
+            val isCompactHeight = maxHeight < 680.dp
+            val hasDecisionHistory = gameState.decisionHistory.isNotEmpty()
+            val sectionGap = if (isCompactHeight) 5.dp else 7.dp
+            val qrSize = when {
+                isCompactHeight && hasDecisionHistory -> 60.dp
+                isCompactHeight -> 72.dp
+                else -> 82.dp
+            }
+
+            if (isWon && !showReflectionOverlay) {
+                ConfettiEffect(modifier = Modifier.fillMaxSize())
+            }
 
         Column(modifier = Modifier.fillMaxSize()) {
             // ÁREA SUPERIOR Y MEDIA (Fija en pantalla, sin scroll vertical)
@@ -237,6 +260,14 @@ fun GameResultScreen(
                                 fontSize = if (isCompactHeight) 15.sp else 16.sp,
                                 lineHeight = if (isCompactHeight) 18.sp else 19.5.sp,
                                 color = if (isWon) VerdeExito else RojoAlerta
+                            )
+                            Text(
+                                text = "Ranking: $totalRankingScore pts (Modos $modesTotalScore + Medallas +$albumMedalBonus)",
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = if (isCompactHeight) 10.sp else 10.5.sp,
+                                lineHeight = 13.sp,
+                                color = BordeCyan
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
@@ -430,7 +461,9 @@ fun GameResultScreen(
                                     )
                                     Text(
                                         text = if (hasSessionMedals) {
-                                            "Tocá para ver cuáles • Álbum: ${gameState.unlockedAchievementIds.size}/7"
+                                            "Tocá para ver • Suman aparte en Ranking (${gameState.unlockedAchievementIds.size}/7)"
+                                        } else if (albumMedalBonus > 0) {
+                                            "Álbum: ${gameState.unlockedAchievementIds.size}/7 (+$albumMedalBonus pts en Ranking)"
                                         } else {
                                             "Probá devolver plata, planes reales o sacudir ante el spam"
                                         },
@@ -642,6 +675,18 @@ fun GameResultScreen(
                     }
                 }
             }
+        }
+        }
+
+        AnimatedVisibility(
+            visible = showReflectionOverlay,
+            enter = fadeIn(tween(220)),
+            exit = fadeOut(tween(180))
+        ) {
+            DidacticReflectionOverlay(
+                gameState = gameState,
+                onDismissToSummary = { showReflectionOverlay = false }
+            )
         }
     }
 

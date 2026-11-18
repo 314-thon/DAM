@@ -148,7 +148,71 @@ object AchievementsCatalog {
         )
     )
 
+    val MAX_TOTAL_BONUS: Int = all.sumOf { it.bonusPoints }
+
     fun findById(id: String): AchievementDef? = all.find { it.id == id }
+
+    /**
+     * Suma el puntaje único de cada medalla válida desbloqueada (sin duplicados).
+     */
+    fun calculateTotalBonus(achievementIds: Collection<String>): Int {
+        return achievementIds
+            .asSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .sumOf { id -> findById(id)?.bonusPoints ?: 0 }
+    }
+
+    /**
+     * Parsea una lista CSV de IDs de medallas filtrando únicamente los existentes en el catálogo.
+     */
+    fun parseValidIds(rawCsv: String): Set<String> {
+        if (rawCsv.isBlank()) return emptySet()
+        return rawCsv.split(",")
+            .asSequence()
+            .map { it.trim() }
+            .filter { findById(it) != null }
+            .toSet()
+    }
+}
+
+/**
+ * Modos de juego canónicos cuyas mejores marcas se suman en el Ranking Global.
+ */
+object GameModes {
+    const val LA_SEMANA = "La Semana"
+    const val SCROLL_SIN_CAER = "Scroll sin Caer"
+    const val TRAMPA_JACKPOT = "Trampa del Jackpot"
+    const val LA_RULETA_29 = "La Ruleta del 29"
+
+    val allModes: List<String> = listOf(
+        LA_SEMANA,
+        SCROLL_SIN_CAER,
+        TRAMPA_JACKPOT,
+        LA_RULETA_29
+    )
+
+    fun canonicalize(rawMode: String): String {
+        val cleaned = rawMode.trim()
+        return allModes.firstOrNull { it.equals(cleaned, ignoreCase = true) } ?: cleaned.ifBlank { LA_SEMANA }
+    }
+
+    fun slug(modeName: String): String {
+        return canonicalize(modeName)
+            .lowercase()
+            .replace(Regex("[^a-z0-9]+"), "_")
+            .trim('_')
+            .ifBlank { "general" }
+    }
+
+    fun shortLabel(modeName: String): String = when (canonicalize(modeName)) {
+        LA_SEMANA -> "Semana"
+        SCROLL_SIN_CAER -> "Scroll"
+        TRAMPA_JACKPOT -> "Slots"
+        LA_RULETA_29 -> "Ruleta"
+        else -> modeName
+    }
 }
 
 /**
@@ -226,7 +290,7 @@ data class AuthUiState(
 }
 
 /**
- * Entrada del Ranking Global (Firebase + caché local Room).
+ * Entrada individual por modo del Ranking (Firebase `ranking_juego_limpio` + caché local Room).
  */
 data class RankingEntry(
     val id: String = "",
@@ -240,8 +304,48 @@ data class RankingEntry(
     val totalTimeMillis: Long = 0L,
     val achievementsCount: Int = 0,
     val hasSixSeven: Boolean = false,
-    val gameMode: String = "La Semana",
+    val gameMode: String = GameModes.LA_SEMANA,
     val timestamp: Long = System.currentTimeMillis(),
+    val isSynced: Boolean = true,
+    val scoreVersion: Int = CURRENT_SCORE_VERSION
+) {
+    companion object {
+        const val CURRENT_SCORE_VERSION = 2
+    }
+}
+
+/**
+ * Medallas desbloqueadas por un jugador (Firebase `ranking_medallas/{uid}`),
+ * sumadas por separado a la suma de sus mejores puntajes por modo.
+ */
+data class PlayerMedalsRecord(
+    val uid: String = "",
+    val playerName: String = "Jugador",
+    val avatarIndex: Int = 1,
+    val unlockedIds: Set<String> = emptySet(),
+    val medalsBonus: Int = 0,
+    val achievementsCount: Int = 0,
+    val hasSixSeven: Boolean = false,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+/**
+ * Fila consolidada del Ranking Global:
+ * totalScore = suma del mejor puntaje de cada modo + suma de bonusPoints de medallas únicas.
+ */
+data class PlayerRankingSummary(
+    val uid: String = "",
+    val playerName: String = "Jugador",
+    val avatarIndex: Int = 1,
+    val totalScore: Int = 0,
+    val modesTotalScore: Int = 0,
+    val medalsBonusScore: Int = 0,
+    val bestScoreByMode: Map<String, Int> = emptyMap(),
+    val modesPlayedCount: Int = 0,
+    val unlockedMedalIds: Set<String> = emptySet(),
+    val achievementsCount: Int = 0,
+    val hasSixSeven: Boolean = false,
+    val totalTimeMillis: Long = 0L,
     val isSynced: Boolean = true
 )
 
@@ -263,7 +367,7 @@ data class GameState(
     val newlyUnlockedAchievement: AchievementDef? = null,
     val hasSavedGameInRoom: Boolean = false,
     val savedGameDayName: String = "",
-    val lastCompletedMode: String = "La Semana",
+    val lastCompletedMode: String = GameModes.LA_SEMANA,
     val lastModeSummary: String = "",
     val lastEarnedScore: Int = 0,
     val betMomMoneyOnTuesday: Boolean = false,
@@ -289,21 +393,18 @@ data class GameState(
     }
 
     /**
-     * Calcula el puntaje competitivo combinando ahorro conservado, ausencia de deuda,
-     * puntos de bienestar, logros y bonus por velocidad de respuesta (evita empates).
+     * Calcula el puntaje puro del modo "La Semana" (sin medallas, ya que las medallas
+     * se suman por separado en el Ranking Global junto a los mejores puntajes de cada modo).
      */
     fun calculateCompetitiveScore(): Int {
         val netMoneyScore = ((currentSavings - currentDebt) / 5).coerceAtLeast(-5000)
         val wellbeingBonus = wellbeingPoints * 120
         val accuracyBonus = correctDecisionsCount * 600
-        val achievementsBonus = sessionAchievementIds.sumOf { id ->
-            AchievementsCatalog.findById(id)?.bonusPoints ?: 400
-        }
-        // Bonus de velocidad: máximo 175 segundos (7 días * 25s). Cada segundo ahorrado suma 18 pts.
+        // Bonus de velocidad: máximo 175 segundos (7 días * 25s). Cada segundo ahorrado suma 20 pts.
         val maxTimeMillis = 175_000L
         val savedMillis = (maxTimeMillis - totalDecisionTimeMillis).coerceAtLeast(0L)
         val speedBonus = (savedMillis / 100L).toInt() * 2
 
-        return (netMoneyScore + wellbeingBonus + accuracyBonus + achievementsBonus + speedBonus).coerceAtLeast(100)
+        return (netMoneyScore + wellbeingBonus + accuracyBonus + speedBonus).coerceAtLeast(100)
     }
 }

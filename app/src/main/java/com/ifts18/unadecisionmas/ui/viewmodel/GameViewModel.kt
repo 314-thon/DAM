@@ -16,9 +16,11 @@ import com.ifts18.unadecisionmas.data.model.AchievementsCatalog
 import com.ifts18.unadecisionmas.data.model.AuthUiState
 import com.ifts18.unadecisionmas.data.model.DecisionOption
 import com.ifts18.unadecisionmas.data.model.DecisionRecord
+import com.ifts18.unadecisionmas.data.model.GameModes
 import com.ifts18.unadecisionmas.data.model.GameScenario
 import com.ifts18.unadecisionmas.data.model.GameState
 import com.ifts18.unadecisionmas.data.model.PlayerProfile
+import com.ifts18.unadecisionmas.data.model.PlayerRankingSummary
 import com.ifts18.unadecisionmas.data.model.RankingEntry
 import com.ifts18.unadecisionmas.data.model.RouletteGameState
 import com.ifts18.unadecisionmas.data.model.SlotSymbol
@@ -31,6 +33,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -57,11 +60,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val _rouletteState = MutableStateFlow(RouletteGameState())
     val rouletteState: StateFlow<RouletteGameState> = _rouletteState.asStateFlow()
 
-    val rankingList: StateFlow<List<RankingEntry>> = rankingRepository.rankingList
+    val rankingList: StateFlow<List<PlayerRankingSummary>> = rankingRepository.rankingList
+    val currentUserRanking: StateFlow<PlayerRankingSummary?> = rankingRepository.currentUserSummary
     val isFirebaseOnline: StateFlow<Boolean> = rankingRepository.isOnlineSynced
     val firebaseStatusText: StateFlow<String> = rankingRepository.connectionStatusMessage
 
     private var scenarios: List<GameScenario> = GameScenariosRepository.getScenarios(_gameState.value.profile.name)
+
+    @Volatile
+    private var isResumingSavedGame = false
 
     init {
         observeRoomState()
@@ -203,16 +210,39 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 _gameState.update { current ->
                     current.copy(unlockedAchievementIds = ids)
                 }
+                syncCurrentMedalsToRanking(ids)
             }
         }
 
         viewModelScope.launch {
-            uidFlow.flatMapLatest { uid ->
-                if (uid.isBlank()) flowOf(emptyList()) else gameDao.observeTopScoresByUid(uid)
-            }.collect { scores ->
-                val bestByMode = scores
-                    .groupBy { it.gameMode }
-                    .mapValues { (_, list) -> list.maxOfOrNull { it.score } ?: 0 }
+            authState
+                .map { Triple(it.uid, it.isAuthenticated, it.needsNicknameSetup) }
+                .distinctUntilChanged()
+                .collect { (uid, isAuth, needsSetup) ->
+                    if (isAuth && uid.isNotBlank() && !needsSetup) {
+                        syncCurrentMedalsToRanking()
+                    }
+                }
+        }
+
+        viewModelScope.launch {
+            combine(
+                uidFlow.flatMapLatest { uid ->
+                    if (uid.isBlank()) flowOf(emptyList()) else gameDao.observeTopScoresByUid(uid)
+                },
+                rankingRepository.currentUserSummary
+            ) { scores, remoteSummary ->
+                val bestByMode = LinkedHashMap<String, Int>()
+                for (entry in scores) {
+                    val canonical = GameModes.canonicalize(entry.gameMode)
+                    bestByMode[canonical] = maxOf(bestByMode[canonical] ?: 0, entry.score)
+                }
+                remoteSummary?.bestScoreByMode?.forEach { (mode, score) ->
+                    val canonical = GameModes.canonicalize(mode)
+                    bestByMode[canonical] = maxOf(bestByMode[canonical] ?: 0, score)
+                }
+                bestByMode
+            }.collect { bestByMode ->
                 _gameState.update { current ->
                     current.copy(bestScoresByMode = bestByMode)
                 }
@@ -239,6 +269,23 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 authRepository.pushAchievementToCloud(uid, local.achievementId, local.unlockedAt)
             }
         }
+        val mergedIds = localAchievements.map { it.achievementId }.toSet()
+        syncCurrentMedalsToRanking(mergedIds)
+    }
+
+    private fun syncCurrentMedalsToRanking(unlockedIdsOverride: Set<String>? = null) {
+        val currentAuth = authState.value
+        val uid = currentAuth.uid
+        if (!currentAuth.isAuthenticated || uid.isBlank() || currentAuth.needsNicknameSetup) return
+        val state = _gameState.value
+        val medalIds = unlockedIdsOverride ?: state.unlockedAchievementIds
+        rankingRepository.syncLocalUserMedals(
+            uid = uid,
+            playerName = state.profile.name,
+            avatarIndex = FirebaseRankingRepository.avatarResToIndex(state.profile.avatarResId),
+            unlockedMedalIds = medalIds,
+            allowRemotePush = true
+        )
     }
 
     fun setPlayerProfile(name: String, avatarResId: Int) {
@@ -267,6 +314,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 )
             )
         }
+        syncCurrentMedalsToRanking()
     }
 
     fun signInAnonymously(nickname: String, avatarResId: Int) {
@@ -313,6 +361,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             .remove(KEY_PREF_AVATAR_INDEX)
             .apply()
         authRepository.signOut()
+        rankingRepository.clearLocalUserContext()
         _slotsState.value = SlotsGameState()
         _rouletteState.value = RouletteGameState()
         _gameState.update { current ->
@@ -406,38 +455,43 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun resumeSavedGameFromRoom(onLoaded: () -> Unit) {
         val uid = authState.value.uid
-        if (uid.isBlank()) return
+        if (uid.isBlank() || isResumingSavedGame) return
+        isResumingSavedGame = true
         viewModelScope.launch {
-            val saved = gameDao.getSavedGame(uid) ?: return@launch
-            scenarios = GameScenariosRepository.getScenarios(saved.playerName)
-            val history = SavedGameEntity.deserializeHistory(saved.serializedHistory)
-            val restoredSessionAchievements = saved.serializedSessionAchievements
-                .split(",")
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
-                .toSet()
+            try {
+                val saved = gameDao.getSavedGame(uid) ?: return@launch
+                scenarios = GameScenariosRepository.getScenarios(saved.playerName)
+                val history = SavedGameEntity.deserializeHistory(saved.serializedHistory)
+                val restoredSessionAchievements = saved.serializedSessionAchievements
+                    .split(",")
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .toSet()
 
-            SoundManager.stopGameOverSequence()
-            SoundManager.startBgMusic()
+                SoundManager.stopGameOverSequence()
+                SoundManager.startBgMusic()
 
-            _gameState.update { current ->
-                current.copy(
-                    profile = PlayerProfile(saved.playerName, saved.avatarResId),
-                    currentDayIndex = saved.currentDayIndex.coerceIn(0, scenarios.lastIndex),
-                    currentDebt = saved.currentDebt,
-                    currentSavings = saved.currentSavings,
-                    wellbeingPoints = saved.wellbeingPoints,
-                    correctDecisionsCount = saved.correctDecisionsCount,
-                    incorrectDecisionsCount = saved.incorrectDecisionsCount,
-                    totalDecisionTimeMillis = saved.totalDecisionTimeMillis,
-                    decisionHistory = history,
-                    sessionAchievementIds = restoredSessionAchievements,
-                    betMomMoneyOnTuesday = saved.betMomMoneyOnTuesday,
-                    lastCompletedMode = "La Semana",
-                    isGameOver = false
-                )
+                _gameState.update { current ->
+                    current.copy(
+                        profile = PlayerProfile(saved.playerName, saved.avatarResId),
+                        currentDayIndex = saved.currentDayIndex.coerceIn(0, scenarios.lastIndex),
+                        currentDebt = saved.currentDebt,
+                        currentSavings = saved.currentSavings,
+                        wellbeingPoints = saved.wellbeingPoints,
+                        correctDecisionsCount = saved.correctDecisionsCount,
+                        incorrectDecisionsCount = saved.incorrectDecisionsCount,
+                        totalDecisionTimeMillis = saved.totalDecisionTimeMillis,
+                        decisionHistory = history,
+                        sessionAchievementIds = restoredSessionAchievements,
+                        betMomMoneyOnTuesday = saved.betMomMoneyOnTuesday,
+                        lastCompletedMode = "La Semana",
+                        isGameOver = false
+                    )
+                }
+                onLoaded()
+            } finally {
+                isResumingSavedGame = false
             }
-            onLoaded()
         }
     }
 
@@ -636,6 +690,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
      * Teletransporta al jugador al "Lunes siguiente" tras cumplir su fin de semana sin celular.
      */
     fun restartToNextMondayAfterPunishment() {
+        if (!_gameState.value.isPunishedNoPhone) return
         SoundManager.stopGameOverSequence()
         SoundManager.stopHeartbeat()
         SoundManager.resetMusicSpeed()
@@ -673,6 +728,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun finishPunishedWeekToResults() {
         val current = _gameState.value
+        if (!current.isPunishedNoPhone) return
         val finalScore = current.calculateCompetitiveScore()
         _gameState.update { state ->
             state.copy(
@@ -738,12 +794,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         val updatedState = _gameState.value
         val finalScore = updatedState.calculateCompetitiveScore()
+        _gameState.update { it.copy(lastEarnedScore = finalScore) }
         if (finalScore == 6767 || finalScore % 100 == 67) {
             unlockAchievement(AchievementsCatalog.ID_SIXSEVEN)
         }
 
         handleGameOverSound(isWon = finalDebt == 0)
-        submitCurrentStateToRanking(modeName = "La Semana", customScore = finalScore)
+        submitCurrentStateToRanking(modeName = GameModes.LA_SEMANA, customScore = finalScore)
     }
 
     /**
@@ -754,23 +811,21 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         adTrapsClicked: Int,
         elapsedMillis: Long
     ) {
-        val sessionEarned = if (adsShakenOff >= 1) {
+        if (adsShakenOff >= 1) {
             unlockAchievement(
                 AchievementsCatalog.ID_EVITANDO_TENTACION,
                 resetSessionTo = setOf(AchievementsCatalog.ID_EVITANDO_TENTACION)
             )
-            setOf(AchievementsCatalog.ID_EVITANDO_TENTACION)
         } else {
             _gameState.update { it.copy(sessionAchievementIds = emptySet()) }
-            emptySet()
         }
 
         val addedDebt = adTrapsClicked * 4000
         val savings = (15000 + (adsShakenOff * 1500) - addedDebt).coerceAtLeast(0)
         val wellbeing = (40 + adsShakenOff * 12 - adTrapsClicked * 15).coerceAtLeast(10)
         val speedBonus = ((45_000L - elapsedMillis).coerceAtLeast(0L) / 25L).toInt()
-        val score = (savings / 2) + (adsShakenOff * 1400) - (adTrapsClicked * 1800) + speedBonus +
-                (sessionEarned.size * 600)
+        val score = ((savings / 2) + (adsShakenOff * 1400) - (adTrapsClicked * 1800) + speedBonus)
+            .coerceAtLeast(250)
 
         val summary = if (adTrapsClicked == 0) {
             "Terminaste el feed y frenaste $adsShakenOff anuncios sin caer en trampas."
@@ -787,15 +842,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 incorrectDecisionsCount = adTrapsClicked,
                 totalDecisionTimeMillis = elapsedMillis,
                 decisionHistory = emptyList(),
-                lastCompletedMode = "Scroll sin Caer",
+                lastCompletedMode = GameModes.SCROLL_SIN_CAER,
                 lastModeSummary = summary,
-                lastEarnedScore = score.coerceAtLeast(250),
+                lastEarnedScore = score,
                 isGameOver = true
             )
         }
 
         handleGameOverSound(isWon = adTrapsClicked == 0)
-        submitCurrentStateToRanking(modeName = "Scroll sin Caer", customScore = score.coerceAtLeast(250))
+        submitCurrentStateToRanking(modeName = GameModes.SCROLL_SIN_CAER, customScore = score)
     }
 
     fun updateSlotsProgress(state: SlotsGameState) {
@@ -864,18 +919,17 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val isWon = stoppedEarly || realMoneyLost == 0
         val savings = (15000 - realMoneyLost + (if (stoppedEarly) remainingBonusChips * 500 else 0)).coerceAtLeast(0)
         val wellbeing = if (stoppedEarly) 85 else 55
-        val score = (if (stoppedEarly) 11500 else 7800) +
+        val score = ((if (stoppedEarly) 11500 else 7800) +
                 (remainingBonusChips * 450) -
-                (realMoneyLost / 2) +
-                (sessionEarned.size * 600)
+                (realMoneyLost / 2)).coerceAtLeast(400)
 
         val summary = when {
             realMoneyLost > 0 ->
-                "Cargaste $$realMoneyLost reales ($1.000 descontados en comisiones) y la máquina maniatada te vació sin dejarte llegar al mínimo de retiro ($30.000)."
+                "Cargaste $$realMoneyLost reales ($1.000 en comisiones): te dio premios chicos para engancharte y te vació antes del mínimo de retiro ($30.000)."
             stoppedEarly ->
-                "Te plantaste tras $spinsUsed giros antes de agotar el bono ni caer en depósitos con comisiones."
+                "Te plantaste tras $spinsUsed giros sin depositar ni pagar comisiones."
             else ->
-                "Jugaste $spinsUsed giros sin depositar: comprobaste que el algoritmo da premios chicos pero nunca alcanza el mínimo de retiro ($30.000)."
+                "Jugaste $spinsUsed giros sin depositar: te acercó con casi-aciertos pero nunca alcanzó el mínimo de retiro ($30.000)."
         }
 
         _slotsState.value = SlotsGameState()
@@ -895,15 +949,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 incorrectDecisionsCount = if (stoppedEarly) 0 else 2,
                 totalDecisionTimeMillis = elapsedMillis,
                 decisionHistory = emptyList(),
-                lastCompletedMode = "Trampa del Jackpot",
+                lastCompletedMode = GameModes.TRAMPA_JACKPOT,
                 lastModeSummary = summary,
-                lastEarnedScore = score.coerceAtLeast(400),
+                lastEarnedScore = score,
                 isGameOver = true
             )
         }
 
         handleGameOverSound(isWon = isWon)
-        submitCurrentStateToRanking(modeName = "Trampa del Jackpot", customScore = score.coerceAtLeast(400))
+        submitCurrentStateToRanking(modeName = GameModes.TRAMPA_JACKPOT, customScore = score)
     }
 
     /**
@@ -922,18 +976,17 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val isWon = stoppedEarly || realMoneyLost == 0
         val savings = (15000 - realMoneyLost + (if (stoppedEarly) remainingBonusChips * 550 else 0)).coerceAtLeast(0)
         val wellbeing = if (stoppedEarly) 88 else 52
-        val score = (if (stoppedEarly) 11800 else 7600) +
+        val score = ((if (stoppedEarly) 11800 else 7600) +
                 (remainingBonusChips * 480) -
-                (realMoneyLost / 2) +
-                (sessionEarned.size * 600)
+                (realMoneyLost / 2)).coerceAtLeast(400)
 
         val summary = when {
             realMoneyLost > 0 ->
-                "Cargaste $$realMoneyLost reales ($1.000 descontados en comisiones) y la ruleta maniatada te vació sin dejarte alcanzar el mínimo de retiro ($30.000)."
+                "Cargaste $$realMoneyLost reales ($1.000 en comisiones): te dejó ganar un poco para que sigas jugando y te vació antes del retiro ($30.000)."
             stoppedEarly ->
-                "Te plantaste tras $spinsUsed rondas antes de caer en comisiones ni depósitos reales."
+                "Te plantaste tras $spinsUsed rondas sin poner plata real ni pagar comisiones."
             else ->
-                "Jugaste $spinsUsed rondas sin depositar y comprobaste cómo la banca bloquea el mínimo de retiro ($30.000)."
+                "Jugaste $spinsUsed rondas sin depositar y comprobaste cómo siempre te frena antes del retiro mínimo ($30.000)."
         }
 
         _rouletteState.value = RouletteGameState()
@@ -953,15 +1006,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 incorrectDecisionsCount = if (stoppedEarly) 0 else 2,
                 totalDecisionTimeMillis = elapsedMillis,
                 decisionHistory = emptyList(),
-                lastCompletedMode = "La Ruleta del 29",
+                lastCompletedMode = GameModes.LA_RULETA_29,
                 lastModeSummary = summary,
-                lastEarnedScore = score.coerceAtLeast(400),
+                lastEarnedScore = score,
                 isGameOver = true
             )
         }
 
         handleGameOverSound(isWon = isWon)
-        submitCurrentStateToRanking(modeName = "La Ruleta del 29", customScore = score.coerceAtLeast(400))
+        submitCurrentStateToRanking(modeName = GameModes.LA_RULETA_29, customScore = score)
     }
 
     private fun submitCurrentStateToRanking(modeName: String, customScore: Int) {
@@ -976,8 +1029,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             totalTimeMillis = current.totalDecisionTimeMillis.coerceAtLeast(1000L),
             achievementsCount = current.sessionAchievementIds.size,
             hasSixSeven = current.unlockedAchievementIds.contains(AchievementsCatalog.ID_SIXSEVEN),
-            gameMode = modeName,
-            timestamp = System.currentTimeMillis()
+            gameMode = GameModes.canonicalize(modeName),
+            timestamp = System.currentTimeMillis(),
+            scoreVersion = RankingEntry.CURRENT_SCORE_VERSION
         )
         viewModelScope.launch {
             rankingRepository.submitScore(entry)
@@ -992,6 +1046,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if (uid.isBlank()) return
         val def = AchievementsCatalog.findById(achievementId) ?: return
         val alreadyUnlocked = _gameState.value.unlockedAchievementIds.contains(achievementId)
+        val updatedAlbum = _gameState.value.unlockedAchievementIds + achievementId
 
         _gameState.update { state ->
             val updatedSession = resetSessionTo ?: (state.sessionAchievementIds + achievementId)
@@ -1001,6 +1056,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 newlyUnlockedAchievement = if (!alreadyUnlocked) def else state.newlyUnlockedAchievement
             )
         }
+
+        syncCurrentMedalsToRanking(updatedAlbum)
 
         if (!alreadyUnlocked) {
             val now = System.currentTimeMillis()

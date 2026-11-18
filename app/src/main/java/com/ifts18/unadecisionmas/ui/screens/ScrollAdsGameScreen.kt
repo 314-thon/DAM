@@ -367,6 +367,8 @@ fun ScrollAdsGameScreen(
     var trapsClickedCount by remember { mutableIntStateOf(0) }
     var remainingSeconds by remember { mutableIntStateOf(60) }
     var showIntroPopup by remember { mutableStateOf(true) }
+    var hasFinished by remember { mutableStateOf(false) }
+    var isLeavingScreen by remember { mutableStateOf(false) }
     val shakeWobble = remember { Animatable(0f) }
 
     var isLifecycleResumed by remember { mutableStateOf(true) }
@@ -481,7 +483,10 @@ fun ScrollAdsGameScreen(
                 remainingSeconds--
             }
         }
-        onGameFinished(adsShakenCount, trapsClickedCount, currentForegroundElapsed())
+        if (!hasFinished && !isLeavingScreen) {
+            hasFinished = true
+            onGameFinished(adsShakenCount, trapsClickedCount, currentForegroundElapsed())
+        }
     }
 
     val isFeedInteractive = activeAd == null && !showIntroPopup
@@ -505,7 +510,15 @@ fun ScrollAdsGameScreen(
         ) {
             IgFeedTopBar(
                 playerName = playerName,
-                onBackToHub = onBackToHub
+                onBackToHub = {
+                    if (!hasFinished && !isLeavingScreen &&
+                        lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+                    ) {
+                        isLeavingScreen = true
+                        SoundManager.playClick()
+                        onBackToHub()
+                    }
+                }
             )
 
             IgStoriesStrip(stories = igStories)
@@ -562,9 +575,12 @@ fun ScrollAdsGameScreen(
                     .height(54.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
-                    .clickable(enabled = isFeedInteractive) {
-                        SoundManager.playClick()
-                        onGameFinished(adsShakenCount, trapsClickedCount, currentForegroundElapsed())
+                    .clickable(enabled = isFeedInteractive && !hasFinished && !isLeavingScreen) {
+                        if (!hasFinished && !isLeavingScreen) {
+                            hasFinished = true
+                            SoundManager.playClick()
+                            onGameFinished(adsShakenCount, trapsClickedCount, currentForegroundElapsed())
+                        }
                     },
                 contentAlignment = Alignment.Center
             ) {
@@ -1039,7 +1055,6 @@ private fun IgFeedTopBar(
                     .size(23.dp)
                     .clip(CircleShape)
                     .clickable {
-                        SoundManager.playClick()
                         onBackToHub()
                     }
             )

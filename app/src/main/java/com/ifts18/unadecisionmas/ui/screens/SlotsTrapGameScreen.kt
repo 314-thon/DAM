@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -126,12 +127,37 @@ private fun resolveSlotSpinPlan(
     spinNumber: Int,
     betAmount: Int,
     balanceBeforeSpin: Int,
-    realMoneyLost: Int
+    realMoneyLost: Int,
+    postDepositSpins: Int = 0,
+    postDepositWins: Int = 0
 ): SlotSpinPlan {
-    // Fase post-depósito: drena el saldo real cargado
+    // Fase post-depósito: 2 premios reales garantizados (giros 1 y 3 tras cargar) para que vuelvas a confiar;
+    // después drena el saldo real cargado
     if (realMoneyLost > 0) {
-        return when (spinNumber % 3) {
-            1 -> SlotSpinPlan(
+        val postSpin = postDepositSpins + 1
+        val hookProfit = ((betAmount * 1.5) / 250.0).toInt().coerceAtLeast(1) * 250
+        val canSafelyWin = balanceBeforeSpin + hookProfit <= SLOTS_SAFE_CEILING
+        val owesHookWin = postDepositWins < 2 && (postSpin % 2 == 1 || postSpin >= 4)
+
+        if (owesHookWin && canSafelyWin) {
+            val isFirstHook = postDepositWins == 0
+            val winSymbol = if (isFirstHook) SlotSymbol.CHERRY else SlotSymbol.BELL
+            val winLabel = if (isFirstHook) "Cereza" else "Campana"
+            return SlotSpinPlan(
+                type = SlotSpinOutcomeType.WIN,
+                reel1 = winSymbol,
+                reel2 = winSymbol,
+                reel3 = winSymbol,
+                lockedDelta = hookProfit,
+                banner = "¡Línea x3 $winLabel! +${formatSlotsPesos(hookProfit)}",
+                stageTitle = "Saldo disponible: ${formatSlotsPesos(balanceBeforeSpin + hookProfit)}",
+                explanation = "¡Premio acreditado! Seguí girando para sumar más saldo."
+            )
+        }
+
+        val drainPhase = if (postSpin <= 2) 0 else (postSpin - 4).coerceAtLeast(0) % 3
+        return when {
+            drainPhase == 0 -> SlotSpinPlan(
                 type = SlotSpinOutcomeType.NEAR_MISS_TOP,
                 reel1 = SlotSymbol.SEVEN,
                 reel2 = SlotSymbol.SEVEN,
@@ -141,10 +167,9 @@ private fun resolveSlotSpinPlan(
                 stageTitle = "Saldo disponible: ${formatSlotsPesos((balanceBeforeSpin - betAmount).let { if (it < SLOTS_MIN_BET) 0 else it })}",
                 explanation = "Te faltó 1 símbolo para el premio mayor."
             )
-            2 -> {
-                val partialReturn = ((betAmount * 0.4) / 250.0).toInt() * 250
-                val displayReturn = if (partialReturn > 0) partialReturn else 100
-                val netLoss = (betAmount - displayReturn).coerceAtLeast(SLOTS_MIN_BET / 2)
+            drainPhase == 1 && balanceBeforeSpin > betAmount -> {
+                val displayReturn = ((betAmount * 0.5) / 500.0).toInt().coerceAtLeast(1) * 500
+                val netLoss = (betAmount - displayReturn).coerceAtLeast(SLOTS_MIN_BET)
                 val after = (balanceBeforeSpin - netLoss).let { if (it < SLOTS_MIN_BET) 0 else it }
                 SlotSpinPlan(
                     type = SlotSpinOutcomeType.LDW,
@@ -343,8 +368,11 @@ fun SlotsTrapGameScreen(
     var turboEnabled by remember { mutableStateOf(false) }
     var showDepositModal by remember { mutableStateOf(false) }
     var showWithdrawModal by remember { mutableStateOf(false) }
-    val slotBetOptions = remember { listOf(250, 500, 1000) }
-    var selectedBetIndex by remember { mutableStateOf(1) } // $500 por defecto
+    var postDepositSpins by remember { mutableIntStateOf(0) }
+    var postDepositWins by remember { mutableIntStateOf(0) }
+    // Montos altos para que la partida sea corta y se vea plata real ganándose o perdiéndose
+    val slotBetOptions = remember { listOf(1000, 2000, 4000) }
+    var selectedBetIndex by remember { mutableStateOf(1) } // $2.000 por defecto
 
     val currentBalance = effectiveSlotsBalance(state)
     val canAffordSpin = currentBalance >= SLOTS_MIN_BET
@@ -354,6 +382,7 @@ fun SlotsTrapGameScreen(
     var activeBeforePauseMillis by remember { mutableStateOf(state.elapsedMillis) }
     var isLifecycleResumed by remember { mutableStateOf(true) }
     var hasFinished by remember { mutableStateOf(false) }
+    var isLeavingScreen by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -391,6 +420,19 @@ fun SlotsTrapGameScreen(
         return activeBeforePauseMillis + extra
     }
 
+    fun finishSlotsGame(stoppedEarly: Boolean, remainingChips: Int) {
+        if (hasFinished || isLeavingScreen) return
+        SoundManager.playClick()
+        hasFinished = true
+        onGameFinished(
+            stoppedEarly,
+            currentState.spinsUsed,
+            remainingChips,
+            currentState.realMoneyLost,
+            currentTotalElapsed()
+        )
+    }
+
     fun buildNextSpinState(
         snapshot: SlotsGameState,
         nextSpinNumber: Int,
@@ -424,14 +466,27 @@ fun SlotsTrapGameScreen(
 
         var spinBetAmount = slotBetOptions[selectedBetIndex]
         if (spinBetAmount > balanceBeforeSpin) {
-            val affordableIdx = slotBetOptions.indexOfLast { it <= balanceBeforeSpin }.coerceAtLeast(0)
-            selectedBetIndex = affordableIdx
-            spinBetAmount = slotBetOptions[affordableIdx]
+            val affordableIdx = slotBetOptions.indexOfLast { it <= balanceBeforeSpin }
+            if (affordableIdx >= 0) {
+                selectedBetIndex = affordableIdx
+                spinBetAmount = slotBetOptions[affordableIdx]
+            } else {
+                // Resto menor a la apuesta mínima: se juega lo que queda
+                selectedBetIndex = 0
+                spinBetAmount = balanceBeforeSpin
+            }
         }
 
         val nextSpinNumber = snapshot.spinsUsed + 1
         val turboSnapshot = turboEnabled
-        val nextPlan = resolveSlotSpinPlan(nextSpinNumber, spinBetAmount, balanceBeforeSpin, snapshot.realMoneyLost)
+        val nextPlan = resolveSlotSpinPlan(
+            spinNumber = nextSpinNumber,
+            betAmount = spinBetAmount,
+            balanceBeforeSpin = balanceBeforeSpin,
+            realMoneyLost = snapshot.realMoneyLost,
+            postDepositSpins = postDepositSpins,
+            postDepositWins = postDepositWins
+        )
         val isNearMissSpin = nextPlan.type == SlotSpinOutcomeType.NEAR_MISS_TOP ||
             nextPlan.type == SlotSpinOutcomeType.NEAR_MISS_BOTTOM
         val nextState = buildNextSpinState(snapshot, nextSpinNumber, balanceBeforeSpin, nextPlan)
@@ -569,6 +624,12 @@ fun SlotsTrapGameScreen(
                     selectedBetIndex = slotBetOptions.indexOfLast { it <= nextState.fakeLockedWinnings }.coerceAtLeast(0)
                 }
                 onStateChange(nextState)
+                if (snapshot.realMoneyLost > 0) {
+                    postDepositSpins += 1
+                    if (nextPlan.type == SlotSpinOutcomeType.WIN) {
+                        postDepositWins += 1
+                    }
+                }
 
                 when (nextPlan.type) {
                     SlotSpinOutcomeType.WIN, SlotSpinOutcomeType.LDW -> SoundManager.playSlotWinChime()
@@ -634,7 +695,16 @@ fun SlotsTrapGameScreen(
                     modifier = Modifier.weight(1f)
                 ) {
                     IconButton(
-                        onClick = onBackToHub,
+                        enabled = !hasFinished && !isLeavingScreen,
+                        onClick = {
+                            if (!hasFinished && !isLeavingScreen &&
+                                lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+                            ) {
+                                isLeavingScreen = true
+                                SoundManager.playClick()
+                                onBackToHub()
+                            }
+                        },
                         modifier = Modifier.size(30.dp)
                     ) {
                         Icon(
@@ -920,7 +990,11 @@ fun SlotsTrapGameScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Apuesta:",
+                            text = if (currentBalance < slotBetOptions.first()) {
+                                "Restan ${formatSlotsPesos(currentBalance)}:"
+                            } else {
+                                "Apuesta:"
+                            },
                             fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 11.5.sp,
@@ -1020,16 +1094,11 @@ fun SlotsTrapGameScreen(
                                     .height(46.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
-                                    .clickable(enabled = !isSpinning) {
-                                        SoundManager.playClick()
-                                        hasFinished = true
+                                    .clickable(enabled = !isSpinning && !hasFinished && !isLeavingScreen) {
                                         val stoppedBeforeDrain = canAffordSpin && state.realMoneyLost == 0
-                                        onGameFinished(
-                                            stoppedBeforeDrain,
-                                            state.spinsUsed,
-                                            (currentBalance / 500).coerceIn(0, 10),
-                                            state.realMoneyLost,
-                                            currentTotalElapsed()
+                                        finishSlotsGame(
+                                            stoppedEarly = stoppedBeforeDrain,
+                                            remainingChips = (currentBalance / 500).coerceIn(0, 10)
                                         )
                                     },
                                 contentAlignment = Alignment.Center
@@ -1105,15 +1174,10 @@ fun SlotsTrapGameScreen(
                                         .height(42.dp)
                                         .clip(RoundedCornerShape(11.dp))
                                         .background(Brush.horizontalGradient(listOf(VerdeExito, BordeCyan)))
-                                        .clickable {
-                                            SoundManager.playClick()
-                                            hasFinished = true
-                                            onGameFinished(
-                                                false,
-                                                state.spinsUsed,
-                                                (currentBalance / 500).coerceIn(0, 10),
-                                                state.realMoneyLost,
-                                                currentTotalElapsed()
+                                        .clickable(enabled = !hasFinished && !isLeavingScreen) {
+                                            finishSlotsGame(
+                                                stoppedEarly = false,
+                                                remainingChips = (currentBalance / 500).coerceIn(0, 10)
                                             )
                                         },
                                     contentAlignment = Alignment.Center
@@ -1153,16 +1217,8 @@ fun SlotsTrapGameScreen(
                                 .clip(RoundedCornerShape(11.dp))
                                 .background(RojoAlerta.copy(alpha = 0.28f))
                                 .border(1.2.dp, RojoAlerta, RoundedCornerShape(11.dp))
-                                .clickable {
-                                    SoundManager.playClick()
-                                    hasFinished = true
-                                    onGameFinished(
-                                        false,
-                                        state.spinsUsed,
-                                        0,
-                                        state.realMoneyLost,
-                                        currentTotalElapsed()
-                                    )
+                                .clickable(enabled = !hasFinished && !isLeavingScreen) {
+                                    finishSlotsGame(stoppedEarly = false, remainingChips = 0)
                                 }
                                 .padding(horizontal = 12.dp),
                             contentAlignment = Alignment.Center
@@ -1201,7 +1257,9 @@ fun SlotsTrapGameScreen(
             currentBalance = currentBalance,
             onConfirmDeposit = { totalPaid, creditedAmount ->
                 showDepositModal = false
-                selectedBetIndex = slotBetOptions.indexOfLast { it <= creditedAmount }.coerceAtLeast(1)
+                postDepositSpins = 0
+                postDepositWins = 0
+                selectedBetIndex = slotBetOptions.indexOfLast { it <= creditedAmount / 2 }.coerceAtLeast(0)
                 lastOutcomeType = null
                 onStateChange(
                     currentState.copy(

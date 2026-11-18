@@ -940,11 +940,13 @@ fun WelcomeScreen(
                         ) {
                             VisualGameCard(
                                 spec = cards[0],
+                                bestScore = bestScoresByMode[cards[0].modeKey] ?: 0,
                                 cardHeight = cardImageHeight,
                                 modifier = Modifier.weight(1f)
                             )
                             VisualGameCard(
                                 spec = cards[1],
+                                bestScore = bestScoresByMode[cards[1].modeKey] ?: 0,
                                 cardHeight = cardImageHeight,
                                 modifier = Modifier.weight(1f)
                             )
@@ -959,11 +961,13 @@ fun WelcomeScreen(
                         ) {
                             VisualGameCard(
                                 spec = cards[2],
+                                bestScore = bestScoresByMode[cards[2].modeKey] ?: 0,
                                 cardHeight = cardImageHeight,
                                 modifier = Modifier.weight(1f)
                             )
                             VisualGameCard(
                                 spec = cards[3],
+                                bestScore = bestScoresByMode[cards[3].modeKey] ?: 0,
                                 cardHeight = cardImageHeight,
                                 modifier = Modifier.weight(1f)
                             )
@@ -1169,6 +1173,7 @@ fun WelcomeScreen(
 @Composable
 private fun VisualGameCard(
     spec: HubGameCardSpec,
+    bestScore: Int = 0,
     cardHeight: Dp = 132.dp,
     modifier: Modifier = Modifier
 ) {
@@ -1212,6 +1217,27 @@ private fun VisualGameCard(
                     )
                 )
         )
+
+        if (bestScore > 0) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(7.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0xD9050811))
+                    .border(1.dp, spec.borderAccent.copy(alpha = 0.7f), RoundedCornerShape(50))
+                    .padding(horizontal = 7.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = "$bestScore pts",
+                    fontFamily = SpaceGrotesk,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 9.5.sp,
+                    color = Color.White,
+                    maxLines = 1
+                )
+            }
+        }
 
         // 3. Nombre del juego en grande sobre el shader inferior con sombra tipográfica
         Text(

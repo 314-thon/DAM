@@ -10,6 +10,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.ifts18.unadecisionmas.data.model.DecisionRecord
 import kotlinx.coroutines.flow.Flow
 
@@ -108,7 +110,8 @@ data class LocalScoreEntity(
     val hasSixSeven: Boolean,
     val gameMode: String,
     val timestamp: Long = System.currentTimeMillis(),
-    val isSynced: Boolean = false
+    val isSynced: Boolean = false,
+    val scoreVersion: Int = 2
 )
 
 /**
@@ -175,13 +178,19 @@ interface GameDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAchievementsIfAbsent(entities: List<AchievementEntity>)
 
-    @Query("SELECT * FROM local_scores ORDER BY score DESC, totalTimeMillis ASC LIMIT 50")
+    @Query("SELECT * FROM local_scores WHERE scoreVersion >= 2 ORDER BY score DESC, totalTimeMillis ASC")
     fun observeTopScores(): Flow<List<LocalScoreEntity>>
 
-    @Query("SELECT * FROM local_scores WHERE uid = :uid ORDER BY score DESC, totalTimeMillis ASC LIMIT 50")
+    @Query("SELECT * FROM local_scores WHERE uid = :uid AND scoreVersion >= 2 ORDER BY score DESC, totalTimeMillis ASC")
     fun observeTopScoresByUid(uid: String): Flow<List<LocalScoreEntity>>
 
-    @Query("SELECT * FROM local_scores WHERE isSynced = 0 AND uid = :uid")
+    @Query("SELECT * FROM local_scores WHERE remoteId = :remoteId AND scoreVersion >= 2 ORDER BY score DESC, totalTimeMillis ASC LIMIT 1")
+    suspend fun getBestScoreByRemoteId(remoteId: String): LocalScoreEntity?
+
+    @Query("DELETE FROM local_scores WHERE remoteId = :remoteId")
+    suspend fun deleteScoresByRemoteId(remoteId: String)
+
+    @Query("SELECT * FROM local_scores WHERE isSynced = 0 AND uid = :uid AND scoreVersion >= 2")
     suspend fun getUnsyncedScores(uid: String): List<LocalScoreEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -198,7 +207,7 @@ interface GameDao {
         LocalScoreEntity::class,
         MinigameProgressEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -209,6 +218,12 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE local_scores ADD COLUMN scoreVersion INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -216,6 +231,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "juego_limpio_room.db"
                 )
+                    .addMigrations(MIGRATION_4_5)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

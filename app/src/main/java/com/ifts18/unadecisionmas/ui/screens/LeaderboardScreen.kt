@@ -1,5 +1,6 @@
 package com.ifts18.unadecisionmas.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -32,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -40,21 +42,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
 import com.ifts18.unadecisionmas.audio.SoundManager
 import com.ifts18.unadecisionmas.data.model.AchievementsCatalog
+import com.ifts18.unadecisionmas.data.model.GameModes
 import com.ifts18.unadecisionmas.data.model.GameState
-import com.ifts18.unadecisionmas.data.model.RankingEntry
+import com.ifts18.unadecisionmas.data.model.PlayerRankingSummary
 import com.ifts18.unadecisionmas.data.remote.FirebaseRankingRepository
 import com.ifts18.unadecisionmas.ui.theme.BordeCyan
 import com.ifts18.unadecisionmas.ui.theme.BordeMagenta
 import com.ifts18.unadecisionmas.ui.theme.BurbujaChat
 import com.ifts18.unadecisionmas.ui.theme.FondoGeneral
-import com.ifts18.unadecisionmas.ui.theme.RojoAlerta
 import com.ifts18.unadecisionmas.ui.theme.SpaceGrotesk
 import com.ifts18.unadecisionmas.ui.theme.TextoSecundario
 import com.ifts18.unadecisionmas.ui.theme.VerdeExito
@@ -65,7 +69,8 @@ import com.ifts18.unadecisionmas.ui.theme.VerdeExito
 @Composable
 fun LeaderboardScreen(
     gameState: GameState,
-    rankingList: List<RankingEntry>,
+    rankingList: List<PlayerRankingSummary>,
+    currentUserRanking: PlayerRankingSummary? = null,
     currentAuthUid: String = "",
     isFirebaseOnline: Boolean,
     firebaseStatusText: String,
@@ -75,6 +80,8 @@ fun LeaderboardScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember { mutableIntStateOf(initialTab) }
+    var isExiting by remember { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     Box(
         modifier = modifier
@@ -98,9 +105,15 @@ fun LeaderboardScreen(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
+                        enabled = !isExiting,
                         onClick = {
-                            SoundManager.playClick()
-                            onBack()
+                            val canPop = !isExiting &&
+                                lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+                            if (canPop) {
+                                isExiting = true
+                                SoundManager.playClick()
+                                onBack()
+                            }
                         },
                         modifier = Modifier.size(34.dp)
                     ) {
@@ -190,15 +203,54 @@ fun LeaderboardScreen(
             Spacer(modifier = Modifier.height(10.dp))
 
             if (selectedTab == 0) {
-                // PESTAÑA 1: TABLA DE RANKING EN TIEMPO REAL
+                // PESTAÑA 1: TABLA DE RANKING CONSOLIDADO EN TIEMPO REAL
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Criterio: 1.° Mayor Puntaje • 2.° Menor Tiempo (Desempate) • 3.° Medallas",
+                        text = "Total = Mejores modos + Medallas • Desempate: 1.° Total • 2.° Medallas • 3.° Tiempo",
                         fontFamily = SpaceGrotesk,
-                        fontSize = 11.5.sp,
+                        fontSize = 11.sp,
+                        lineHeight = 14.5.sp,
                         color = TextoSecundario,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
                     )
+
+                    if (currentUserRanking != null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF191C2B))
+                                .border(1.dp, BordeCyan.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Tu puntaje acumulado",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.5.sp,
+                                    color = BordeCyan
+                                )
+                                Text(
+                                    text = "Modos (${currentUserRanking.modesPlayedCount}/4): ${currentUserRanking.modesTotalScore} • Medallas (${currentUserRanking.achievementsCount}/7): +${currentUserRanking.medalsBonusScore}",
+                                    fontFamily = SpaceGrotesk,
+                                    fontSize = 10.5.sp,
+                                    color = TextoSecundario
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "${currentUserRanking.totalScore} pts",
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = VerdeExito
+                            )
+                        }
+                    }
 
                     if (rankingList.isEmpty()) {
                         Box(
@@ -212,7 +264,7 @@ fun LeaderboardScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "Todavía no hay partidas registradas.\n¡Completá un modo de juego para estrenar el ranking global!",
+                                text = "Todavía no hay partidas ni medallas registradas.\n¡Completá un modo de juego o escaneá un QR para estrenar el ranking!",
                                 fontFamily = SpaceGrotesk,
                                 fontSize = 13.sp,
                                 lineHeight = 19.sp,
@@ -322,13 +374,14 @@ fun LeaderboardScreen(
 @Composable
 private fun RankingRowItem(
     position: Int,
-    entry: RankingEntry,
+    entry: PlayerRankingSummary,
     isCurrentPlayer: Boolean
 ) {
-    val medalEmoji = "#$position"
+    var expanded by remember { mutableStateOf(false) }
+    val medalPositionLabel = "#$position"
     val secondsFormatted = "%.1fs".format(entry.totalTimeMillis / 1000f)
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
@@ -345,87 +398,163 @@ private fun RankingRowItem(
                 },
                 shape = RoundedCornerShape(14.dp)
             )
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .clickable {
+                SoundManager.playClick()
+                expanded = !expanded
+            }
+            .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
         Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.weight(1f)
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = medalEmoji,
-                fontFamily = SpaceGrotesk,
-                fontWeight = FontWeight.Bold,
-                fontSize = if (position <= 3) 20.sp else 14.sp,
-                color = Color.White,
-                modifier = Modifier.width(34.dp)
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = medalPositionLabel,
+                    fontFamily = SpaceGrotesk,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = if (position <= 3) 20.sp else 14.sp,
+                    color = if (position == 1) Color(0xFFFFD700) else Color.White,
+                    modifier = Modifier.width(34.dp)
+                )
 
-            Image(
-                painter = painterResource(
-                    id = FirebaseRankingRepository.indexToAvatarRes(entry.avatarIndex)
-                ),
-                contentDescription = entry.playerName,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .border(1.5.dp, BordeMagenta, CircleShape)
-            )
+                Image(
+                    painter = painterResource(
+                        id = FirebaseRankingRepository.indexToAvatarRes(entry.avatarIndex)
+                    ),
+                    contentDescription = entry.playerName,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .border(1.5.dp, BordeMagenta, CircleShape)
+                )
 
-            Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(10.dp))
 
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = entry.playerName,
-                        fontFamily = SpaceGrotesk,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        color = Color.White
-                    )
-                    if (entry.hasSixSeven) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(BordeMagenta.copy(alpha = 0.3f))
-                                .padding(horizontal = 5.dp, vertical = 1.dp)
-                        ) {
-                            Text(
-                                text = "67",
-                                fontFamily = SpaceGrotesk,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp,
-                                color = BordeCyan
-                            )
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = entry.playerName,
+                            fontFamily = SpaceGrotesk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color.White
+                        )
+                        if (entry.hasSixSeven) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(BordeMagenta.copy(alpha = 0.3f))
+                                    .padding(horizontal = 5.dp, vertical = 1.dp)
+                            ) {
+                                Text(
+                                    text = "67",
+                                    fontFamily = SpaceGrotesk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp,
+                                    color = BordeCyan
+                                )
+                            }
                         }
                     }
+                    Text(
+                        text = "${entry.modesPlayedCount}/4 modos (${entry.modesTotalScore}) • ${entry.achievementsCount}/7 med. (+${entry.medalsBonusScore})",
+                        fontFamily = SpaceGrotesk,
+                        fontSize = 11.sp,
+                        lineHeight = 14.sp,
+                        color = TextoSecundario
+                    )
                 }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = "${entry.gameMode} • $secondsFormatted • Deuda $${entry.debt}",
+                    text = "${entry.totalScore} pts",
                     fontFamily = SpaceGrotesk,
-                    fontSize = 11.5.sp,
-                    color = TextoSecundario
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = if (position == 1) Color(0xFFFFD700) else VerdeExito
+                )
+                Text(
+                    text = "$secondsFormatted • ${if (expanded) "Ocultar" else "Ver detalle"}",
+                    fontFamily = SpaceGrotesk,
+                    fontSize = 10.sp,
+                    color = BordeCyan
                 )
             }
         }
 
-        Column(horizontalAlignment = Alignment.End) {
-            Text(
-                text = "${entry.score} pts",
-                fontFamily = SpaceGrotesk,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-                color = if (entry.debt == 0) VerdeExito else RojoAlerta
-            )
-            Text(
-                text = "Ahorro $${entry.savings}",
-                fontFamily = SpaceGrotesk,
-                fontSize = 10.5.sp,
-                color = BordeCyan
-            )
+        AnimatedVisibility(visible = expanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                val modePairs = GameModes.allModes.chunked(2)
+                modePairs.forEach { pair ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        pair.forEach { modeName ->
+                            val modeScore = entry.bestScoreByMode[modeName]
+                            BreakdownChip(
+                                label = GameModes.shortLabel(modeName),
+                                value = if (modeScore != null) "$modeScore pts" else "Sin jugar",
+                                accent = if (modeScore != null) BordeCyan else TextoSecundario.copy(alpha = 0.6f),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+                BreakdownChip(
+                    label = "Medallas (${entry.achievementsCount}/7)",
+                    value = "+${entry.medalsBonusScore} pts",
+                    accent = if (entry.medalsBonusScore > 0) VerdeExito else TextoSecundario.copy(alpha = 0.6f),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun BreakdownChip(
+    label: String,
+    value: String,
+    accent: Color,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFF10131D))
+            .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            fontFamily = SpaceGrotesk,
+            fontSize = 10.5.sp,
+            color = TextoSecundario
+        )
+        Text(
+            text = value,
+            fontFamily = SpaceGrotesk,
+            fontWeight = FontWeight.Bold,
+            fontSize = 10.5.sp,
+            color = accent
+        )
     }
 }

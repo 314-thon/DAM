@@ -1,7 +1,11 @@
 package com.ifts18.unadecisionmas.navigation
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,8 +35,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavOptionsBuilder
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.ifts18.unadecisionmas.ui.components.AchievementBadgeIcon
 import com.ifts18.unadecisionmas.ui.screens.GameDecisionScreen
@@ -44,6 +50,7 @@ import com.ifts18.unadecisionmas.ui.screens.SlotsTrapGameScreen
 import com.ifts18.unadecisionmas.ui.screens.WelcomeScreen
 import com.ifts18.unadecisionmas.ui.theme.BordeCyan
 import com.ifts18.unadecisionmas.ui.theme.BordeMagenta
+import com.ifts18.unadecisionmas.ui.theme.FondoGeneral
 import com.ifts18.unadecisionmas.ui.theme.SpaceGrotesk
 import com.ifts18.unadecisionmas.ui.theme.VerdeExito
 import com.ifts18.unadecisionmas.ui.viewmodel.GameViewModel
@@ -65,8 +72,39 @@ fun AppNavigation(
     val slotsState by viewModel.slotsState.collectAsStateWithLifecycle()
     val rouletteState by viewModel.rouletteState.collectAsStateWithLifecycle()
     val rankingList by viewModel.rankingList.collectAsStateWithLifecycle()
+    val currentUserRanking by viewModel.currentUserRanking.collectAsStateWithLifecycle()
     val isFirebaseOnline by viewModel.isFirebaseOnline.collectAsStateWithLifecycle()
     val firebaseStatusText by viewModel.firebaseStatusText.collectAsStateWithLifecycle()
+
+    val currentNavEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = currentNavEntry?.destination?.route
+
+    fun navigateFrom(
+        expectedCurrentRoute: String,
+        targetRoute: String,
+        beforeNavigate: () -> Unit = {},
+        builder: (NavOptionsBuilder.() -> Unit)? = null
+    ) {
+        if (navController.currentBackStackEntry?.destination?.route != expectedCurrentRoute) return
+        beforeNavigate()
+        navController.navigate(targetRoute) {
+            launchSingleTop = true
+            builder?.invoke(this)
+        }
+    }
+
+    fun popSafely(expectedCurrentRoute: String) {
+        val activeRoute = navController.currentBackStackEntry?.destination?.route
+        if (activeRoute == expectedCurrentRoute && navController.previousBackStackEntry != null) {
+            navController.popBackStack(expectedCurrentRoute, inclusive = true)
+        }
+    }
+
+    fun completeMinigameToResult(expectedRoute: String, complete: () -> Unit) {
+        navigateFrom(expectedRoute, Screen.Result.route, beforeNavigate = complete) {
+            popUpTo(expectedRoute) { inclusive = true }
+        }
+    }
 
     // Auto-ocultar notificación flotante de logro recién desbloqueado tras 4 segundos
     LaunchedEffect(gameState.newlyUnlockedAchievement) {
@@ -76,10 +114,18 @@ fun AppNavigation(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(FondoGeneral)
+    ) {
         NavHost(
             navController = navController,
-            startDestination = Screen.Welcome.route
+            startDestination = Screen.Welcome.route,
+            enterTransition = { fadeIn(animationSpec = tween(180)) },
+            exitTransition = { fadeOut(animationSpec = tween(150)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(180)) },
+            popExitTransition = { fadeOut(animationSpec = tween(150)) }
         ) {
             composable(route = Screen.Welcome.route) {
                 WelcomeScreen(
@@ -126,29 +172,46 @@ fun AppNavigation(
                         viewModel.restartTutorial()
                     },
                     onStartWeekGame = { playerName, avatarResId ->
-                        viewModel.startNewWeekGame(playerName, avatarResId)
-                        navController.navigate(Screen.GameDecision.route)
+                        navigateFrom(
+                            expectedCurrentRoute = Screen.Welcome.route,
+                            targetRoute = Screen.GameDecision.route,
+                            beforeNavigate = { viewModel.startNewWeekGame(playerName, avatarResId) }
+                        )
                     },
                     onResumeSavedGame = {
-                        viewModel.resumeSavedGameFromRoom {
-                            navController.navigate(Screen.GameDecision.route)
+                        if (navController.currentBackStackEntry?.destination?.route == Screen.Welcome.route) {
+                            viewModel.resumeSavedGameFromRoom {
+                                navigateFrom(Screen.Welcome.route, Screen.GameDecision.route)
+                            }
                         }
                     },
                     onStartScrollAdsGame = { playerName, avatarResId ->
-                        viewModel.setPlayerProfile(playerName, avatarResId)
-                        navController.navigate(Screen.ScrollAdsGame.route)
+                        navigateFrom(
+                            expectedCurrentRoute = Screen.Welcome.route,
+                            targetRoute = Screen.ScrollAdsGame.route,
+                            beforeNavigate = { viewModel.setPlayerProfile(playerName, avatarResId) }
+                        )
                     },
                     onStartSlotsTrapGame = { playerName, avatarResId ->
-                        viewModel.setPlayerProfile(playerName, avatarResId)
-                        navController.navigate(Screen.SlotsTrapGame.route)
+                        navigateFrom(
+                            expectedCurrentRoute = Screen.Welcome.route,
+                            targetRoute = Screen.SlotsTrapGame.route,
+                            beforeNavigate = { viewModel.setPlayerProfile(playerName, avatarResId) }
+                        )
                     },
                     onStartRouletteTrapGame = { playerName, avatarResId ->
-                        viewModel.setPlayerProfile(playerName, avatarResId)
-                        navController.navigate(Screen.RouletteTrapGame.route)
+                        navigateFrom(
+                            expectedCurrentRoute = Screen.Welcome.route,
+                            targetRoute = Screen.RouletteTrapGame.route,
+                            beforeNavigate = { viewModel.setPlayerProfile(playerName, avatarResId) }
+                        )
                     },
                     onOpenLeaderboard = { playerName, avatarResId ->
-                        viewModel.setPlayerProfile(playerName, avatarResId)
-                        navController.navigate(Screen.Leaderboard.route)
+                        navigateFrom(
+                            expectedCurrentRoute = Screen.Welcome.route,
+                            targetRoute = Screen.Leaderboard.route,
+                            beforeNavigate = { viewModel.setPlayerProfile(playerName, avatarResId) }
+                        )
                     },
                     onQrCodeScanned = { scanned ->
                         viewModel.onQrCodeScanned(scanned)
@@ -157,11 +220,14 @@ fun AppNavigation(
             }
 
             composable(route = Screen.GameDecision.route) {
+                BackHandler(enabled = currentRoute == Screen.GameDecision.route) {
+                    popSafely(Screen.GameDecision.route)
+                }
                 GameDecisionScreen(
                     viewModel = viewModel,
                     gameState = gameState,
                     onNavigateToResult = {
-                        navController.navigate(Screen.Result.route) {
+                        navigateFrom(Screen.GameDecision.route, Screen.Result.route) {
                             popUpTo(Screen.GameDecision.route) { inclusive = true }
                         }
                     }
@@ -169,77 +235,90 @@ fun AppNavigation(
             }
 
             composable(route = Screen.ScrollAdsGame.route) {
+                BackHandler(enabled = currentRoute == Screen.ScrollAdsGame.route) {
+                    popSafely(Screen.ScrollAdsGame.route)
+                }
                 ScrollAdsGameScreen(
                     playerName = gameState.profile.name,
                     onBackToHub = {
-                        navController.popBackStack()
+                        popSafely(Screen.ScrollAdsGame.route)
                     },
                     onGameFinished = { adsShakenOff, adTrapsClicked, elapsedMillis ->
-                        viewModel.completeScrollAdsGame(
-                            adsShakenOff = adsShakenOff,
-                            adTrapsClicked = adTrapsClicked,
-                            elapsedMillis = elapsedMillis
-                        )
-                        navController.navigate(Screen.Result.route) {
-                            popUpTo(Screen.ScrollAdsGame.route) { inclusive = true }
+                        completeMinigameToResult(Screen.ScrollAdsGame.route) {
+                            viewModel.completeScrollAdsGame(
+                                adsShakenOff = adsShakenOff,
+                                adTrapsClicked = adTrapsClicked,
+                                elapsedMillis = elapsedMillis
+                            )
                         }
                     }
                 )
             }
 
             composable(route = Screen.SlotsTrapGame.route) {
+                BackHandler(enabled = currentRoute == Screen.SlotsTrapGame.route) {
+                    popSafely(Screen.SlotsTrapGame.route)
+                }
                 SlotsTrapGameScreen(
                     state = slotsState,
                     onStateChange = { updated -> viewModel.updateSlotsProgress(updated) },
                     onBackToHub = {
-                        navController.popBackStack()
+                        popSafely(Screen.SlotsTrapGame.route)
                     },
                     onGameFinished = { stoppedEarly, spinsUsed, remainingChips, realMoneyLost, elapsedMillis ->
-                        viewModel.completeSlotsTrapGame(
-                            stoppedEarly = stoppedEarly,
-                            spinsUsed = spinsUsed,
-                            remainingBonusChips = remainingChips,
-                            realMoneyLost = realMoneyLost,
-                            elapsedMillis = elapsedMillis
-                        )
-                        navController.navigate(Screen.Result.route) {
-                            popUpTo(Screen.SlotsTrapGame.route) { inclusive = true }
+                        completeMinigameToResult(Screen.SlotsTrapGame.route) {
+                            viewModel.completeSlotsTrapGame(
+                                stoppedEarly = stoppedEarly,
+                                spinsUsed = spinsUsed,
+                                remainingBonusChips = remainingChips,
+                                realMoneyLost = realMoneyLost,
+                                elapsedMillis = elapsedMillis
+                            )
                         }
                     }
                 )
             }
 
             composable(route = Screen.RouletteTrapGame.route) {
+                BackHandler(enabled = currentRoute == Screen.RouletteTrapGame.route) {
+                    popSafely(Screen.RouletteTrapGame.route)
+                }
                 RouletteTrapGameScreen(
                     state = rouletteState,
                     onStateChange = { updated -> viewModel.updateRouletteProgress(updated) },
                     onBackToHub = {
-                        navController.popBackStack()
+                        popSafely(Screen.RouletteTrapGame.route)
                     },
                     onGameFinished = { stoppedEarly, spinsUsed, remainingChips, realMoneyLost, elapsedMillis ->
-                        viewModel.completeRouletteTrapGame(
-                            stoppedEarly = stoppedEarly,
-                            spinsUsed = spinsUsed,
-                            remainingBonusChips = remainingChips,
-                            realMoneyLost = realMoneyLost,
-                            elapsedMillis = elapsedMillis
-                        )
-                        navController.navigate(Screen.Result.route) {
-                            popUpTo(Screen.RouletteTrapGame.route) { inclusive = true }
+                        completeMinigameToResult(Screen.RouletteTrapGame.route) {
+                            viewModel.completeRouletteTrapGame(
+                                stoppedEarly = stoppedEarly,
+                                spinsUsed = spinsUsed,
+                                remainingBonusChips = remainingChips,
+                                realMoneyLost = realMoneyLost,
+                                elapsedMillis = elapsedMillis
+                            )
                         }
                     }
                 )
             }
 
             composable(route = Screen.Result.route) {
+                BackHandler(enabled = currentRoute == Screen.Result.route) {
+                    popSafely(Screen.Result.route)
+                }
                 GameResultScreen(
                     gameState = gameState,
+                    currentUserRanking = currentUserRanking,
                     onOpenLeaderboard = {
-                        navController.navigate(Screen.Leaderboard.route)
+                        navigateFrom(Screen.Result.route, Screen.Leaderboard.route)
                     },
                     onRestartGame = {
-                        viewModel.restartGame()
-                        navController.navigate(Screen.Welcome.route) {
+                        navigateFrom(
+                            expectedCurrentRoute = Screen.Result.route,
+                            targetRoute = Screen.Welcome.route,
+                            beforeNavigate = { viewModel.restartGame() }
+                        ) {
                             popUpTo(Screen.Welcome.route) { inclusive = true }
                         }
                     }
@@ -247,14 +326,18 @@ fun AppNavigation(
             }
 
             composable(route = Screen.Leaderboard.route) {
+                BackHandler(enabled = currentRoute == Screen.Leaderboard.route) {
+                    popSafely(Screen.Leaderboard.route)
+                }
                 LeaderboardScreen(
                     gameState = gameState,
                     rankingList = rankingList,
+                    currentUserRanking = currentUserRanking,
                     currentAuthUid = authState.uid,
                     isFirebaseOnline = isFirebaseOnline,
                     firebaseStatusText = firebaseStatusText,
                     onRefreshRanking = { viewModel.refreshOnlineRanking() },
-                    onBack = { navController.popBackStack() }
+                    onBack = { popSafely(Screen.Leaderboard.route) }
                 )
             }
         }
